@@ -152,7 +152,7 @@ check_prerequisites() {
 deploy_infrastructure() {
     log_info "Deploying Infrastructure with Terraform..."
     
-    cd infrastructure
+    cd infrastructure/terraform
     
     # Check for terraform.tfvars
     if [ ! -f "terraform.tfvars" ]; then
@@ -175,7 +175,7 @@ deploy_infrastructure() {
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             log_error "Infrastructure deployment cancelled"
-            cd ..
+            cd ../..
             exit 1
         fi
     fi
@@ -196,7 +196,7 @@ deploy_infrastructure() {
         log_success "Function App URL: $FUNCTION_APP_URL"
     fi
     
-    cd ..
+    cd ../..
 }
 
 # Function to deploy functions

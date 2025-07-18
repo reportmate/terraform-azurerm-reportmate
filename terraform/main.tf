@@ -14,7 +14,7 @@ resource "azurerm_resource_group" "rg" {
 
 # Database Module
 module "database" {
-  source = "./modules/database"
+  source = "../modules/database"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -31,7 +31,7 @@ module "database" {
 
 # Storage Module
 module "storage" {
-  source = "./modules/storage"
+  source = "../modules/storage"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -45,7 +45,7 @@ module "storage" {
 
 # Messaging Module
 module "messaging" {
-  source = "./modules/messaging"
+  source = "../modules/messaging"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -58,7 +58,7 @@ module "messaging" {
 
 # Monitoring Module
 module "monitoring" {
-  source = "./modules/monitoring"
+  source = "../modules/monitoring"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -73,7 +73,7 @@ module "monitoring" {
 
 # Identity Module
 module "identity" {
-  source = "./modules/identity"
+  source = "../modules/identity"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -92,7 +92,7 @@ module "identity" {
 
 # API Module (Azure Functions)
 module "api" {
-  source = "./api"
+  source = "../api"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -131,7 +131,7 @@ module "api" {
 
 # Containers Module
 module "containers" {
-  source = "./modules/containers"
+  source = "../modules/containers"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -159,7 +159,7 @@ module "containers" {
 module "networking" {
   count = var.enable_custom_domain && var.custom_domain_name != "" ? 1 : 0
 
-  source = "./modules/networking"
+  source = "../modules/networking"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location

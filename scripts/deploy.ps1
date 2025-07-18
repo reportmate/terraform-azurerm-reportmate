@@ -220,7 +220,7 @@ function Test-Prerequisites {
 function Deploy-Infrastructure {
     Write-Info "Deploying Infrastructure with Terraform..."
     
-    Push-Location infrastructure
+    Push-Location (Join-Path "infrastructure" "terraform")
     try {
         # Check for terraform.tfvars
         if (-not (Test-Path "terraform.tfvars")) {
