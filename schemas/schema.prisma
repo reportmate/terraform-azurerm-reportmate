@@ -1,0 +1,433 @@
+// Enhanced Prisma Schema for ReportMate - Production Normalized Approach
+// This schema provides full normalization for better querying and analytics
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Business Units for access control and organization
+model BusinessUnit {
+  id          Int    @id @default(autoincrement())
+  name        String @unique
+  description String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  machineGroups      MachineGroup[]
+  businessUnitUsers  BusinessUnitUser[]
+  businessUnitGroups BusinessUnitGroup[]
+
+  @@map("business_units")
+}
+
+// Machine Groups for device organization and passphrase-based access
+model MachineGroup {
+  id               Int          @id @default(autoincrement())
+  name             String
+  description      String?
+  passphraseHash   String       @map("passphrase_hash") // SHA-256 hash of the group's passphrase
+  businessUnitId   Int?         @map("business_unit_id")
+  businessUnit     BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  devices Device[]
+
+  @@index([passphraseHash])
+  @@index([businessUnitId])
+  @@map("machine_groups")
+}
+
+// Business Unit User assignments (many-to-many)
+model BusinessUnitUser {
+  id             Int          @id @default(autoincrement())
+  businessUnitId Int          @map("business_unit_id")
+  businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  username       String
+  role           String       @default("user") // user, manager, archiver, admin
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([businessUnitId, username])
+  @@index([username])
+  @@map("business_unit_users")
+}
+
+// Business Unit Group assignments (many-to-many)
+model BusinessUnitGroup {
+  id             Int          @id @default(autoincrement())
+  businessUnitId Int          @map("business_unit_id")
+  businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  groupName      String       @map("group_name")
+  role           String       @default("user") // user, manager, archiver, admin
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([businessUnitId, groupName])
+  @@index([groupName])
+  @@map("business_unit_groups")
+}
+
+// Core Device model - normalized approach
+model Device {
+  id            String    @id
+  name          String
+  model         String?
+  os            String?
+  serialNumber  String?   @unique @map("serial_number") // Add unique constraint
+  assetTag      String?   @map("asset_tag")
+  ipAddress     String?   @map("ip_address")
+  macAddress    String?   @map("mac_address")
+  hostname      String?   // Add missing hostname field
+  location      String?
+  lastSeen      DateTime? @map("last_seen") @db.Timestamptz
+  status        String    @default("unknown")
+  uptime        String?
+  totalEvents   Int       @default(0) @map("total_events")
+  lastEventTime DateTime? @map("last_event_time") @db.Timestamptz
+
+  // Machine Group assignment
+  machineGroupId Int?          @map("machine_group_id")
+  machineGroup   MachineGroup? @relation(fields: [machineGroupId], references: [id], onDelete: SetNull)
+
+  // Basic hardware fields (most commonly queried)
+  processor     String?
+  memory        String?
+  graphics      String?  // Add missing graphics field
+  storage       String?
+  architecture  String?
+
+  // Granular Operating System fields
+  osName        String?   @map("os_name")        // e.g., "Windows 11 Enterprise"
+  osVersion     String?   @map("os_version")     // e.g., "24H2"
+  osBuild       String?   @map("os_build")       // e.g., "26100.4349"
+  osArchitecture String?  @map("os_architecture") // e.g., "arm64"
+
+  // System Performance Metrics
+  diskUtilization   Int?      @map("disk_utilization")
+  memoryUtilization Int?      @map("memory_utilization")
+  cpuUtilization    Int?      @map("cpu_utilization")
+  temperature       Int?
+  batteryLevel      Int?      @map("battery_level")
+  bootTime          DateTime? @map("boot_time") @db.Timestamptz
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Normalized Relations
+  events               Event[]
+  cimian               Cimian[]          // Windows managed installs via Cimian
+  munki                Munki[]           // Mac managed installs via Munki
+  hardware             DeviceHardware?
+  networkInterfaces    NetworkInterface[]
+  mdmInfo              MDMInfo?
+  securityFeatures     SecurityFeature[]
+  managedInstalls      ManagedInstall?
+  applications         Application[]
+  mdmProfiles          MDMProfile[]
+  softwareInfo         SoftwareInfo?
+
+  @@index([lastSeen])
+  @@index([status])
+  @@index([location])
+  @@index([os])
+  @@index([serialNumber])
+  @@index([machineGroupId])
+  @@map("devices")
+}
+
+// Enhanced Event model
+model Event {
+  id       String   @id
+  deviceId String   @map("device_id")
+  device   Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  kind     String
+  ts       DateTime @db.Timestamptz
+  payload  Json
+
+  // Additional event metadata
+  severity String? @default("info")
+  source   String?
+  category String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([kind, ts])
+  @@index([deviceId, ts])
+  @@index([severity])
+  @@map("events")
+}
+
+// Windows Managed Installs via Cimian
+model Cimian {
+  id       String   @id @default(uuid())
+  deviceId String   @map("device_id")
+  device   Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  ts       DateTime @db.Timestamptz
+  exitCode Int      @map("exit_code")
+  duration Int
+  details  String?
+
+  // Additional Cimian-specific metadata
+  runType           String? @map("run_type")
+  packagesInstalled Int?    @map("packages_installed")
+  packagesUpdated   Int?    @map("packages_updated")
+  packagesFailed    Int?    @map("packages_failed")
+  version           String? // Cimian version
+  errors            String?
+  warnings          String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([ts])
+  @@index([deviceId, ts])
+  @@map("cimian")
+}
+
+// Mac Managed Installs via Munki
+model Munki {
+  id       String   @id @default(uuid())
+  deviceId String   @map("device_id")
+  device   Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  ts       DateTime @db.Timestamptz
+  exitCode Int      @map("exit_code")
+  duration Int
+  details  String?
+
+  // Additional Munki-specific metadata
+  runType           String? @map("run_type")
+  packagesInstalled Int?    @map("packages_installed")
+  packagesUpdated   Int?    @map("packages_updated")
+  packagesFailed    Int?    @map("packages_failed")
+  version           String? // Munki version
+  errors            String?
+  warnings          String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([ts])
+  @@index([deviceId, ts])
+  @@map("munki")
+}
+
+// New model for Device Hardware details (normalized approach)
+model DeviceHardware {
+  id       String @id @default(uuid())
+  deviceId String @unique @map("device_id")
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  processor      String?
+  processorSpeed String? @map("processor_speed")
+  cores          Int?
+  threads        Int?
+  memory         String?
+  memorySlots    String? @map("memory_slots")
+  storage        String?
+  storageType    String? @map("storage_type")
+  graphics       String?
+  vram           String?
+  architecture   String?
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("device_hardware")
+}
+
+// New model for Device Network Interfaces
+model NetworkInterface {
+  id       String @id @default(uuid())
+  deviceId String @map("device_id")
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  name       String
+  type       String
+  status     String
+  ipAddress  String? @map("ip_address")
+  macAddress String? @map("mac_address")
+  gateway    String?
+  dns        Json?
+  speed      String?
+
+  // Wireless specific fields
+  ssid           String?
+  signalStrength Int?    @map("signal_strength")
+  channel        Int?
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([deviceId])
+  @@map("network_interfaces")
+}
+
+// New model for MDM Profiles
+model MDMProfile {
+  id       String @id
+  deviceId String @map("device_id")
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  name         String
+  description  String?
+  type         String
+  status       String
+  lastModified DateTime @map("last_modified") @db.Timestamptz
+
+  // Profile payload/configuration
+  configuration Json?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([deviceId])
+  @@index([type])
+  @@index([status])
+  @@map("mdm_profiles")
+}
+
+// MDM Information
+model MDMInfo {
+  id       String @id @default(uuid())
+  deviceId String @unique @map("device_id")
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  enrolled        Boolean @default(false)
+  enrolledViaDep  Boolean @default(false) @map("enrolled_via_dep")
+  serverUrl       String? @map("server_url")
+  userApproved    Boolean @default(false) @map("user_approved")
+  vendor          String?
+  department      String?
+
+  // Additional MDM metadata
+  enrollmentDate  DateTime? @map("enrollment_date") @db.Timestamptz
+  lastCheckin     DateTime? @map("last_checkin") @db.Timestamptz
+  mdmVendor       String?   @map("mdm_vendor")
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("mdm_info")
+}
+
+// Security Features
+model SecurityFeature {
+  id       String @id @default(uuid())
+  deviceId String @map("device_id")
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  feature String  // filevault, bitlocker, firewall, etc.
+  enabled Boolean
+  status  String  // Active, Inactive, Encrypted, etc.
+  value   String? // Additional value like version number
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([deviceId, feature])
+  @@index([deviceId])
+  @@index([feature])
+  @@map("security_features")
+}
+
+// Managed Installs
+model ManagedInstall {
+  id       String @id @default(uuid())
+  deviceId String @unique @map("device_id")
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  type       String   // munki, cimian
+  lastRun    DateTime @map("last_run") @db.Timestamptz
+  nextRun    DateTime? @map("next_run") @db.Timestamptz
+  status     String   // Success, Warning, Error
+  version    String?
+  
+  // Configuration
+  softwareRepoURL String? @map("software_repo_url")
+  manifest        String?
+  runType         String? @map("run_type")
+  duration        String?
+
+  // Statistics
+  totalPackages   Int @default(0) @map("total_packages")
+  installedCount  Int @default(0) @map("installed_count")
+  pendingCount    Int @default(0) @map("pending_count")
+  failedCount     Int @default(0) @map("failed_count")
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  packages ManagedPackage[]
+
+  @@map("managed_installs")
+}
+
+// Managed Packages
+model ManagedPackage {
+  id               String         @id @default(uuid())
+  managedInstallId String         @map("managed_install_id")
+  managedInstall   ManagedInstall @relation(fields: [managedInstallId], references: [id], onDelete: Cascade)
+
+  name            String
+  displayName     String  @map("display_name")
+  version         String?
+  installedVersion String? @map("installed_version")
+  status          String  // installed, pending, failed, etc.
+  lastUpdate      DateTime @map("last_update") @db.Timestamptz
+  size            String?
+  type            String  // munki, cimian
+  description     String?
+  publisher       String?
+  category        String?
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([managedInstallId])
+  @@index([status])
+  @@map("managed_packages")
+}
+
+// Applications
+model Application {
+  id       String @id @default(uuid())
+  deviceId String @map("device_id")
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  name         String
+  version      String?
+  bundleId     String? @map("bundle_id")
+  path         String?
+  lastOpened   DateTime? @map("last_opened") @db.Timestamptz
+  size         String?
+  signed       Boolean?
+  category     String?
+  publisher    String?
+  installDate  DateTime? @map("install_date") @db.Timestamptz
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([deviceId])
+  @@index([bundleId])
+  @@index([category])
+  @@map("applications")
+}
+
+// Software Information
+model SoftwareInfo {
+  id       String @id @default(uuid())
+  deviceId String @unique @map("device_id")
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  buildVersion   String? @map("build_version")
+  bootROMVersion String? @map("boot_rom_version")
+  kernelVersion  String? @map("kernel_version")
+  systemVersion  String? @map("system_version")
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("software_info")
+}
