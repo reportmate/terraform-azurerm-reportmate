@@ -200,8 +200,8 @@ function Test-Prerequisites {
     }
     
     # Check required files
-    if ($DeployInfrastructure -and -not (Test-Path "infrastructure")) {
-        Write-Error "Infrastructure directory not found. Must run from api/azure directory."
+    if ($DeployInfrastructure -and -not (Test-Path "terraform")) {
+        Write-Error "Terraform directory not found. Must run from infrastructure directory."
         exit 1
     }
     
@@ -220,7 +220,7 @@ function Test-Prerequisites {
 function Deploy-Infrastructure {
     Write-Info "Deploying Infrastructure with Terraform..."
     
-    Push-Location (Join-Path "infrastructure" "terraform")
+    Push-Location "terraform"
     try {
         # Check for terraform.tfvars
         if (-not (Test-Path "terraform.tfvars")) {
