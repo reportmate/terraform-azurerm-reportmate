@@ -8,19 +8,30 @@ variable "location" {
   type        = string
 }
 
+variable "frontdoor_name" {
+  description = "Name of the Front Door profile"
+  type        = string
+  default     = "reportmate-frontdoor"
+}
+
+variable "custom_domain_name" {
+  description = "Custom domain name for the application"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+  default     = "prod"
+}
+
+variable "frontend_fqdn" {
+  description = "FQDN of the frontend container app"
+  type        = string
+}
+
 variable "function_app_hostname" {
   description = "Hostname of the Function App"
-  type        = string
-}
-
-variable "custom_domain" {
-  description = "Custom domain for the API (optional)"
-  type        = string
-  default     = null
-}
-
-variable "suffix" {
-  description = "Random suffix for unique naming"
   type        = string
 }
 

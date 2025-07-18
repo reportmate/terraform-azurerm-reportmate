@@ -1,37 +1,51 @@
+# Database Module - PostgreSQL Flexible Server
+
 variable "resource_group_name" {
-  description = "Name of the resource group"
   type        = string
+  description = "Name of the resource group"
 }
 
 variable "location" {
+  type        = string
   description = "Azure region"
-  type        = string
 }
 
-variable "database_name" {
+variable "db_username" {
+  type        = string
+  description = "PostgreSQL administrator username"
+}
+
+variable "db_password" {
+  type        = string
+  description = "PostgreSQL administrator password"
+  sensitive   = true
+}
+
+variable "db_name" {
+  type        = string
   description = "Name of the database"
-  type        = string
 }
 
-variable "admin_username" {
-  description = "Database administrator username"
+variable "db_sku_name" {
   type        = string
-  sensitive   = true
+  description = "PostgreSQL SKU name"
+  default     = "B_Standard_B1ms"
 }
 
-variable "admin_password" {
-  description = "Database administrator password"
-  type        = string
-  sensitive   = true
+variable "db_storage_mb" {
+  type        = number
+  description = "PostgreSQL storage size in MB"
+  default     = 32768
 }
 
-variable "suffix" {
-  description = "Random suffix for unique naming"
-  type        = string
+variable "allowed_ips" {
+  type        = list(string)
+  description = "List of IP addresses allowed to access the database"
+  default     = ["0.0.0.0/0"]
 }
 
 variable "tags" {
-  description = "Tags to apply to resources"
   type        = map(string)
+  description = "Tags to apply to resources"
   default     = {}
 }

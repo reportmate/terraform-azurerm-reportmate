@@ -1,39 +1,21 @@
-# Storage Account
-resource "azurerm_storage_account" "reportmate" {
-  name                     = "reportmate${var.suffix}"
+# Storage account and queue for osquery data ingestion
+resource "azurerm_storage_account" "main" {
+  name                     = "${replace(var.storage_account_name, "-", "")}${random_id.storage_suffix.hex}"
   resource_group_name      = var.resource_group_name
-  location                = var.location
-  account_tier            = "Standard"
-  account_replication_type = "LRS"
-
-  blob_properties {
-    cors_rule {
-      allowed_headers    = ["*"]
-      allowed_methods    = ["GET", "HEAD", "POST", "PUT"]
-      allowed_origins    = ["*"]
-      exposed_headers    = ["*"]
-      max_age_in_seconds = 3600
-    }
-  }
+  location                 = var.location
+  account_tier             = var.storage_tier
+  account_replication_type = var.storage_replication
 
   tags = var.tags
 }
 
-# Storage Containers
-resource "azurerm_storage_container" "device_data" {
-  name                  = "device-data"
-  storage_account_name  = azurerm_storage_account.reportmate.name
-  container_access_type = "private"
+# Random suffix to ensure unique storage account name
+resource "random_id" "storage_suffix" {
+  byte_length = 4
 }
 
-resource "azurerm_storage_container" "logs" {
-  name                  = "logs"
-  storage_account_name  = azurerm_storage_account.reportmate.name
-  container_access_type = "private"
-}
-
-resource "azurerm_storage_container" "artifacts" {
-  name                  = "artifacts"
-  storage_account_name  = azurerm_storage_account.reportmate.name
-  container_access_type = "private"
+# Queue for osquery data ingestion
+resource "azurerm_storage_queue" "ingest" {
+  name                 = "osquery-ingest"
+  storage_account_name = azurerm_storage_account.main.name
 }

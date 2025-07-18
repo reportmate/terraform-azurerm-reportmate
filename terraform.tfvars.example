@@ -1,0 +1,62 @@
+# =================================================================
+# ReportMate Infrastructure Configuration Example
+# Copy this file to terraform.tfvars and customize for your deployment
+# =================================================================
+
+# =================================================================
+# REQUIRED VARIABLES - Must be provided
+# =================================================================
+
+# Azure Configuration
+resource_group_name = "my-reportmate-rg"
+location           = "East US"
+
+# Database Configuration
+# SECURITY: Use a strong password for production deployments
+db_password = "your-secure-database-password-here"
+
+# =================================================================
+# OPTIONAL VARIABLES - Customize as needed
+# =================================================================
+
+# Database Settings
+db_username = "reportmate_admin"
+db_name     = "reportmate"
+
+# Environment Configuration
+environment = "prod"
+deploy_dev  = false
+deploy_prod = true
+
+# Custom Domain Configuration (optional)
+# Set to true and provide domain name to enable custom domain
+enable_custom_domain = false
+custom_domain_name   = ""  # e.g., "reportmate.yourdomain.com"
+
+# Container Configuration
+# Uses the official ReportMate web application container from GitHub Container Registry
+# This provides the complete Next.js frontend out of the box
+container_image = "ghcr.io/reportmate/reportmate-app-web:latest"
+
+# Alternative: Use Azure Container Registry (requires building your own image)
+# container_registry_name = "mycompanyacr"
+# use_custom_registry = true
+# container_image = "mycompanyacr.azurecr.io/reportmate-web:latest"
+
+# Client Authentication (optional)
+# Leave empty for open access, or provide comma-separated passphrases
+client_passphrases    = ""
+enable_machine_groups = true
+enable_business_units = true
+
+# Pipeline Configuration (for CI/CD)
+enable_pipeline_permissions   = false
+pipeline_service_principal_id = ""
+
+# Tags
+tags = {
+  Environment = "production"
+  Project     = "ReportMate"
+  ManagedBy   = "Terraform"
+  Owner       = "your-team-name"
+}
