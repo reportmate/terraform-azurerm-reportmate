@@ -10,7 +10,7 @@ A comprehensive Terraform module for deploying ReportMate infrastructure on Azur
 
 ```
 infrastructure/
-├── terraform/           # Main Terraform configuration files
+├── terraform/          # Main Terraform configuration files
 │   ├── main.tf         # Primary infrastructure definition
 │   ├── variables.tf    # Input variables
 │   ├── outputs.tf      # Output values
@@ -32,6 +32,42 @@ infrastructure/
 ```
 
 ## 🚀 Quick Start
+
+### Using Deployment Scripts (Recommended)
+
+The easiest way to deploy ReportMate is using the provided deployment scripts:
+
+**PowerShell (Cross-platform):**
+```powershell
+# Full deployment
+./scripts/deploy.ps1 -Environment prod
+
+# Quick function-only deployment
+./scripts/deploy.ps1 -Quick
+
+# Infrastructure only
+./scripts/deploy.ps1 -Infrastructure
+
+# Auto-approve without prompts
+./scripts/deploy.ps1 -Yes
+```
+
+**Bash (Linux/macOS):**
+```bash
+# Full deployment
+./scripts/deploy.sh --env prod
+
+# Quick function-only deployment
+./scripts/deploy.sh --quick
+
+# Infrastructure only
+./scripts/deploy.sh --infra
+
+# Auto-approve without prompts
+./scripts/deploy.sh --yes
+```
+
+### Manual Terraform Deployment
 
 1. **Navigate to the terraform directory:**
    ```bash
@@ -56,6 +92,33 @@ infrastructure/
    terraform plan
    terraform apply
    ```
+
+## 🛠️ Deployment Scripts
+
+ReportMate includes comprehensive deployment scripts for different platforms and use cases:
+
+### `scripts/deploy.ps1` (PowerShell)
+Cross-platform PowerShell deployment script that supports:
+- Complete infrastructure deployment (Terraform + Functions)
+- Quick function-only deployments
+- Environment-specific deployments (dev, staging, prod)
+
+**Features:**
+- Auto-detects environment and provides intelligent deployment options
+- Supports both ZIP deployment and traditional Azure Functions Core Tools
+- Comprehensive error handling and validation
+- Cross-platform compatibility (Windows, macOS, Linux)
+
+### `scripts/deploy.sh` (Bash)
+Linux/macOS bash deployment script with similar functionality to the PowerShell version.
+
+### Prerequisites for Scripts
+- Azure CLI installed and authenticated
+- Terraform installed (for infrastructure deployment)
+- PowerShell Core (for .ps1 script on non-Windows)
+
+### Working Directory
+Scripts should be run from the repository root directory. They automatically navigate to the appropriate subdirectories (`infrastructure/terraform/` for Terraform operations).
 
 ## Architecture
 

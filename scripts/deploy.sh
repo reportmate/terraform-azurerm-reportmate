@@ -152,7 +152,7 @@ check_prerequisites() {
 deploy_infrastructure() {
     log_info "Deploying Infrastructure with Terraform..."
     
-    cd infrastructure/terraform
+    cd terraform
     
     # Check for terraform.tfvars
     if [ ! -f "terraform.tfvars" ]; then
