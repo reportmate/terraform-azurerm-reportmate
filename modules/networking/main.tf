@@ -1,81 +1,84 @@
+# Random suffix for unique resource names
+resource "random_id" "networking_suffix" {
+  byte_length = 4
+}
+
 # Front Door Profile
-resource "azurerm_cdn_frontdoor_profile" "reportmate" {
-  name                = "reportmate-fd-${var.suffix}"
+resource "azurerm_cdn_frontdoor_profile" "main" {
+  name                = "${var.frontdoor_name}-${random_id.networking_suffix.hex}"
   resource_group_name = var.resource_group_name
-  sku_name           = "Standard_AzureFrontDoor"
+  sku_name            = "Standard_AzureFrontDoor"
 
   tags = var.tags
 }
 
 # Front Door Origin Group
-resource "azurerm_cdn_frontdoor_origin_group" "reportmate" {
-  name                 = "reportmate-origin-group"
-  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.reportmate.id
+resource "azurerm_cdn_frontdoor_origin_group" "main" {
+  name                     = "reportmate-origin-group"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
   session_affinity_enabled = false
 
   load_balancing {
     additional_latency_in_milliseconds = 50
-    sample_size                       = 4
-    successful_samples_required       = 3
+    sample_size                        = 4
+    successful_samples_required        = 3
   }
 
   health_probe {
     interval_in_seconds = 100
-    path               = "/api/health"
-    protocol           = "Https"
-    request_type       = "HEAD"
+    path                = "/"
+    protocol            = "Https"
+    request_type        = "HEAD"
   }
 }
 
 # Front Door Origin
-resource "azurerm_cdn_frontdoor_origin" "reportmate" {
+resource "azurerm_cdn_frontdoor_origin" "main" {
   name                          = "reportmate-origin"
-  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.reportmate.id
-  enabled                      = true
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.main.id
+  enabled                       = true
 
   certificate_name_check_enabled = true
-  host_name                     = var.function_app_hostname
-  http_port                     = 80
-  https_port                    = 443
-  origin_host_header            = var.function_app_hostname
-  priority                      = 1
-  weight                        = 1000
+  host_name                      = var.frontend_fqdn
+  http_port                      = 80
+  https_port                     = 443
+  origin_host_header             = var.frontend_fqdn
+  priority                       = 1
+  weight                         = 1000
 }
 
 # Front Door Endpoint
-resource "azurerm_cdn_frontdoor_endpoint" "reportmate" {
-  name                 = "reportmate-endpoint-${var.suffix}"
-  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.reportmate.id
-  enabled             = true
+resource "azurerm_cdn_frontdoor_endpoint" "main" {
+  name                     = "reportmate-endpoint-${random_id.networking_suffix.hex}"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+  enabled                  = true
 
   tags = var.tags
 }
 
 # Front Door Route
-resource "azurerm_cdn_frontdoor_route" "reportmate" {
+resource "azurerm_cdn_frontdoor_route" "main" {
   name                          = "reportmate-route"
-  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.reportmate.id
-  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.reportmate.id
-  cdn_frontdoor_origin_ids     = [azurerm_cdn_frontdoor_origin.reportmate.id]
-  enabled                      = true
+  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.main.id
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.main.id
+  cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.main.id]
+  enabled                       = true
 
   forwarding_protocol    = "HttpsOnly"
   https_redirect_enabled = true
-  patterns_to_match     = ["/*"]
-  supported_protocols   = ["Http", "Https"]
+  patterns_to_match      = ["/*"]
+  supported_protocols    = ["Http", "Https"]
 
-  cdn_frontdoor_custom_domain_ids = var.custom_domain != null ? [azurerm_cdn_frontdoor_custom_domain.reportmate[0].id] : []
-  link_to_default_domain         = var.custom_domain == null ? true : false
+  cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.main.id]
+  link_to_default_domain          = false
 }
 
-# Custom Domain (optional)
-resource "azurerm_cdn_frontdoor_custom_domain" "reportmate" {
-  count = var.custom_domain != null ? 1 : 0
-
-  name                     = "reportmate-custom-domain"
-  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.reportmate.id
-  dns_zone_id             = null
-  host_name               = var.custom_domain
+# Custom Domain
+resource "azurerm_cdn_frontdoor_custom_domain" "main" {
+  name                     = "reportmate-custom-domain-${random_id.networking_suffix.hex}"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+  dns_zone_id              = null
+  host_name                = var.custom_domain_name
 
   tls {
     certificate_type    = "ManagedCertificate"

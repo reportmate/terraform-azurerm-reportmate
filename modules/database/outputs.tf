@@ -1,20 +1,20 @@
-output "server_fqdn" {
+output "postgres_fqdn" {
+  value       = azurerm_postgresql_flexible_server.pg.fqdn
   description = "FQDN of the PostgreSQL server"
-  value       = azurerm_postgresql_flexible_server.reportmate.fqdn
 }
 
-output "server_name" {
+output "postgres_name" {
+  value       = azurerm_postgresql_flexible_server.pg.name
   description = "Name of the PostgreSQL server"
-  value       = azurerm_postgresql_flexible_server.reportmate.name
 }
 
 output "database_name" {
+  value       = azurerm_postgresql_flexible_server_database.db.name
   description = "Name of the database"
-  value       = azurerm_postgresql_flexible_server_database.reportmate.name
 }
 
 output "connection_string" {
+  value       = "postgresql://${var.db_username}:${var.db_password}@${azurerm_postgresql_flexible_server.pg.fqdn}:5432/${var.db_name}?sslmode=require"
   description = "PostgreSQL connection string"
-  value       = "postgresql://${var.admin_username}:${var.admin_password}@${azurerm_postgresql_flexible_server.reportmate.fqdn}:5432/${azurerm_postgresql_flexible_server_database.reportmate.name}?sslmode=require"
   sensitive   = true
 }
