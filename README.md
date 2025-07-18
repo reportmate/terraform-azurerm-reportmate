@@ -6,6 +6,57 @@
 
 A comprehensive Terraform module for deploying ReportMate infrastructure on Azure. This module provisions a complete osquery fleet management platform with web interface, API, real-time messaging, and monitoring.
 
+## 📁 Directory Structure
+
+```
+infrastructure/
+├── terraform/           # Main Terraform configuration files
+│   ├── main.tf         # Primary infrastructure definition
+│   ├── variables.tf    # Input variables
+│   ├── outputs.tf      # Output values
+│   ├── terraform.tf    # Provider and version constraints
+│   ├── backend.tf      # State backend configuration
+│   └── README.md       # Terraform-specific documentation
+├── modules/            # Reusable Terraform modules
+│   ├── database/       # PostgreSQL database module
+│   ├── storage/        # Azure Storage module
+│   ├── messaging/      # Web PubSub module
+│   ├── monitoring/     # Application Insights module
+│   ├── identity/       # Managed Identity module
+│   ├── containers/     # Container Apps module
+│   └── networking/     # Front Door module
+├── api/               # Azure Functions (Python) for REST API
+├── scripts/           # Deployment and utility scripts
+├── schemas/           # Database schemas and migrations
+└── examples/          # Example configurations
+```
+
+## 🚀 Quick Start
+
+1. **Navigate to the terraform directory:**
+   ```bash
+   cd infrastructure/terraform
+   ```
+
+2. **Configure backend (copy and edit):**
+   ```bash
+   cp backend.tf.example backend.tf
+   # Edit backend.tf with your Azure storage account details
+   ```
+
+3. **Set variables (copy and edit):**
+   ```bash
+   cp terraform.tfvars.example terraform.tfvars
+   # Edit terraform.tfvars with your deployment values
+   ```
+
+4. **Deploy:**
+   ```bash
+   terraform init
+   terraform plan
+   terraform apply
+   ```
+
 ## Architecture
 
 ReportMate provides a complete osquery fleet management platform with:
