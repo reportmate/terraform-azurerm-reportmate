@@ -1,6 +1,6 @@
 # Storage account and queue for osquery data ingestion
 resource "azurerm_storage_account" "main" {
-  name                     = "${replace(var.storage_account_name, "-", "")}${random_id.storage_suffix.hex}"
+  name                     = var.use_exact_name ? var.storage_account_name : "${replace(var.storage_account_name, "-", "")}${random_id.storage_suffix.hex}"
   resource_group_name      = var.resource_group_name
   location                 = var.location
   account_tier             = var.storage_tier

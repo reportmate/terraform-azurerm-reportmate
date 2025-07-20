@@ -38,6 +38,12 @@ variable "db_storage_mb" {
   default     = 32768
 }
 
+variable "postgres_server_name" {
+  type        = string
+  description = "Name of the PostgreSQL server (if empty, will generate unique name)"
+  default     = ""
+}
+
 variable "allowed_ips" {
   type        = list(string)
   description = "List of IP addresses allowed to access the database"

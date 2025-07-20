@@ -14,11 +14,12 @@ resource "azurerm_resource_group" "rg" {
 
 # Database Module
 module "database" {
-  source = "../modules/database"
+  source = "./modules/database"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
 
+  postgres_server_name = "reportmate-database"
   db_username   = var.db_username
   db_password   = var.db_password
   db_name       = var.db_name
@@ -31,12 +32,13 @@ module "database" {
 
 # Storage Module
 module "storage" {
-  source = "../modules/storage"
+  source = "./modules/storage"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
 
   storage_account_name = var.storage_account_name
+  use_exact_name       = true
   storage_tier         = var.storage_tier
   storage_replication  = var.storage_replication
 
@@ -45,7 +47,7 @@ module "storage" {
 
 # Messaging Module
 module "messaging" {
-  source = "../modules/messaging"
+  source = "./modules/messaging"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -58,7 +60,7 @@ module "messaging" {
 
 # Monitoring Module
 module "monitoring" {
-  source = "../modules/monitoring"
+  source = "./modules/monitoring"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -73,7 +75,7 @@ module "monitoring" {
 
 # Identity Module
 module "identity" {
-  source = "../modules/identity"
+  source = "./modules/identity"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -90,9 +92,9 @@ module "identity" {
   tags = var.tags
 }
 
-# API Module (Azure Functions)
-module "api" {
-  source = "../api"
+# Functions Module (Azure Functions API)
+module "functions" {
+  source = "./modules/functions"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -131,7 +133,7 @@ module "api" {
 
 # Containers Module
 module "containers" {
-  source = "../modules/containers"
+  source = "./modules/containers"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -139,18 +141,18 @@ module "containers" {
   container_registry_name = var.container_registry_name
   use_custom_registry     = var.use_custom_registry
   container_image         = var.container_image
-
-  environment = var.environment
-  deploy_dev  = var.deploy_dev
-  deploy_prod = var.deploy_prod
+  environment             = var.environment
+  deploy_dev              = var.deploy_dev
+  deploy_prod             = var.deploy_prod
 
   # Dependencies
   managed_identity_id            = module.identity.managed_identity_id
+  managed_identity_principal_id  = module.identity.managed_identity_principal_id
   database_url                   = "postgresql://${var.db_username}:${var.db_password}@${module.database.postgres_fqdn}:5432/${var.db_name}?sslmode=require"
   web_pubsub_hostname            = module.messaging.web_pubsub_hostname
-  function_app_hostname          = module.api.function_app_hostname
+  function_app_hostname          = module.functions.function_app_hostname
   app_insights_connection_string = module.monitoring.app_insights_connection_string
-  log_analytics_workspace_id     = module.monitoring.log_analytics_workspace_id
+  log_analytics_workspace_id     = module.monitoring.log_analytics_id
 
   tags = var.tags
 }
@@ -159,7 +161,7 @@ module "containers" {
 module "networking" {
   count = var.enable_custom_domain && var.custom_domain_name != "" ? 1 : 0
 
-  source = "../modules/networking"
+  source = "./modules/networking"
 
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
@@ -170,7 +172,7 @@ module "networking" {
 
   # Dependencies
   frontend_fqdn         = module.containers.frontend_fqdn
-  function_app_hostname = module.api.function_app_hostname
+  function_app_hostname = module.functions.function_app_hostname
 
   tags = var.tags
 }

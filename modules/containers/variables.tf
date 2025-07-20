@@ -52,6 +52,11 @@ variable "managed_identity_id" {
   description = "ID of the managed identity"
 }
 
+variable "managed_identity_principal_id" {
+  type        = string
+  description = "Principal ID of the managed identity for role assignments"
+}
+
 variable "database_url" {
   type        = string
   description = "Database connection URL"

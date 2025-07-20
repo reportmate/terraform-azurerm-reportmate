@@ -131,18 +131,18 @@ check_prerequisites() {
     fi
     
     # Check required files
-    if [ "$DEPLOY_INFRASTRUCTURE" = true ] && [ ! -d "infrastructure" ]; then
-        log_error "Infrastructure directory not found. Must run from api/azure directory."
+    if [ "$DEPLOY_INFRASTRUCTURE" = true ] && [ ! -f "main.tf" ]; then
+        log_error "Terraform files not found. Must run from infrastructure root directory."
         exit 1
     fi
     
     if [ "$DEPLOY_FUNCTIONS" = true ]; then
-        if [ ! -d "functions" ] || [ ! -f "requirements.txt" ]; then
-            log_error "Functions directory or requirements.txt not found."
+        if [ ! -d "modules/functions/api" ] || [ ! -f "modules/functions/api/requirements.txt" ]; then
+            log_error "API functions directory or requirements.txt not found in modules/functions/api."
             exit 1
         fi
-        if [ ! -d "modules" ]; then
-            log_error "Modules directory not found."
+        if [ ! -d "modules/functions" ]; then
+            log_error "Functions module directory not found."
             exit 1
         fi
     fi
@@ -151,8 +151,6 @@ check_prerequisites() {
 # Function to deploy infrastructure
 deploy_infrastructure() {
     log_info "Deploying Infrastructure with Terraform..."
-    
-    cd terraform
     
     # Check for terraform.tfvars
     if [ ! -f "terraform.tfvars" ]; then
@@ -175,7 +173,6 @@ deploy_infrastructure() {
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             log_error "Infrastructure deployment cancelled"
-            cd ../..
             exit 1
         fi
     fi
@@ -195,13 +192,15 @@ deploy_infrastructure() {
     if [ -n "$FUNCTION_APP_URL" ]; then
         log_success "Function App URL: $FUNCTION_APP_URL"
     fi
-    
-    cd ../..
+}
 }
 
 # Function to deploy functions
 deploy_functions() {
     log_info "Deploying Functions using Azure Functions Core Tools..."
+    
+    # Change to API directory
+    cd modules/functions/api
     
     # Install Python dependencies
     log_info "Installing Python dependencies..."
@@ -212,6 +211,9 @@ deploy_functions() {
     func azure functionapp publish "$FUNCTION_APP_NAME" --python
     
     log_success "Functions deployed successfully!"
+    
+    # Return to original directory
+    cd ../../..
 }
 
 # Function to test deployment

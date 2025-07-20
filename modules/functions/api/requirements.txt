@@ -1,0 +1,26 @@
+# Azure Functions runtime
+azure-functions==1.18.0
+
+# Database connectivity
+asyncpg==0.29.0
+
+# HTTP client for external requests
+aiohttp==3.9.1
+
+# JSON handling and utilities
+ujson==5.9.0
+
+# Async utilities
+asyncio-throttle==1.0.2
+
+# Logging and monitoring
+azure-monitor-opentelemetry-exporter==1.0.0b21
+
+# Date/time utilities
+python-dateutil==2.8.2
+
+# Environment variables and configuration
+python-dotenv==1.0.0
+
+# Type hints support for older Python versions
+typing-extensions==4.9.0

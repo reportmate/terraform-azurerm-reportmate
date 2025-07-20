@@ -30,3 +30,13 @@ output "log_analytics_id" {
   value       = azurerm_log_analytics_workspace.main.id
   description = "ID of the Log Analytics workspace"
 }
+
+output "app_insights_name" {
+  value       = azurerm_application_insights.main.name
+  description = "Name of the Application Insights instance"
+}
+
+output "log_analytics_workspace_name" {
+  value       = azurerm_log_analytics_workspace.main.name
+  description = "Name of the Log Analytics workspace"
+}
