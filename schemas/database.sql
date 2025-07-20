@@ -251,3 +251,409 @@ CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
     
 CREATE TRIGGER update_installs_updated_at BEFORE UPDATE ON installs 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ================================
+-- PRINTER MODULE TABLES
+-- ================================
+
+-- Device printers table
+CREATE TABLE IF NOT EXISTS device_printers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL,
+    name VARCHAR(500) NOT NULL,
+    share_name VARCHAR(500),
+    port_name VARCHAR(200),
+    driver_name VARCHAR(500),
+    location VARCHAR(500),
+    comment TEXT,
+    status VARCHAR(100),
+    printer_status VARCHAR(100),
+    is_shared BOOLEAN DEFAULT FALSE,
+    is_network BOOLEAN DEFAULT FALSE,
+    is_default BOOLEAN DEFAULT FALSE,
+    is_online BOOLEAN DEFAULT TRUE,
+    server_name VARCHAR(500),
+    manufacturer VARCHAR(200),
+    model VARCHAR(500),
+    device_type VARCHAR(100),
+    connection_type VARCHAR(50), -- USB, Network, Parallel, Serial, etc.
+    ip_address INET,
+    priority INTEGER,
+    enable_bidirectional BOOLEAN DEFAULT FALSE,
+    keep_printed_jobs BOOLEAN DEFAULT FALSE,
+    enable_dev_query BOOLEAN DEFAULT FALSE,
+    install_date TIMESTAMP,
+    properties JSONB, -- Additional printer properties
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Print drivers table
+CREATE TABLE IF NOT EXISTS device_print_drivers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL,
+    name VARCHAR(500) NOT NULL,
+    version VARCHAR(100),
+    environment VARCHAR(100),
+    config_file TEXT,
+    data_file TEXT,
+    driver_path TEXT,
+    help_file TEXT,
+    monitor_name VARCHAR(200),
+    default_data_type VARCHAR(100),
+    provider VARCHAR(200),
+    driver_version VARCHAR(100),
+    driver_date TIMESTAMP,
+    is_signed BOOLEAN DEFAULT FALSE,
+    dependent_files TEXT[], -- Array of dependent files
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Print ports table
+CREATE TABLE IF NOT EXISTS device_print_ports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    port_type VARCHAR(100),
+    description TEXT,
+    is_network BOOLEAN DEFAULT FALSE,
+    is_local BOOLEAN DEFAULT TRUE,
+    timeout_seconds INTEGER,
+    transmission_retry INTEGER,
+    print_monitor VARCHAR(200),
+    configuration JSONB, -- Port configuration details
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Print processors table
+CREATE TABLE IF NOT EXISTS device_print_processors (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    environment VARCHAR(100),
+    dll_name VARCHAR(200),
+    supported_datatypes TEXT[], -- Array of supported data types
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Print jobs table (recent jobs within last 30 days)
+CREATE TABLE IF NOT EXISTS device_print_jobs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL,
+    printer_name VARCHAR(500) NOT NULL,
+    job_id INTEGER,
+    document_name TEXT,
+    user_name VARCHAR(200),
+    status VARCHAR(100),
+    submitted_time TIMESTAMP,
+    total_pages INTEGER,
+    pages_printed INTEGER,
+    size_bytes BIGINT,
+    priority INTEGER,
+    start_time TIMESTAMP,
+    until_time TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Print spooler information table
+CREATE TABLE IF NOT EXISTS device_print_spooler (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL UNIQUE,
+    service_status VARCHAR(50),
+    service_start_type VARCHAR(50),
+    default_spool_directory TEXT,
+    beep_enabled BOOLEAN DEFAULT FALSE,
+    net_popup BOOLEAN DEFAULT FALSE,
+    log_events BOOLEAN DEFAULT FALSE,
+    restart_job_on_pool_error BOOLEAN DEFAULT FALSE,
+    restart_job_on_pool_enabled BOOLEAN DEFAULT FALSE,
+    port_thread_priority INTEGER,
+    scheduler_thread_priority INTEGER,
+    total_jobs INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Print policy settings table
+CREATE TABLE IF NOT EXISTS device_print_policies (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL UNIQUE,
+    disable_web_printing BOOLEAN DEFAULT FALSE,
+    disable_server_thread BOOLEAN DEFAULT FALSE,
+    disable_spooler_open_printers BOOLEAN DEFAULT FALSE,
+    spooler_priority INTEGER,
+    spooler_max_job_schedule INTEGER,
+    enable_logging BOOLEAN DEFAULT FALSE,
+    log_level VARCHAR(20),
+    restrict_driver_installation BOOLEAN DEFAULT FALSE,
+    group_policy_settings JSONB, -- Additional GP settings
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for printer tables
+CREATE INDEX IF NOT EXISTS idx_device_printers_device_id ON device_printers(device_id);
+CREATE INDEX IF NOT EXISTS idx_device_printers_name ON device_printers(name);
+CREATE INDEX IF NOT EXISTS idx_device_printers_is_default ON device_printers(is_default);
+
+CREATE INDEX IF NOT EXISTS idx_device_print_drivers_device_id ON device_print_drivers(device_id);
+CREATE INDEX IF NOT EXISTS idx_device_print_drivers_name ON device_print_drivers(name);
+
+CREATE INDEX IF NOT EXISTS idx_device_print_ports_device_id ON device_print_ports(device_id);
+CREATE INDEX IF NOT EXISTS idx_device_print_ports_name ON device_print_ports(name);
+
+CREATE INDEX IF NOT EXISTS idx_device_print_processors_device_id ON device_print_processors(device_id);
+
+CREATE INDEX IF NOT EXISTS idx_device_print_jobs_device_id ON device_print_jobs(device_id);
+CREATE INDEX IF NOT EXISTS idx_device_print_jobs_printer_name ON device_print_jobs(printer_name);
+CREATE INDEX IF NOT EXISTS idx_device_print_jobs_submitted_time ON device_print_jobs(submitted_time);
+
+CREATE INDEX IF NOT EXISTS idx_device_print_spooler_device_id ON device_print_spooler(device_id);
+
+CREATE INDEX IF NOT EXISTS idx_device_print_policies_device_id ON device_print_policies(device_id);
+
+-- Triggers for printer tables
+CREATE TRIGGER update_device_printers_updated_at BEFORE UPDATE ON device_printers 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_device_print_drivers_updated_at BEFORE UPDATE ON device_print_drivers 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_device_print_ports_updated_at BEFORE UPDATE ON device_print_ports 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_device_print_processors_updated_at BEFORE UPDATE ON device_print_processors 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_device_print_jobs_updated_at BEFORE UPDATE ON device_print_jobs 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_device_print_spooler_updated_at BEFORE UPDATE ON device_print_spooler 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_device_print_policies_updated_at BEFORE UPDATE ON device_print_policies 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- =============================================
+-- DISPLAY MODULE TABLES
+-- =============================================
+
+-- Display devices table (monitors)
+CREATE TABLE IF NOT EXISTS device_displays (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL,
+    name VARCHAR(500),
+    device_key VARCHAR(500),
+    manufacturer VARCHAR(200),
+    model VARCHAR(200),
+    serial_number VARCHAR(100),
+    device_string TEXT,
+    
+    -- Connection and type
+    connection_type VARCHAR(50),
+    is_internal BOOLEAN DEFAULT FALSE,
+    is_external BOOLEAN DEFAULT FALSE,
+    is_primary BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT FALSE,
+    is_enabled BOOLEAN DEFAULT FALSE,
+    
+    -- Physical properties
+    diagonal_size_inches DECIMAL(5,2),
+    width_mm INTEGER,
+    height_mm INTEGER,
+    aspect_ratio DECIMAL(5,3),
+    
+    -- Current settings
+    current_width INTEGER,
+    current_height INTEGER,
+    current_refresh_rate INTEGER,
+    current_color_depth INTEGER,
+    current_dpi INTEGER,
+    current_scaling DECIMAL(5,3),
+    current_orientation VARCHAR(50),
+    
+    -- Capabilities
+    max_width INTEGER,
+    max_height INTEGER,
+    min_width INTEGER,
+    min_height INTEGER,
+    max_color_depth INTEGER,
+    supported_resolutions TEXT, -- JSON array
+    supported_refresh_rates TEXT, -- JSON array
+    capabilities TEXT, -- JSON array
+    
+    -- Color and quality
+    color_space VARCHAR(50),
+    gamma_value DECIMAL(5,3),
+    brightness INTEGER,
+    contrast INTEGER,
+    
+    -- Position and layout
+    position_x INTEGER,
+    position_y INTEGER,
+    display_index INTEGER,
+    
+    -- Technology features
+    panel_type VARCHAR(50),
+    is_hdr BOOLEAN DEFAULT FALSE,
+    is_wide_gamut BOOLEAN DEFAULT FALSE,
+    is_adaptive_sync BOOLEAN DEFAULT FALSE,
+    is_touch BOOLEAN DEFAULT FALSE,
+    
+    -- Driver and firmware
+    driver_version VARCHAR(100),
+    driver_date TIMESTAMP,
+    firmware_version VARCHAR(100),
+    
+    -- EDID information
+    edid_manufacturer VARCHAR(100),
+    edid_product_code VARCHAR(50),
+    edid_week_of_manufacture INTEGER,
+    edid_year_of_manufacture INTEGER,
+    edid_version VARCHAR(20),
+    
+    -- Status and health
+    status VARCHAR(50),
+    health VARCHAR(50),
+    last_connected TIMESTAMP,
+    usage_hours BIGINT,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Display adapters table (graphics cards)
+CREATE TABLE IF NOT EXISTS device_display_adapters (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL,
+    name VARCHAR(500),
+    adapter_device_id VARCHAR(500),
+    manufacturer VARCHAR(200),
+    chip_type VARCHAR(100),
+    dac_type VARCHAR(100),
+    memory_size BIGINT,
+    driver_version VARCHAR(100),
+    driver_date TIMESTAMP,
+    bios_version VARCHAR(100),
+    connected_displays TEXT, -- JSON array
+    supported_modes TEXT, -- JSON array
+    max_displays INTEGER,
+    is_3d_capable BOOLEAN DEFAULT FALSE,
+    is_hardware_accelerated BOOLEAN DEFAULT FALSE,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Display configuration table (overall settings)
+CREATE TABLE IF NOT EXISTS device_display_config (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL UNIQUE,
+    total_displays INTEGER DEFAULT 0,
+    active_displays INTEGER DEFAULT 0,
+    primary_display VARCHAR(500),
+    display_mode VARCHAR(50), -- Extend, Duplicate, Single, etc.
+    
+    -- Layout settings
+    is_extended_desktop BOOLEAN DEFAULT FALSE,
+    is_mirrored_desktop BOOLEAN DEFAULT FALSE,
+    virtual_desktop_width INTEGER,
+    virtual_desktop_height INTEGER,
+    
+    -- Power management
+    display_sleep_timeout INTEGER, -- minutes
+    is_power_saving_enabled BOOLEAN DEFAULT FALSE,
+    
+    -- Accessibility
+    is_high_contrast_enabled BOOLEAN DEFAULT FALSE,
+    text_scaling DECIMAL(5,3) DEFAULT 1.0,
+    is_magnifier_enabled BOOLEAN DEFAULT FALSE,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Display layout table (positioning)
+CREATE TABLE IF NOT EXISTS device_display_layout (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL,
+    display_name VARCHAR(500),
+    x_position INTEGER,
+    y_position INTEGER,
+    width INTEGER,
+    height INTEGER,
+    is_primary BOOLEAN DEFAULT FALSE,
+    orientation VARCHAR(50),
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Color profiles table
+CREATE TABLE IF NOT EXISTS device_color_profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    device_id VARCHAR(255) NOT NULL,
+    name VARCHAR(500),
+    file_path TEXT,
+    description TEXT,
+    color_space VARCHAR(50),
+    device_model VARCHAR(200),
+    manufacturer VARCHAR(200),
+    is_default BOOLEAN DEFAULT FALSE,
+    created_date TIMESTAMP,
+    file_size BIGINT,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for display tables
+CREATE INDEX IF NOT EXISTS idx_device_displays_device_id ON device_displays(device_id);
+CREATE INDEX IF NOT EXISTS idx_device_displays_name ON device_displays(name);
+CREATE INDEX IF NOT EXISTS idx_device_displays_is_primary ON device_displays(is_primary);
+CREATE INDEX IF NOT EXISTS idx_device_displays_is_active ON device_displays(is_active);
+CREATE INDEX IF NOT EXISTS idx_device_displays_manufacturer ON device_displays(manufacturer);
+
+CREATE INDEX IF NOT EXISTS idx_device_display_adapters_device_id ON device_display_adapters(device_id);
+CREATE INDEX IF NOT EXISTS idx_device_display_adapters_name ON device_display_adapters(name);
+
+CREATE INDEX IF NOT EXISTS idx_device_display_config_device_id ON device_display_config(device_id);
+
+CREATE INDEX IF NOT EXISTS idx_device_display_layout_device_id ON device_display_layout(device_id);
+CREATE INDEX IF NOT EXISTS idx_device_display_layout_display_name ON device_display_layout(display_name);
+
+CREATE INDEX IF NOT EXISTS idx_device_color_profiles_device_id ON device_color_profiles(device_id);
+CREATE INDEX IF NOT EXISTS idx_device_color_profiles_name ON device_color_profiles(name);
+CREATE INDEX IF NOT EXISTS idx_device_color_profiles_is_default ON device_color_profiles(is_default);
+
+-- Triggers for display tables
+CREATE TRIGGER update_device_displays_updated_at BEFORE UPDATE ON device_displays 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_device_display_adapters_updated_at BEFORE UPDATE ON device_display_adapters 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_device_display_config_updated_at BEFORE UPDATE ON device_display_config 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_device_display_layout_updated_at BEFORE UPDATE ON device_display_layout 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_device_color_profiles_updated_at BEFORE UPDATE ON device_color_profiles 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
