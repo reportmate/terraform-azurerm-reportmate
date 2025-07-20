@@ -1,6 +1,6 @@
 # Web PubSub (SignalR) for real-time event streaming
 resource "azurerm_web_pubsub" "main" {
-  name                          = "${var.web_pubsub_name}-${random_id.pubsub_suffix.hex}"
+  name                          = var.web_pubsub_name
   resource_group_name           = var.resource_group_name
   location                      = var.location
   sku                           = var.web_pubsub_sku

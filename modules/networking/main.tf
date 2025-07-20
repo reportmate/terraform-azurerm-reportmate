@@ -1,11 +1,12 @@
 # Random suffix for unique resource names
-resource "random_id" "networking_suffix" {
-  byte_length = 4
-}
+# Remove random ID since we're using predictable naming
+# resource "random_id" "networking_suffix" {
+#   byte_length = 4
+# }
 
 # Front Door Profile
 resource "azurerm_cdn_frontdoor_profile" "main" {
-  name                = "${var.frontdoor_name}-${random_id.networking_suffix.hex}"
+  name                = var.frontdoor_name
   resource_group_name = var.resource_group_name
   sku_name            = "Standard_AzureFrontDoor"
 
@@ -49,7 +50,7 @@ resource "azurerm_cdn_frontdoor_origin" "main" {
 
 # Front Door Endpoint
 resource "azurerm_cdn_frontdoor_endpoint" "main" {
-  name                     = "reportmate-endpoint-${random_id.networking_suffix.hex}"
+  name                     = "reportmate-endpoint"
   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
   enabled                  = true
 
@@ -75,13 +76,12 @@ resource "azurerm_cdn_frontdoor_route" "main" {
 
 # Custom Domain
 resource "azurerm_cdn_frontdoor_custom_domain" "main" {
-  name                     = "reportmate-custom-domain-${random_id.networking_suffix.hex}"
+  name                     = "reportmate-custom-domain"
   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
   dns_zone_id              = null
   host_name                = var.custom_domain_name
 
   tls {
     certificate_type    = "ManagedCertificate"
-    minimum_tls_version = "TLS12"
   }
 }

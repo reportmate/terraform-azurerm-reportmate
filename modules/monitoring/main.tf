@@ -1,6 +1,6 @@
 # Log Analytics Workspace for detailed logging
 resource "azurerm_log_analytics_workspace" "main" {
-  name                = "${var.log_analytics_name}-${random_id.monitor_suffix.hex}"
+  name                = var.log_analytics_name
   resource_group_name = var.resource_group_name
   location            = var.location
   sku                 = "PerGB2018"
@@ -11,7 +11,7 @@ resource "azurerm_log_analytics_workspace" "main" {
 
 # Application Insights for monitoring and telemetry
 resource "azurerm_application_insights" "main" {
-  name                = "${var.app_insights_name}-${random_id.monitor_suffix.hex}"
+  name                = var.app_insights_name
   location            = var.location
   resource_group_name = var.resource_group_name
   application_type    = "web"

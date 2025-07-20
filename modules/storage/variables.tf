@@ -27,6 +27,12 @@ variable "storage_replication" {
   default     = "LRS"
 }
 
+variable "use_exact_name" {
+  type        = bool
+  description = "Use exact storage account name without suffix (for existing accounts)"
+  default     = false
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to resources"

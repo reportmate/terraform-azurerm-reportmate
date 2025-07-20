@@ -200,18 +200,18 @@ function Test-Prerequisites {
     }
     
     # Check required files
-    if ($DeployInfrastructure -and -not (Test-Path "terraform")) {
-        Write-Error "Terraform directory not found. Must run from infrastructure directory."
+    if ($DeployInfrastructure -and -not (Test-Path "main.tf")) {
+        Write-Error "Terraform files not found. Must run from infrastructure root directory."
         exit 1
     }
     
     if ($DeployFunctions) {
-        if (-not (Test-Path "functions") -or -not (Test-Path "requirements.txt")) {
-            Write-Error "Functions directory or requirements.txt not found."
+        if (-not (Test-Path "modules\functions\api") -or -not (Test-Path "modules\functions\api\requirements.txt")) {
+            Write-Error "API functions directory or requirements.txt not found in modules\functions\api."
             exit 1
         }
-        if (-not (Test-Path "modules")) {
-            Write-Error "Modules directory not found."
+        if (-not (Test-Path "modules\functions")) {
+            Write-Error "Functions module directory not found."
             exit 1
         }
     }
@@ -220,7 +220,6 @@ function Test-Prerequisites {
 function Deploy-Infrastructure {
     Write-Info "Deploying Infrastructure with Terraform..."
     
-    Push-Location "terraform"
     try {
         # Check for terraform.tfvars
         if (-not (Test-Path "terraform.tfvars")) {
@@ -270,8 +269,6 @@ function Deploy-Infrastructure {
     } catch {
         Write-Error "Infrastructure deployment failed: $_"
         exit 1
-    } finally {
-        Pop-Location
     }
 }
 
@@ -279,6 +276,9 @@ function Deploy-Functions-Traditional {
     Write-Info "Deploying Functions using Azure Functions Core Tools..."
     
     try {
+        # Change to API directory
+        Push-Location "modules\functions\api"
+        
         # Install Python dependencies
         Write-Info "Installing Python dependencies..."
         pip install -r requirements.txt
@@ -294,6 +294,8 @@ function Deploy-Functions-Traditional {
     } catch {
         Write-Error "Traditional function deployment failed: $_"
         exit 1
+    } finally {
+        Pop-Location
     }
 }
 
@@ -318,9 +320,10 @@ function Deploy-Functions-Quick {
         Write-Info "Using temp directory: $tempDir"
         
         # Copy files
-        Copy-Item -Path "functions\*" -Destination $tempDir -Recurse -Force
-        Copy-Item -Path "modules" -Destination $tempDir -Recurse -Force
-        Copy-Item -Path "requirements.txt" -Destination $tempDir -Force
+        Copy-Item -Path "modules\functions\api\*" -Destination $tempDir -Recurse -Force
+        Copy-Item -Path "modules\functions\shared" -Destination $tempDir -Recurse -Force
+        Copy-Item -Path "modules\functions\processors" -Destination $tempDir -Recurse -Force
+        Copy-Item -Path "modules\functions\api\requirements.txt" -Destination $tempDir -Force
         
         # Clean up Python cache files
         Get-ChildItem -Path $tempDir -Recurse -Name "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force

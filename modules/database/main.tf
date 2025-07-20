@@ -1,6 +1,6 @@
 # PostgreSQL Flexible Server for storing osquery results
 resource "azurerm_postgresql_flexible_server" "pg" {
-  name                = "reportmate-database-${random_id.db_suffix.hex}"
+  name                = var.postgres_server_name != "" ? var.postgres_server_name : "reportmate-database-${random_id.db_suffix.hex}"
   resource_group_name = var.resource_group_name
   location            = var.location
 

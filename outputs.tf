@@ -3,12 +3,12 @@
 # API Outputs
 output "api_url" {
   description = "URL of the ReportMate API"
-  value       = module.api.function_app_url
+  value       = module.functions.function_app_url
 }
 
 output "api_hostname" {
   description = "Hostname of the ReportMate API"
-  value       = module.api.function_app_hostname
+  value       = module.functions.function_app_hostname
 }
 
 # Frontend Outputs

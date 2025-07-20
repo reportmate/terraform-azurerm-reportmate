@@ -8,7 +8,7 @@ resource "random_id" "api_suffix" {
 
 # Service Plan for Linux Functions
 resource "azurerm_service_plan" "api" {
-  name                = "${var.service_plan_name}-${random_id.api_suffix.hex}"
+  name                = var.service_plan_name
   resource_group_name = var.resource_group_name
   location            = var.location
   os_type             = "Linux"
@@ -19,7 +19,7 @@ resource "azurerm_service_plan" "api" {
 
 # Function App
 resource "azurerm_linux_function_app" "api" {
-  name                       = "${var.function_app_name}-${random_id.api_suffix.hex}"
+  name                       = var.function_app_name
   resource_group_name        = var.resource_group_name
   location                   = var.location
   service_plan_id            = azurerm_service_plan.api.id
@@ -96,7 +96,8 @@ resource "azurerm_linux_function_app" "api" {
       app_settings["APPLICATIONINSIGHTS_CONNECTION_STRING"],
       app_settings["APPINSIGHTS_CONNECTION_STRING"],
       app_settings["WEBSITE_RUN_FROM_PACKAGE"],
-      app_settings["DATABASE_URL"]
+      app_settings["DATABASE_URL"],
+      site_config[0].application_insights_key
     ]
   }
 
@@ -110,7 +111,7 @@ data "archive_file" "api_code" {
   type        = "zip"
   output_path = "${path.module}/api-deployment.zip"
   
-  source_dir = "${path.module}"
+  source_dir = "${path.module}/api"
   excludes = [
     "*.tf",
     "*.tfvars",

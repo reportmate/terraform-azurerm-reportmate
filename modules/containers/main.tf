@@ -6,7 +6,7 @@ resource "random_id" "container_suffix" {
 # Container Registry (optional - only if using custom registry)
 resource "azurerm_container_registry" "acr" {
   count               = var.use_custom_registry ? 1 : 0
-  name                = "${replace(var.container_registry_name, "-", "")}${random_id.container_suffix.hex}"
+  name                = var.container_registry_name
   resource_group_name = var.resource_group_name
   location            = var.location
   sku                 = "Basic"
@@ -15,23 +15,18 @@ resource "azurerm_container_registry" "acr" {
   tags = var.tags
 }
 
-# Log Analytics Workspace for Container Apps
-resource "azurerm_log_analytics_workspace" "containers" {
-  name                = "reportmate-container-logs-${random_id.container_suffix.hex}"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  sku                 = "PerGB2018"
-  retention_in_days   = 30
-
-  tags = var.tags
-}
-
 # Container Apps Environment
 resource "azurerm_container_app_environment" "main" {
-  name                       = "reportmate-env-${random_id.container_suffix.hex}"
+  name                       = "reportmate-env"
   resource_group_name        = var.resource_group_name
   location                   = var.location
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.containers.id
+  log_analytics_workspace_id = var.log_analytics_workspace_id
+
+  lifecycle {
+    ignore_changes = [
+      log_analytics_workspace_id  # Ignore case sensitivity changes in Azure resource IDs
+    ]
+  }
 
   tags = var.tags
 }
@@ -39,7 +34,7 @@ resource "azurerm_container_app_environment" "main" {
 # Development Frontend Container App
 resource "azurerm_container_app" "frontend_dev" {
   count                        = var.deploy_dev || var.environment == "dev" || var.environment == "both" ? 1 : 0
-  name                         = "reportmate-frontend-dev-${random_id.container_suffix.hex}"
+  name                         = "reportmate-frontend-dev"
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
@@ -51,6 +46,12 @@ resource "azurerm_container_app" "frontend_dev" {
       type         = "UserAssigned"
       identity_ids = [var.managed_identity_id]
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      container_app_environment_id  # Ignore case sensitivity changes in Azure resource IDs
+    ]
   }
 
   template {
@@ -123,7 +124,7 @@ resource "azurerm_container_app" "frontend_dev" {
 # Production Frontend Container App
 resource "azurerm_container_app" "frontend_prod" {
   count                        = var.deploy_prod || var.environment == "prod" || var.environment == "both" ? 1 : 0
-  name                         = "reportmate-frontend-prod-${random_id.container_suffix.hex}"
+  name                         = "reportmate-frontend-prod"
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
@@ -135,6 +136,12 @@ resource "azurerm_container_app" "frontend_prod" {
       type         = "UserAssigned"
       identity_ids = [var.managed_identity_id]
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      container_app_environment_id  # Ignore case sensitivity changes in Azure resource IDs
+    ]
   }
 
   template {
@@ -197,4 +204,31 @@ resource "azurerm_container_app" "frontend_prod" {
   tags = merge(var.tags, {
     Environment = "production"
   })
+}
+
+# ACR Role Assignments (only if using custom registry)
+resource "azurerm_role_assignment" "container_acr_pull" {
+  count                            = var.use_custom_registry ? 1 : 0
+  scope                            = azurerm_container_registry.acr[0].id
+  role_definition_name             = "AcrPull"
+  principal_id                     = var.managed_identity_principal_id
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  depends_on = [azurerm_container_registry.acr]
+}
+
+resource "azurerm_role_assignment" "container_acr_push" {
+  count                            = var.use_custom_registry ? 1 : 0
+  scope                            = azurerm_container_registry.acr[0].id
+  role_definition_name             = "AcrPush"
+  principal_id                     = var.managed_identity_principal_id
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  depends_on = [azurerm_container_registry.acr]
 }
