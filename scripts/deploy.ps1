@@ -21,6 +21,9 @@ Infrastructure only (Terraform deployment)
 .PARAMETER Functions
 Functions only (code deployment)
 
+.PARAMETER Containers
+Containers only (frontend deployment)
+
 .PARAMETER Test
 Test deployment after completion
 
@@ -46,6 +49,10 @@ Show help message
 .\deploy.ps1 -Environment staging -Functions -Yes
 # Deploy functions to staging, auto-approve
 
+.EXAMPLE
+.\deploy.ps1 -Containers
+# Deploy containers only
+
 #>
 
 param(
@@ -53,6 +60,7 @@ param(
     [switch]$Quick,
     [switch]$Infrastructure,
     [switch]$Functions,
+    [switch]$Containers,
     [switch]$Test,
     [switch]$Yes,
     [switch]$Help
@@ -67,7 +75,6 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -or $IsWindows -eq $false) {
     $Green = "`e[32m"
     $Yellow = "`e[33m"
     $Blue = "`e[34m"
-    $Cyan = "`e[36m"
     $Reset = "`e[0m"
 } else {
     # Windows PowerShell 5.x fallback
@@ -75,7 +82,6 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -or $IsWindows -eq $false) {
     $Green = ""
     $Yellow = ""
     $Blue = ""
-    $Cyan = ""
     $Reset = ""
 }
 
@@ -111,6 +117,7 @@ Options:
   -Quick              Quick deploy (functions only, use existing infrastructure)
   -Infrastructure     Infrastructure only (Terraform deployment)
   -Functions          Functions only (code deployment)
+  -Containers         Containers only (frontend deployment)
   -Test              Test deployment after completion
   -Yes               Auto-approve without prompts
   -Help              Show this help message
@@ -120,6 +127,7 @@ Examples:
   .\deploy.ps1 -Quick                  # Quick functions-only deployment
   .\deploy.ps1 -Environment prod -Infrastructure    # Deploy infrastructure to production
   .\deploy.ps1 -Environment staging -Functions -Yes # Deploy functions to staging, auto-approve
+  .\deploy.ps1 -Containers                        # Deploy containers only
 
 "@
 }
@@ -134,19 +142,28 @@ if ($Help) {
 if ($Quick) {
     $DeployInfrastructure = $false
     $DeployFunctions = $true
+    $DeployContainers = $false
     $QuickDeploy = $true
 } elseif ($Infrastructure) {
     $DeployInfrastructure = $true
     $DeployFunctions = $false
+    $DeployContainers = $false
     $QuickDeploy = $false
 } elseif ($Functions) {
     $DeployInfrastructure = $false
     $DeployFunctions = $true
+    $DeployContainers = $false
+    $QuickDeploy = $false
+} elseif ($Containers) {
+    $DeployInfrastructure = $false
+    $DeployFunctions = $false
+    $DeployContainers = $true
     $QuickDeploy = $false
 } else {
     # Default: full deployment
     $DeployInfrastructure = $true
     $DeployFunctions = $true
+    $DeployContainers = $true
     $QuickDeploy = $false
 }
 
@@ -252,18 +269,33 @@ function Deploy-Infrastructure {
         if ($LASTEXITCODE -ne 0) { throw "Terraform apply failed" }
         
         # Get outputs
-        $script:FunctionAppName = terraform output -raw function_app_name 2>$null
-        if (-not $script:FunctionAppName) { $script:FunctionAppName = $FunctionAppName }
+        $script:FunctionAppName = terraform output -raw api_hostname 2>$null
+        if (-not $script:FunctionAppName) { 
+            # Extract function app name from hostname
+            $fullHostname = terraform output -raw api_hostname 2>$null
+            if ($fullHostname) {
+                $script:FunctionAppName = $fullHostname.Split('.')[0]
+            } else {
+                $script:FunctionAppName = $FunctionAppName 
+            }
+        }
         
-        $script:FunctionAppUrl = terraform output -raw function_app_url 2>$null
+        $script:FunctionAppUrl = terraform output -raw api_url 2>$null
         $script:ResourceGroupName = terraform output -raw resource_group_name 2>$null
         if (-not $script:ResourceGroupName) { $script:ResourceGroupName = $ResourceGroup }
+        
+        # Get container information if available
+        $script:FrontendUrl = terraform output -raw frontend_url 2>$null
+        $script:FrontendFqdn = terraform output -raw frontend_fqdn 2>$null
         
         Write-Success "Infrastructure deployed successfully!"
         Write-Success "Function App: $script:FunctionAppName"
         Write-Success "Resource Group: $script:ResourceGroupName"
         if ($script:FunctionAppUrl) {
-            Write-Success "Function App URL: $script:FunctionAppUrl"
+            Write-Success "API URL: $script:FunctionAppUrl"
+        }
+        if ($script:FrontendUrl) {
+            Write-Success "Frontend URL: $script:FrontendUrl"
         }
         
     } catch {
@@ -321,13 +353,14 @@ function Deploy-Functions-Quick {
         
         # Copy files
         Copy-Item -Path "modules\functions\api\*" -Destination $tempDir -Recurse -Force
-        Copy-Item -Path "modules\functions\shared" -Destination $tempDir -Recurse -Force
-        Copy-Item -Path "modules\functions\processors" -Destination $tempDir -Recurse -Force
-        Copy-Item -Path "modules\functions\api\requirements.txt" -Destination $tempDir -Force
         
-        # Clean up Python cache files
-        Get-ChildItem -Path $tempDir -Recurse -Name "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
-        Get-ChildItem -Path $tempDir -Recurse -Filter "*.pyc" -ErrorAction SilentlyContinue | Remove-Item -Force
+        # Clean up Python cache files (ignore errors if they don't exist)
+        try {
+            Get-ChildItem -Path $tempDir -Recurse -Name "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+            Get-ChildItem -Path $tempDir -Recurse -Filter "*.pyc" -ErrorAction SilentlyContinue | Remove-Item -Force
+        } catch {
+            Write-Info "No Python cache files to clean"
+        }
         
         # Create ZIP
         $zipPath = "$env:TEMP\deployment.zip"
@@ -350,6 +383,37 @@ function Deploy-Functions-Quick {
     } catch {
         Write-Error "Quick function deployment failed: $_"
         exit 1
+    }
+}
+
+function Deploy-Containers {
+    Write-Info "Deploying containers using the container deployment script..."
+    
+    try {
+        # Check if container deployment script exists
+        $containerScript = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "apps\www\deploy.ps1"
+        
+        if (-not (Test-Path $containerScript)) {
+            Write-Warning "Container deployment script not found at: $containerScript"
+            Write-Warning "Skipping container deployment. You can deploy containers manually using:"
+            Write-Warning "  .\apps\www\deploy.ps1 -Environment $Environment"
+            return
+        }
+        
+        Write-Info "Found container deployment script: $containerScript"
+        
+        # Run container deployment
+        & $containerScript -Environment $Environment
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Container deployment completed!"
+        } else {
+            Write-Warning "Container deployment may have had issues. Check output above."
+        }
+        
+    } catch {
+        Write-Warning "Container deployment failed: $_"
+        Write-Warning "You can deploy containers manually using: .\apps\www\deploy.ps1 -Environment $Environment"
     }
 }
 
@@ -386,10 +450,29 @@ function Test-Deployment {
         }
         
         Write-Host ""
-        Write-Info "Available endpoints:"
+        Write-Info "Available API endpoints:"
         Write-Host "  Health:  https://$functionUrl/api/health"
         Write-Host "  Devices: https://$functionUrl/api/devices"
         Write-Host "  Ingest:  https://$functionUrl/api/ingest"
+        
+        # Test frontend if available
+        if ($script:FrontendUrl) {
+            Write-Host ""
+            Write-Info "Testing frontend..."
+            Write-Info "Frontend URL: $script:FrontendUrl"
+            
+            try {
+                $frontendResponse = Invoke-WebRequest -Uri $script:FrontendUrl -Method Get -TimeoutSec 10 -UseBasicParsing
+                if ($frontendResponse.StatusCode -eq 200) {
+                    Write-Success "Frontend is accessible!"
+                } else {
+                    Write-Warning "Frontend returned status: $($frontendResponse.StatusCode)"
+                }
+            } catch {
+                Write-Warning "Frontend test failed. The container might still be starting up."
+                Write-Warning "Try manually: $script:FrontendUrl"
+            }
+        }
         
     } catch {
         Write-Warning "Test deployment failed: $_"
@@ -408,20 +491,11 @@ function Main {
     Write-Host "  Function App: $FunctionAppName"
     Write-Host "  Deploy Infrastructure: $DeployInfrastructure"
     Write-Host "  Deploy Functions: $DeployFunctions"
+    Write-Host "  Deploy Containers: $DeployContainers"
     Write-Host "  Quick Deploy: $QuickDeploy"
     Write-Host "  Auto Approve: $Yes"
     Write-Host "  Run Tests: $Test"
     Write-Host ""
-    
-    # Confirm deployment
-    if (-not $Yes) {
-        $response = Read-Host "🤔 Proceed with deployment? (y/N)"
-        if ($response -notmatch '^[Yy]$') {
-            Write-Error "Deployment cancelled"
-            exit 1
-        }
-        Write-Host ""
-    }
     
     # Check prerequisites
     Test-Prerequisites
@@ -440,6 +514,12 @@ function Main {
         } else {
             Deploy-Functions-Traditional
         }
+        Write-Host ""
+    }
+    
+    # Deploy containers (if infrastructure was deployed or this is a full deployment)  
+    if ($DeployContainers) {
+        Deploy-Containers
         Write-Host ""
     }
     
