@@ -6,8 +6,8 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get"],
-      "route": "devices/{id?}"
+      "methods": ["post", "get"],
+      "route": "device/{serial_number?}"
     },
     {
       "type": "http",

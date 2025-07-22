@@ -3,6 +3,8 @@ azure-functions==1.18.0
 
 # Database connectivity
 asyncpg==0.29.0
+psycopg2-binary==2.9.9
+pg8000==1.30.3
 
 # HTTP client for external requests
 aiohttp==3.9.1

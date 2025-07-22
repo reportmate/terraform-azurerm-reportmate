@@ -7,7 +7,7 @@
       "direction": "in",
       "name": "req",
       "methods": ["get"],
-      "route": "devices/{id?}"
+      "route": "events-simple"
     },
     {
       "type": "http",

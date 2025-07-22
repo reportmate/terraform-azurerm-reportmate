@@ -7,11 +7,11 @@
       "direction": "in",
       "name": "req",
       "methods": ["get"],
-      "route": "devices/{id?}"
+      "route": "test-db"
     },
     {
       "type": "http",
-      "direction": "out",
+      "direction": "out", 
       "name": "$return"
     }
   ]

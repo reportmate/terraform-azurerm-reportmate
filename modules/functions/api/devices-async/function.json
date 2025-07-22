@@ -7,7 +7,7 @@
       "direction": "in",
       "name": "req",
       "methods": ["get"],
-      "route": "devices/{id?}"
+      "route": "devices-async"
     },
     {
       "type": "http",
