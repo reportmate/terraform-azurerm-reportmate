@@ -9,21 +9,21 @@ output "container_app_environment_id" {
 }
 
 output "frontend_dev_url" {
-  value       = length(azurerm_container_app.frontend_dev) > 0 ? "https://${azurerm_container_app.frontend_dev[0].latest_revision_fqdn}" : null
+  value       = length(azurerm_container_app.container_dev) > 0 ? "https://${azurerm_container_app.container_dev[0].latest_revision_fqdn}" : null
   description = "Development frontend URL (if deployed)"
 }
 
 output "frontend_prod_url" {
-  value       = length(azurerm_container_app.frontend_prod) > 0 ? "https://${azurerm_container_app.frontend_prod[0].latest_revision_fqdn}" : null
+  value       = length(azurerm_container_app.container_prod) > 0 ? "https://${azurerm_container_app.container_prod[0].latest_revision_fqdn}" : null
   description = "Production frontend URL (if deployed)"
 }
 
 output "frontend_fqdn" {
-  value       = length(azurerm_container_app.frontend_prod) > 0 ? azurerm_container_app.frontend_prod[0].latest_revision_fqdn : (length(azurerm_container_app.frontend_dev) > 0 ? azurerm_container_app.frontend_dev[0].latest_revision_fqdn : null)
+  value       = length(azurerm_container_app.container_prod) > 0 ? azurerm_container_app.container_prod[0].latest_revision_fqdn : (length(azurerm_container_app.container_dev) > 0 ? azurerm_container_app.container_dev[0].latest_revision_fqdn : null)
   description = "Primary frontend FQDN (prod if available, otherwise dev)"
 }
 
 output "frontend_url" {
-  value       = length(azurerm_container_app.frontend_prod) > 0 ? "https://${azurerm_container_app.frontend_prod[0].latest_revision_fqdn}" : (length(azurerm_container_app.frontend_dev) > 0 ? "https://${azurerm_container_app.frontend_dev[0].latest_revision_fqdn}" : "No frontend deployed")
+  value       = length(azurerm_container_app.container_prod) > 0 ? "https://${azurerm_container_app.container_prod[0].latest_revision_fqdn}" : (length(azurerm_container_app.container_dev) > 0 ? "https://${azurerm_container_app.container_dev[0].latest_revision_fqdn}" : "No frontend deployed")
   description = "Primary frontend URL (prod if available, otherwise dev)"
 }
