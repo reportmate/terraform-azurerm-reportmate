@@ -31,10 +31,10 @@ resource "azurerm_container_app_environment" "main" {
   tags = var.tags
 }
 
-# Development Frontend Container App
-resource "azurerm_container_app" "frontend_dev" {
+# Development Container App
+resource "azurerm_container_app" "container_dev" {
   count                        = var.deploy_dev || var.environment == "dev" || var.environment == "both" ? 1 : 0
-  name                         = "reportmate-frontend-dev"
+  name                         = "reportmate-container-dev"
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
@@ -56,7 +56,7 @@ resource "azurerm_container_app" "frontend_dev" {
 
   template {
     container {
-      name   = "frontend"
+      name   = "container"
       image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/reportmate:latest" : var.container_image
       cpu    = 0.25
       memory = "0.5Gi"
@@ -121,10 +121,10 @@ resource "azurerm_container_app" "frontend_dev" {
   })
 }
 
-# Production Frontend Container App
-resource "azurerm_container_app" "frontend_prod" {
+# Production Container App
+resource "azurerm_container_app" "container_prod" {
   count                        = var.deploy_prod || var.environment == "prod" || var.environment == "both" ? 1 : 0
-  name                         = "reportmate-frontend-prod"
+  name                         = "reportmate-container-prod"
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
@@ -146,7 +146,7 @@ resource "azurerm_container_app" "frontend_prod" {
 
   template {
     container {
-      name   = "frontend"
+      name   = "container"
       image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/reportmate:latest" : var.container_image
       cpu    = 0.5   # More CPU for production
       memory = "1Gi" # More memory for production
