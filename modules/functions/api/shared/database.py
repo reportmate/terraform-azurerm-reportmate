@@ -4,8 +4,10 @@ Database connection utilities for ReportMate API
 
 import logging
 import os
+import json
 import asyncpg
 from typing import Optional, Dict, Any, List
+from datetime import datetime
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -17,12 +19,13 @@ class DatabaseManager:
     
     def __init__(self):
         self.pool: Optional[asyncpg.Pool] = None
-        self.connection_string = os.getenv('DATABASE_CONNECTION_STRING')
+        # Check for both possible environment variable names
+        self.connection_string = os.getenv('DATABASE_CONNECTION_STRING') or os.getenv('DATABASE_URL')
         
     async def initialize_pool(self):
         """Initialize the connection pool"""
         if not self.connection_string:
-            raise ValueError("DATABASE_CONNECTION_STRING environment variable not set")
+            raise ValueError("DATABASE_CONNECTION_STRING or DATABASE_URL environment variable not set")
         
         try:
             self.pool = await asyncpg.create_pool(
@@ -53,6 +56,34 @@ class DatabaseManager:
             await self.pool.close()
             self.pool = None
             logger.info("Database connection pool closed")
+    
+    # Generic database query methods
+    async def fetch_one(self, query: str, *params) -> Optional[Dict[str, Any]]:
+        """Execute a query and return a single row as a dictionary"""
+        connection = await self.get_connection()
+        try:
+            row = await connection.fetchrow(query, *params)
+            return dict(row) if row else None
+        finally:
+            await self.release_connection(connection)
+    
+    async def fetch_all(self, query: str, *params) -> List[Dict[str, Any]]:
+        """Execute a query and return all rows as dictionaries"""
+        connection = await self.get_connection()
+        try:
+            rows = await connection.fetch(query, *params)
+            return [dict(row) for row in rows]
+        finally:
+            await self.release_connection(connection)
+    
+    async def execute(self, query: str, *params) -> Optional[str]:
+        """Execute a query and return the result"""
+        connection = await self.get_connection()
+        try:
+            result = await connection.execute(query, *params)
+            return result
+        finally:
+            await self.release_connection(connection)
     
     # Device-related methods
     async def get_devices(self, limit: int = 50, offset: int = 0, machine_group: str = '', 
@@ -215,15 +246,34 @@ class DatabaseManager:
     # Module data storage methods
     async def store_module_data(self, device_id: str, module_id: str, module_data: Dict[str, Any]):
         """Store processed module data in the appropriate tables"""
-        if module_id == 'printer':
+        logger.info(f"Storing {module_id} data for device {device_id}")
+        
+        if module_id == 'printers':
             await self._store_printer_data(device_id, module_data)
         elif module_id == 'hardware':
             await self._store_hardware_data(device_id, module_data)
         elif module_id == 'applications':
             await self._store_applications_data(device_id, module_data)
-        # Add other modules as needed
+        elif module_id == 'system':
+            await self._store_system_data(device_id, module_data)
+        elif module_id == 'security':
+            await self._store_security_data(device_id, module_data)
+        elif module_id == 'network':
+            await self._store_network_data(device_id, module_data)
+        elif module_id == 'inventory':
+            await self._store_inventory_data(device_id, module_data)
+        elif module_id == 'management':
+            await self._store_management_data(device_id, module_data)
+        elif module_id == 'profiles':
+            await self._store_profiles_data(device_id, module_data)
+        elif module_id == 'installs':
+            await self._store_installs_data(device_id, module_data)
+        elif module_id == 'displays':
+            await self._store_displays_data(device_id, module_data)
         else:
             logger.warning(f"No storage implementation for module: {module_id}")
+            # Store in generic module_data table as fallback
+            await self._store_generic_module_data(device_id, module_id, module_data)
     
     async def _store_printer_data(self, device_id: str, data: Dict[str, Any]):
         """Store printer module data in database"""
@@ -414,14 +464,103 @@ class DatabaseManager:
             json.dumps(policy_settings.get('group_policy_settings', {})), policy_settings.get('last_updated'))
     
     async def _store_hardware_data(self, device_id: str, data: Dict[str, Any]):
-        """Store hardware module data (placeholder)"""
-        # TODO: Implement hardware data storage
-        logger.info(f"Hardware data storage not yet implemented for device {device_id}")
+        """Store hardware module data"""
+        connection = await self.get_connection()
+        try:
+            logger.info(f"Storing hardware data for device {device_id}")
+            
+            # Extract hardware information from the data
+            hardware_info = data.get('hardware_summary', {})
+            system_info = data.get('system_info', {})
+            
+            # Upsert hardware record
+            await connection.execute("""
+                INSERT INTO hardware (
+                    device_id, manufacturer, model, serial_number, asset_tag,
+                    processor_name, processor_cores, processor_speed_ghz,
+                    memory_total_gb, memory_available_gb, storage_total_gb, storage_available_gb,
+                    graphics_card, network_adapters, bios_version, created_at, updated_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
+                ON CONFLICT (device_id) DO UPDATE SET
+                    manufacturer = EXCLUDED.manufacturer,
+                    model = EXCLUDED.model,
+                    serial_number = EXCLUDED.serial_number,
+                    processor_name = EXCLUDED.processor_name,
+                    processor_cores = EXCLUDED.processor_cores,
+                    processor_speed_ghz = EXCLUDED.processor_speed_ghz,
+                    memory_total_gb = EXCLUDED.memory_total_gb,
+                    memory_available_gb = EXCLUDED.memory_available_gb,
+                    storage_total_gb = EXCLUDED.storage_total_gb,
+                    storage_available_gb = EXCLUDED.storage_available_gb,
+                    graphics_card = EXCLUDED.graphics_card,
+                    network_adapters = EXCLUDED.network_adapters,
+                    bios_version = EXCLUDED.bios_version,
+                    updated_at = NOW()
+            """, 
+            device_id,
+            hardware_info.get('manufacturer', ''),
+            hardware_info.get('model', ''),
+            hardware_info.get('serial_number', ''),
+            hardware_info.get('asset_tag', ''),
+            hardware_info.get('processor_name', ''),
+            hardware_info.get('processor_cores', 0),
+            hardware_info.get('processor_speed_ghz', 0.0),
+            hardware_info.get('memory_total_gb', 0.0),
+            hardware_info.get('memory_available_gb', 0.0),
+            hardware_info.get('storage_total_gb', 0.0),
+            hardware_info.get('storage_available_gb', 0.0),
+            hardware_info.get('graphics_card', ''),
+            json.dumps(hardware_info.get('network_adapters', [])),
+            hardware_info.get('bios_version', '')
+            )
+            
+            logger.info(f"Stored hardware data for device {device_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store hardware data for device {device_id}: {e}")
+            raise
+        finally:
+            await self.release_connection(connection)
     
     async def _store_applications_data(self, device_id: str, data: Dict[str, Any]):
-        """Store applications module data (placeholder)"""
-        # TODO: Implement applications data storage
-        logger.info(f"Applications data storage not yet implemented for device {device_id}")
+        """Store applications module data"""
+        connection = await self.get_connection()
+        try:
+            logger.info(f"Storing applications data for device {device_id}")
+            
+            # Clear existing applications for this device
+            await connection.execute("""
+                DELETE FROM applications WHERE device_id = $1
+            """, device_id)
+            
+            # Insert new applications data
+            applications = data.get('installed_applications', [])
+            
+            for app in applications:
+                await connection.execute("""
+                    INSERT INTO applications (
+                        device_id, name, version, publisher, install_location,
+                        install_date, size_bytes, architecture, source, created_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                """, 
+                device_id,
+                app.get('name', 'Unknown'),
+                app.get('version', ''),
+                app.get('publisher', ''),
+                app.get('install_location', ''),
+                app.get('install_date'),
+                app.get('size', 0),
+                app.get('architecture', ''),
+                'osquery'
+                )
+            
+            logger.info(f"Stored {len(applications)} applications for device {device_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store applications data for device {device_id}: {e}")
+            raise
+        finally:
+            await self.release_connection(connection)
     
     async def upsert_device(self, device_record: Dict[str, Any]):
         """Upsert device record"""
@@ -472,6 +611,132 @@ class DatabaseManager:
             'average_uptime': 0,
             'performance_scores': {}
         }
+
+    # Additional module storage methods
+    async def _store_system_data(self, device_id: str, data: Dict[str, Any]):
+        """Store system module data"""
+        connection = await self.get_connection()
+        try:
+            await connection.execute("""
+                INSERT INTO system_info (
+                    device_id, os_name, os_version, os_build, os_architecture, os_edition,
+                    display_version, install_date, boot_time, uptime_seconds, locale, timezone,
+                    computer_name, domain_name, last_boot_time, cpu_usage, memory_usage, disk_usage
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                ON CONFLICT (device_id) DO UPDATE SET
+                    os_name = EXCLUDED.os_name,
+                    os_version = EXCLUDED.os_version,
+                    os_build = EXCLUDED.os_build,
+                    os_architecture = EXCLUDED.os_architecture,
+                    os_edition = EXCLUDED.os_edition,
+                    display_version = EXCLUDED.display_version,
+                    install_date = EXCLUDED.install_date,
+                    boot_time = EXCLUDED.boot_time,
+                    uptime_seconds = EXCLUDED.uptime_seconds,
+                    locale = EXCLUDED.locale,
+                    timezone = EXCLUDED.timezone,
+                    computer_name = EXCLUDED.computer_name,
+                    domain_name = EXCLUDED.domain_name,
+                    last_boot_time = EXCLUDED.last_boot_time,
+                    cpu_usage = EXCLUDED.cpu_usage,
+                    memory_usage = EXCLUDED.memory_usage,
+                    disk_usage = EXCLUDED.disk_usage,
+                    updated_at = NOW()
+            """, 
+            device_id,
+            data.get('system_summary', {}).get('os_name', ''),
+            data.get('system_summary', {}).get('os_version', ''),
+            data.get('system_summary', {}).get('os_build', ''),
+            data.get('system_summary', {}).get('architecture', ''),
+            data.get('system_summary', {}).get('os_edition', ''),
+            data.get('system_summary', {}).get('display_version', ''),
+            data.get('system_summary', {}).get('install_date'),
+            data.get('system_summary', {}).get('boot_time'),
+            data.get('performance_metrics', {}).get('uptime_seconds', 0),
+            data.get('localization', {}).get('locale', ''),
+            data.get('localization', {}).get('timezone', ''),
+            data.get('system_summary', {}).get('computer_name', ''),
+            data.get('system_summary', {}).get('domain_name', ''),
+            data.get('system_summary', {}).get('last_boot_time'),
+            data.get('performance_metrics', {}).get('cpu_usage', 0.0),
+            data.get('performance_metrics', {}).get('memory_usage', 0.0),
+            data.get('performance_metrics', {}).get('disk_usage', 0.0)
+            )
+            logger.info(f"Stored system data for device {device_id}")
+        except Exception as e:
+            logger.error(f"Failed to store system data for device {device_id}: {e}")
+            raise
+        finally:
+            await self.release_connection(connection)
+    
+    async def _store_security_data(self, device_id: str, data: Dict[str, Any]):
+        """Store security module data"""
+        connection = await self.get_connection()
+        try:
+            await connection.execute("""
+                INSERT INTO security (
+                    device_id, antivirus_name, antivirus_version, antivirus_enabled, antivirus_updated,
+                    firewall_enabled, tpm_enabled, tmp_version, encryption_enabled, encryption_method,
+                    secure_boot_enabled, defender_enabled, last_scan_date, threats_detected
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                ON CONFLICT (device_id) DO UPDATE SET
+                    antivirus_name = EXCLUDED.antivirus_name,
+                    antivirus_version = EXCLUDED.antivirus_version,
+                    antivirus_enabled = EXCLUDED.antivirus_enabled,
+                    antivirus_updated = EXCLUDED.antivirus_updated,
+                    firewall_enabled = EXCLUDED.firewall_enabled,
+                    tmp_enabled = EXCLUDED.tmp_enabled,
+                    tmp_version = EXCLUDED.tmp_version,
+                    encryption_enabled = EXCLUDED.encryption_enabled,
+                    encryption_method = EXCLUDED.encryption_method,
+                    secure_boot_enabled = EXCLUDED.secure_boot_enabled,
+                    defender_enabled = EXCLUDED.defender_enabled,
+                    last_scan_date = EXCLUDED.last_scan_date,
+                    threats_detected = EXCLUDED.threats_detected,
+                    updated_at = NOW()
+            """, 
+            device_id,
+            data.get('antivirus', {}).get('name', ''),
+            data.get('antivirus', {}).get('version', ''),
+            data.get('antivirus', {}).get('enabled', False),
+            data.get('antivirus', {}).get('last_updated'),
+            data.get('firewall', {}).get('enabled', False),
+            data.get('tpm', {}).get('enabled', False),
+            data.get('tpm', {}).get('version', ''),
+            data.get('encryption', {}).get('enabled', False),
+            data.get('encryption', {}).get('method', ''),
+            data.get('secure_boot', {}).get('enabled', False),
+            data.get('defender', {}).get('enabled', False),
+            data.get('defender', {}).get('last_scan_date'),
+            data.get('threats', {}).get('detected_count', 0)
+            )
+            logger.info(f"Stored security data for device {device_id}")
+        except Exception as e:
+            logger.error(f"Failed to store security data for device {device_id}: {e}")
+            raise
+        finally:
+            await self.release_connection(connection)
+    
+    async def _store_generic_module_data(self, device_id: str, module_id: str, data: Dict[str, Any]):
+        """Store module data in generic module_data table"""
+        connection = await self.get_connection()
+        try:
+            await connection.execute("""
+                INSERT INTO module_data (device_id, module_id, data, collected_at)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (device_id, module_id) DO UPDATE SET
+                    data = EXCLUDED.data,
+                    collected_at = EXCLUDED.collected_at,
+                    updated_at = NOW()
+            """, 
+            device_id, module_id, json.dumps(data), data.get('collected_at', datetime.utcnow())
+            )
+            logger.info(f"Stored {module_id} data in generic table for device {device_id}")
+        except Exception as e:
+            logger.error(f"Failed to store {module_id} data for device {device_id}: {e}")
+            raise
+        finally:
+            await self.release_connection(connection)
 
 # Global database manager instance
 db_manager = DatabaseManager()

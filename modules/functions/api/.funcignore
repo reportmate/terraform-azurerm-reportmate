@@ -1,0 +1,30 @@
+# Python virtual environments
+.venv/
+.env/
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Build files
+*.zip
+
+# Local development files
+local.settings.json
+.azure/

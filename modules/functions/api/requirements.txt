@@ -1,22 +1,14 @@
 # Azure Functions runtime
 azure-functions==1.18.0
 
-# Database connectivity
-asyncpg==0.29.0
-psycopg2-binary==2.9.9
+# Database drivers (pg8000 works best with Azure Functions)
 pg8000==1.30.3
 
 # HTTP client for external requests
-aiohttp==3.9.1
+requests==2.31.0
 
-# JSON handling and utilities
-ujson==5.9.0
-
-# Async utilities
-asyncio-throttle==1.0.2
-
-# Logging and monitoring
-azure-monitor-opentelemetry-exporter==1.0.0b21
+# JSON handling
+# Using built-in json
 
 # Date/time utilities
 python-dateutil==2.8.2

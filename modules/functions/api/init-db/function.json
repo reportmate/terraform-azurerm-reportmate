@@ -2,17 +2,17 @@
   "scriptFile": "__init__.py",
   "bindings": [
     {
-      "authLevel": "function",
+      "authLevel": "anonymous",
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get"],
-      "route": "v1/version"
+      "methods": ["post"]
     },
     {
       "type": "http",
       "direction": "out",
       "name": "$return"
     }
-  ]
+  ],
+  "route": "init-db"
 }

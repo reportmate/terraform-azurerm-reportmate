@@ -137,6 +137,99 @@ class DeviceDataProcessor:
                 'timestamp': datetime.utcnow().isoformat()
             }
     
+    async def process_device_data_with_device_id(self, device_data: Dict[str, Any], machine_group_passphrase: str, device_id: str) -> Dict[str, Any]:
+        """
+        Process complete device data through all applicable modules with explicit device_id
+        
+        Args:
+            device_data: Raw device data payload
+            machine_group_passphrase: Machine group authentication passphrase
+            device_id: Explicit device identifier (usually serial number)
+            
+        Returns:
+            Processing result with status and processed data
+        """
+        try:
+            self.logger.info(f"Starting device data processing with explicit device_id: {device_id}")
+            
+            # Authenticate and get machine group info
+            auth_result = await self.auth_manager.authenticate_machine_group(machine_group_passphrase)
+            if not auth_result['success']:
+                return {
+                    'success': False,
+                    'error': 'Authentication failed',
+                    'details': auth_result['error']
+                }
+            
+            machine_group = auth_result['machine_group']
+            business_unit = auth_result['business_unit']
+            
+            # Use the provided device_id instead of extracting from data
+            self.logger.info(f"Using provided device_id: {device_id}")
+            
+            # Register or update device
+            device_record = await self._register_device(device_id, device_data, machine_group, business_unit)
+            
+            # Process each module
+            processing_results = {}
+            processing_errors = []
+            
+            # Determine which modules to process based on available data
+            available_modules = self._detect_available_modules(device_data)
+            self.logger.info(f"Detected {len(available_modules)} modules: {', '.join(available_modules)}")
+            
+            # Process modules in parallel
+            module_tasks = []
+            for module_id in available_modules:
+                if module_id in self.processors:
+                    task = self._process_module(module_id, device_data, device_id)
+                    module_tasks.append(task)
+            
+            # Wait for all modules to complete
+            module_results = await asyncio.gather(*module_tasks, return_exceptions=True)
+            
+            # Collect results and errors
+            for i, result in enumerate(module_results):
+                module_id = available_modules[i]
+                
+                if isinstance(result, Exception):
+                    error_msg = f"Module {module_id} processing failed: {str(result)}"
+                    self.logger.error(error_msg)
+                    processing_errors.append(error_msg)
+                else:
+                    processing_results[module_id] = result
+                    self.logger.debug(f"Module {module_id} processed successfully")
+            
+            # Store processed data in database
+            storage_result = await self._store_processed_data(device_id, processing_results, device_record)
+            
+            # Generate summary
+            summary = self._generate_processing_summary(processing_results, processing_errors)
+            
+            self.logger.info(f"Device data processing completed for {device_id}")
+            
+            return {
+                'success': True,
+                'device_id': device_id,
+                'machine_group': machine_group['name'],
+                'business_unit': business_unit['name'],
+                'modules_processed': len(processing_results),
+                'modules_failed': len(processing_errors),
+                'processing_errors': processing_errors,
+                'summary': summary,
+                'storage_result': storage_result,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Device data processing with explicit device_id failed: {str(e)}")
+            return {
+                'success': False,
+                'error': 'Processing failed',
+                'details': str(e),
+                'timestamp': datetime.utcnow().isoformat()
+            }
+    
     async def _process_module(self, module_id: str, device_data: Dict[str, Any], device_id: str) -> Dict[str, Any]:
         """
         Process a single module

@@ -1,13 +1,14 @@
 {
-  "scriptFile": "__init__.py",
   "bindings": [
     {
       "authLevel": "anonymous",
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get"],
-      "route": "v1/devices/{id}/system"
+      "methods": [
+        "get",
+        "post"
+      ]
     },
     {
       "type": "http",
