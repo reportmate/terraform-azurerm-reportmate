@@ -138,6 +138,31 @@ if ($Help) {
     exit 0
 }
 
+# Auto-detect environment if not specified (and not using default "dev")
+if ($Environment -eq "dev" -and -not $PSBoundParameters.ContainsKey('Environment')) {
+    # Try to detect environment from git branch
+    try {
+        $gitBranch = git rev-parse --abbrev-ref HEAD 2>$null
+        if ($gitBranch) {
+            if ($gitBranch -match "prod|production|main") {
+                $Environment = "prod"
+                Write-Info "Auto-detected environment: $Environment (from git branch: $gitBranch)"
+            } elseif ($gitBranch -match "stag|staging") {
+                $Environment = "staging"
+                Write-Info "Auto-detected environment: $Environment (from git branch: $gitBranch)"
+            } else {
+                Write-Info "Using default environment: $Environment (git branch: $gitBranch)"
+            }
+        } else {
+            Write-Info "Using default environment: $Environment"
+        }
+    } catch {
+        Write-Info "Using default environment: $Environment"
+    }
+} else {
+    Write-Info "Using specified environment: $Environment"
+}
+
 # Set deployment flags based on parameters
 if ($Quick) {
     $DeployInfrastructure = $false
@@ -172,6 +197,27 @@ if ($QuickDeploy) {
     $ResourceGroup = "ReportMate"
     $FunctionAppName = "reportmate-api"
     Write-Info "Quick Deploy Mode - Using existing infrastructure"
+} elseif ($Functions -and -not $DeployInfrastructure) {
+    # Functions-only deployment - get names from Terraform outputs
+    try {
+        $ResourceGroup = terraform output -raw resource_group_name 2>$null
+        if (-not $ResourceGroup) { $ResourceGroup = "ReportMate" }
+        
+        $fullHostname = terraform output -raw api_hostname 2>$null
+        if ($fullHostname) {
+            $FunctionAppName = $fullHostname.Split('.')[0]
+        } else {
+            $FunctionAppName = "reportmate-api"
+        }
+        Write-Info "Functions-only deployment - Using Terraform outputs"
+        Write-Info "Resource Group: $ResourceGroup"
+        Write-Info "Function App: $FunctionAppName"
+    } catch {
+        # Fallback to default values if Terraform outputs aren't available
+        $ResourceGroup = "ReportMate"
+        $FunctionAppName = "reportmate-api"
+        Write-Warning "Could not get Terraform outputs, using default values"
+    }
 } else {
     $ResourceGroup = "reportmate-api-$Environment"
     $FunctionAppName = "reportmate-api-$Environment"
@@ -214,6 +260,29 @@ function Test-Prerequisites {
             exit 1
         }
         Write-Success "Azure Functions Core Tools is installed"
+        
+        # Check Python environment for functions
+        $pythonCommands = @("python", "python3", "py")
+        $pythonFound = $false
+        
+        foreach ($pyCmd in $pythonCommands) {
+            try {
+                $pythonVersion = Invoke-Expression "$pyCmd --version" 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Found Python: $pyCmd ($pythonVersion)"
+                    $pythonFound = $true
+                    break
+                }
+            } catch {
+                continue
+            }
+        }
+        
+        if (-not $pythonFound) {
+            Write-Error "Python is not installed or not in PATH. Azure Functions requires Python 3.8+."
+            Write-Error "Please install Python from: https://www.python.org/downloads/"
+            exit 1
+        }
     }
     
     # Check required files
@@ -254,14 +323,7 @@ function Deploy-Infrastructure {
         terraform plan -var="environment=$Environment" -out=tfplan
         if ($LASTEXITCODE -ne 0) { throw "Terraform plan failed" }
         
-        # Confirm deployment
-        if (-not $Yes) {
-            $response = Read-Host "`n🤔 Do you want to continue with infrastructure deployment? (y/N)"
-            if ($response -notmatch '^[Yy]$') {
-                Write-Error "Infrastructure deployment cancelled"
-                exit 1
-            }
-        }
+        # Confirm deployment (removed manual prompt - auto-proceeding)
         
         # Apply deployment
         Write-Info "Applying Terraform deployment..."
@@ -269,15 +331,12 @@ function Deploy-Infrastructure {
         if ($LASTEXITCODE -ne 0) { throw "Terraform apply failed" }
         
         # Get outputs
-        $script:FunctionAppName = terraform output -raw api_hostname 2>$null
-        if (-not $script:FunctionAppName) { 
-            # Extract function app name from hostname
-            $fullHostname = terraform output -raw api_hostname 2>$null
-            if ($fullHostname) {
-                $script:FunctionAppName = $fullHostname.Split('.')[0]
-            } else {
-                $script:FunctionAppName = $FunctionAppName 
-            }
+        $fullHostname = terraform output -raw api_hostname 2>$null
+        if ($fullHostname) {
+            # Extract function app name from hostname (e.g., "reportmate-api.azurewebsites.net" -> "reportmate-api")
+            $script:FunctionAppName = $fullHostname.Split('.')[0]
+        } else {
+            $script:FunctionAppName = $FunctionAppName 
         }
         
         $script:FunctionAppUrl = terraform output -raw api_url 2>$null
@@ -313,19 +372,94 @@ function Deploy-Functions-Traditional {
         
         # Install Python dependencies
         Write-Info "Installing Python dependencies..."
-        pip install -r requirements.txt
-        if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
+        
+        # Find working Python command first
+        $pythonCommands = @("python", "python3", "py")
+        $workingPython = $null
+        
+        foreach ($pyCmd in $pythonCommands) {
+            try {
+                $result = & $pyCmd --version 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    $workingPython = $pyCmd
+                    Write-Success "Found working Python: $workingPython ($result)"
+                    break
+                }
+            } catch {
+                continue
+            }
+        }
+        
+        if (-not $workingPython) {
+            throw "No working Python command found. Please ensure Python 3.8+ is installed and in PATH."
+        }
+        
+        # Install dependencies with improved error handling
+        Write-Info "Installing dependencies using: $workingPython -m pip install -r requirements.txt"
+        
+        # Try different installation strategies
+        $installSuccess = $false
+        
+        # Strategy 1: Try with --user flag
+        try {
+            Write-Info "Attempting installation with --user flag..."
+            & $workingPython -m pip install -r requirements.txt --user --quiet
+            if ($LASTEXITCODE -eq 0) {
+                $installSuccess = $true
+                Write-Success "Dependencies installed successfully with --user flag"
+            }
+        } catch {
+            Write-Warning "Installation with --user failed: $_"
+        }
+        
+        # Strategy 2: Try without --user flag if first attempt failed
+        if (-not $installSuccess) {
+            try {
+                Write-Info "Attempting installation without --user flag..."
+                & $workingPython -m pip install -r requirements.txt --quiet
+                if ($LASTEXITCODE -eq 0) {
+                    $installSuccess = $true
+                    Write-Success "Dependencies installed successfully"
+                }
+            } catch {
+                Write-Warning "Installation without --user failed: $_"
+            }
+        }
+        
+        # Strategy 3: Try with elevated permissions if available
+        if (-not $installSuccess) {
+            try {
+                Write-Info "Attempting installation with virtual environment creation..."
+                & $workingPython -m venv .venv
+                if (Test-Path ".venv\Scripts\Activate.ps1") {
+                    & .\.venv\Scripts\Activate.ps1
+                    & $workingPython -m pip install -r requirements.txt --quiet
+                    if ($LASTEXITCODE -eq 0) {
+                        $installSuccess = $true
+                        Write-Success "Dependencies installed in virtual environment"
+                    }
+                }
+            } catch {
+                Write-Warning "Virtual environment installation failed: $_"
+            }
+        }
+        
+        if (-not $installSuccess) {
+            throw "All Python dependency installation strategies failed. Please check Python/pip installation and permissions."
+        }
         
         # Build and deploy functions
-        Write-Info "Building and deploying functions..."
+        Write-Info "Building and deploying functions to $FunctionAppName..."
         func azure functionapp publish $FunctionAppName --python
-        if ($LASTEXITCODE -ne 0) { throw "func publish failed" }
+        if ($LASTEXITCODE -ne 0) { 
+            throw "Azure Functions deployment failed with exit code $LASTEXITCODE" 
+        }
         
-        Write-Success "Functions deployed using traditional method!"
+        Write-Success "Functions deployed successfully using traditional method!"
         
     } catch {
         Write-Error "Traditional function deployment failed: $_"
-        exit 1
+        throw $_
     } finally {
         Pop-Location
     }
