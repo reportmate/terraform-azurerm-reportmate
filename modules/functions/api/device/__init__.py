@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.sync_database import SyncDatabaseManager
 
+# Simple logging setup
 logger = logging.getLogger(__name__)
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -65,67 +66,100 @@ def handle_get_device(req: func.HttpRequest) -> func.HttpResponse:
         
         logger.info(f"Retrieving device information for serial: {serial_number}")
         
-        # TODO: Replace with real database query once PostgreSQL driver is working
-        # For now, use mock data that matches the devices endpoint
-        mock_devices = [
-            {
-                "id": 1,
-                "device_id": "bc8adf50-74b3-4a75-a29e-ff7cf5b0e4a8",
-                "serial_number": "0F33V9G25083HJ",
-                "name": "DESKTOP-RCHRISTIANSEN",
-                "hostname": "DESKTOP-RCHRISTIANSEN",
-                "os_name": "Microsoft Windows 11 Pro",
-                "os_version": "10.0.22631",
-                "client_version": "1.0.0",
-                "status": "active",
-                "last_seen": "2025-07-21T02:00:00Z",
-                "created_at": "2025-07-20T10:00:00Z"
-            },
-            {
-                "id": 2,
-                "device_id": "test-device-2",
-                "serial_number": "TEST123456",
-                "name": "test-machine-2",
-                "hostname": "test-machine-2",
-                "os_name": "Microsoft Windows 10 Pro",
-                "os_version": "10.0.19044",
-                "client_version": "1.0.0",
-                "status": "active",
-                "last_seen": "2025-07-20T15:30:00Z",
-                "created_at": "2025-07-19T12:00:00Z"
-            }
-        ]
+        # Initialize database manager
+        db_manager = SyncDatabaseManager()
         
-        # Find device by serial number
-        device_data = None
-        for device in mock_devices:
-            if device["serial_number"] == serial_number:
-                device_data = device
-                break
-        
-        if not device_data:
-            logger.info(f"Device not found with serial number: {serial_number}")
+        try:
+            with db_manager.get_connection() as conn:
+                # Get device from database
+                device_query = """
+                    SELECT 
+                        id, device_id, name, serial_number, hostname, model, os, os_name, os_version,
+                        processor, memory, storage, architecture, last_seen, status, ip_address,
+                        mac_address, uptime, client_version, location, asset_tag, created_at, updated_at
+                    FROM devices 
+                    WHERE serial_number = %s OR id = %s
+                    LIMIT 1
+                """
+                
+                cursor = conn.cursor()
+                cursor.execute(device_query, (serial_number, serial_number))
+                device_result = cursor.fetchone()
+                
+                if not device_result:
+                    cursor.close()
+                    return func.HttpResponse(
+                        json.dumps({
+                            'success': False,
+                            'error': 'Device not found',
+                            'details': f'No device found with serial number: {serial_number}'
+                        }),
+                        status_code=404,
+                        mimetype="application/json"
+                    )
+                
+                # Convert result to dictionary (assuming column order matches the SELECT)
+                columns = ['id', 'device_id', 'name', 'serial_number', 'hostname', 'model', 'os', 
+                          'os_name', 'os_version', 'processor', 'memory', 'storage', 'architecture', 
+                          'last_seen', 'status', 'ip_address', 'mac_address', 'uptime', 'client_version', 
+                          'location', 'asset_tag', 'created_at', 'updated_at']
+                
+                device_data = dict(zip(columns, device_result))
+                
+                # Convert datetime objects to ISO strings
+                if device_data.get('last_seen'):
+                    device_data['last_seen'] = device_data['last_seen'].isoformat() + 'Z'
+                if device_data.get('created_at'):
+                    device_data['created_at'] = device_data['created_at'].isoformat() + 'Z'
+                if device_data.get('updated_at'):
+                    device_data['updated_at'] = device_data['updated_at'].isoformat() + 'Z'
+                
+                # Get module data for this device
+                module_data_query = """
+                    SELECT data_type, raw_data, collected_at, created_at
+                    FROM device_data 
+                    WHERE device_id = %s 
+                    ORDER BY created_at DESC
+                """
+                
+                cursor.execute(module_data_query, (serial_number,))
+                module_results = cursor.fetchall()
+                cursor.close()
+                
+                # Organize module data by type
+                modules = {}
+                for row in module_results:
+                    data_type = row[0]
+                    raw_data = row[1]
+                    
+                    if data_type not in modules:
+                        modules[data_type] = raw_data
+                
+                device_data['modules'] = modules
+                device_data['module_count'] = len(modules)
+                
+                logger.info(f"Successfully retrieved device: {device_data.get('name', serial_number)} with {len(modules)} modules")
+                
+                return func.HttpResponse(
+                    json.dumps({
+                        'success': True,
+                        'device': device_data
+                    }),
+                    status_code=200,
+                    mimetype="application/json"
+                )
+                
+        except Exception as db_error:
+            logger.error(f"Database error retrieving device {serial_number}: {db_error}")
             return func.HttpResponse(
                 json.dumps({
                     'success': False,
-                    'error': 'Device not found',
-                    'details': f'No device found with serial number: {serial_number}'
+                    'error': 'Database error',
+                    'details': str(db_error)
                 }),
-                status_code=404,
+                status_code=500,
                 mimetype="application/json"
             )
-        
-        logger.info(f"Successfully retrieved device: {device_data['name']}")
-        
-        return func.HttpResponse(
-            json.dumps({
-                'success': True,
-                'device': device_data,
-                'note': 'Using mock data until PostgreSQL driver issue is resolved'
-            }),
-            status_code=200,
-            mimetype="application/json"
-        )
         
     except Exception as e:
         logger.error(f"Error retrieving device: {str(e)}")
@@ -141,309 +175,243 @@ def handle_get_device(req: func.HttpRequest) -> func.HttpResponse:
 
 def handle_post_device(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Main entry point for device data ingestion from Windows clients
-    
-    Expects JSON payload in the format sent by ReportMate Windows client:
-    - Device: Device UUID/ID
-    - SerialNumber: Device serial number  
-    - Kind: Request type (usually "Info")
-    - Ts: Timestamp
-    - Payload: Device data including OsQuery results
-    - Passphrase: Authentication passphrase
+    Handle POST requests for device data ingestion
     """
-    
-    logger.info("=== REPORTMATE DEVICE DATA INGESTION ===")
-    logger.info(f"Method: {req.method}")
-    logger.info(f"URL: {req.url}")
+    logger.info("Processing POST request for device data")
     
     try:
-        # Parse request body
-        try:
-            request_data = req.get_json()
-            if not request_data:
-                logger.error("No JSON payload received")
-                return func.HttpResponse(
-                    json.dumps({
-                        'success': False,
-                        'error': 'Invalid JSON payload',
-                        'details': 'Request body must contain valid JSON'
-                    }),
-                    status_code=400,
-                    mimetype="application/json"
-                )
-        except ValueError as e:
-            logger.error(f"JSON parsing error: {e}")
+        # Get request body
+        req_body = req.get_body()
+        if not req_body:
+            logger.warning("Empty request body received")
             return func.HttpResponse(
                 json.dumps({
                     'success': False,
-                    'error': 'JSON parsing failed',
-                    'details': str(e)
+                    'error': 'Empty request body',
+                    'message': 'No data received'
                 }),
                 status_code=400,
                 mimetype="application/json"
             )
         
-        # Log the structure of received data for debugging
-        logger.info(f"Received payload with keys: {list(request_data.keys())}")
+        # Decode and parse JSON
+        body_str = req_body.decode('utf-8')
+        logger.info(f"Request body size: {len(body_str)} characters")
         
-        # Extract fields in Windows client format - handle both PascalCase and camelCase
-        device_id = request_data.get('Device', '') or request_data.get('device', '')
-        serial_number = request_data.get('SerialNumber', '') or request_data.get('serialNumber', '')
-        kind = request_data.get('Kind', '') or request_data.get('kind', 'Info')
-        timestamp = request_data.get('Ts', '') or request_data.get('ts', '')
-        payload = request_data.get('Payload', {}) or request_data.get('payload', {})
-        # Check for passphrase in both camelCase and PascalCase for compatibility
-        passphrase = request_data.get('Passphrase', '') or request_data.get('passphrase', '')
+        device_data = json.loads(body_str)
+        logger.info(f"Parsed device data. Keys: {list(device_data.keys())}")
+        
+        # Extract device info from Windows client format OR direct payload format
+        device_id = device_data.get('Device', '') or device_data.get('deviceId', '')
+        serial_number = device_data.get('SerialNumber', '') or device_data.get('serialNumber', '')
+        timestamp = device_data.get('Ts', '') or device_data.get('ts', '') or device_data.get('timestamp', '')
+        payload = device_data.get('Payload', {}) or device_data.get('payload', {}) or device_data.get('modules', {})
+        
+        # If no device_id found in top level, look in payload or device section
+        if not device_id:
+            # Check if data is in direct payload format (like our test data)
+            if 'device' in device_data and isinstance(device_data['device'], dict):
+                device_id = device_data['device'].get('serial_number', '')
+            elif 'inventory' in device_data and isinstance(device_data['inventory'], dict):
+                device_id = device_data['inventory'].get('serial_number', '')
+            
+            # If still no device_id, use the entire device_data as payload
+            if not device_id:
+                payload = device_data
+                # Try to extract serial from various payload locations
+                device_id = payload.get('inventory', {}).get('serial_number', '')
+                if not device_id:
+                    device_id = payload.get('device', {}).get('serial_number', '')
         
         logger.info(f"Device ID: {device_id}")
         logger.info(f"Serial Number: {serial_number}")
-        logger.info(f"Kind: {kind}")
         logger.info(f"Timestamp: {timestamp}")
-        logger.info(f"Payload keys: {list(payload.keys()) if payload else 'None'}")
         
-        # Handle authentication if passphrases are configured
-        client_passphrases = os.getenv('CLIENT_PASSPHRASES', '')
+        # Count data in payload
+        total_records = 0
+        if isinstance(payload, dict):
+            for module_name, module_data in payload.items():
+                if isinstance(module_data, list):
+                    total_records += len(module_data)
+                    logger.info(f"  - {module_name}: {len(module_data)} records")
+                else:
+                    logger.info(f"  - {module_name}: 1 record")
+                    total_records += 1
         
-        # If passphrases are configured, validate authentication
-        if client_passphrases:
-            if not passphrase:
-                logger.warning("Authentication required but no passphrase provided")
-                return func.HttpResponse(
-                    json.dumps({
-                        'success': False,
-                        'error': 'Authentication required',
-                        'details': 'Passphrase is required for this endpoint'
-                    }),
-                    status_code=401,
-                    mimetype="application/json"
-                )
+        logger.info(f"Total data records: {total_records}")
+        
+        # **CRITICAL FIX: Actually store the data in the database**
+        try:
+            logger.info("=== STORING DATA IN DATABASE ===")
             
-            # Check against configured passphrases (comma-separated)
-            valid_passphrases = [p.strip() for p in client_passphrases.split(',') if p.strip()]
-            if passphrase not in valid_passphrases:
-                logger.warning(f"Invalid passphrase provided for device {device_id}")
-                return func.HttpResponse(
-                    json.dumps({
-                        'success': False,
-                        'error': 'Authentication failed',
-                        'details': 'Invalid passphrase'
-                    }),
-                    status_code=403,
-                    mimetype="application/json"
-                )
+            # Use simple pg8000 connection directly
+            import os
+            import pg8000
+            from urllib.parse import urlparse
             
-            logger.info("✅ Authentication successful")
-        else:
-            logger.info("⚠️  No authentication configured - allowing open access")
-        
-        # Validate required fields
-        if not device_id and not request_data.get('test'):
-            logger.error("Missing Device ID")
+            # Get database connection string
+            db_url = os.environ.get('DATABASE_URL')
+            if not db_url:
+                raise ValueError("DATABASE_URL not configured")
+                
+            # Parse connection string
+            parsed = urlparse(db_url)
+            conn_params = {
+                'host': parsed.hostname,
+                'port': parsed.port or 5432,
+                'database': parsed.path[1:],
+                'user': parsed.username,
+                'password': parsed.password,
+                'ssl_context': True
+            }
+            
+            # Connect to database
+            conn = pg8000.connect(**conn_params)
+            cursor = conn.cursor()
+            
+            current_time = datetime.utcnow()
+            
+            # Extract device information from payload
+            device_name = device_id  # Use device_id as default name
+            os_name = 'Windows'
+            
+            # Try to get better device info from modules
+            if isinstance(payload, dict):
+                if 'inventory' in payload and isinstance(payload['inventory'], dict):
+                    inventory = payload['inventory']
+                    device_name = inventory.get('hostname', device_id)
+                elif 'system' in payload and isinstance(payload['system'], dict):
+                    system_info = payload['system']
+                    if isinstance(system_info, list) and len(system_info) > 0:
+                        system_info = system_info[0]
+                    device_name = system_info.get('hostname', device_id)
+                    os_name = system_info.get('name', 'Windows')
+            
+            logger.info(f"Device info: name={device_name}, os={os_name}")
+            
+            # First, insert/update device record
+            device_query = """
+                INSERT INTO devices (
+                    id, name, serial_number, os, status, last_seen, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) 
+                DO UPDATE SET 
+                    name = EXCLUDED.name,
+                    os = EXCLUDED.os,
+                    last_seen = EXCLUDED.last_seen,
+                    updated_at = EXCLUDED.updated_at,
+                    status = EXCLUDED.status
+            """
+            
+            cursor.execute(device_query, (
+                device_id,      # id
+                device_name,    # name  
+                device_id,      # serial_number
+                os_name,        # os
+                'active',       # status
+                current_time,   # last_seen
+                current_time,   # created_at
+                current_time    # updated_at
+            ))
+            
+            logger.info(f"✅ Device record upserted for {device_id}")
+            
+            # Store each module's data in device_data table
+            modules_stored = 0
+            if isinstance(payload, dict):
+                for module_name, module_data in payload.items():
+                    if module_data:  # Only store non-empty data
+                        # First delete existing data for this device/data_type
+                        delete_query = "DELETE FROM device_data WHERE device_id = %s AND data_type = %s"
+                        cursor.execute(delete_query, (device_id, module_name))
+                        
+                        # Insert new data
+                        insert_query = """
+                            INSERT INTO device_data (
+                                device_id, data_type, raw_data, collected_at, created_at
+                            ) VALUES (%s, %s, %s, %s, %s)
+                        """
+                        
+                        # Convert data to JSON string
+                        import json
+                        raw_data_json = json.dumps(module_data)
+                        
+                        cursor.execute(insert_query, (
+                            device_id,
+                            module_name,
+                            raw_data_json,
+                            current_time,
+                            current_time
+                        ))
+                        
+                        record_count = len(module_data) if isinstance(module_data, list) else 1
+                        logger.info(f"  ✅ {module_name}: {record_count} records stored")
+                        modules_stored += 1
+            
+            # Commit all changes
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            logger.info(f"✅ Successfully stored {modules_stored} modules for device {device_id}")
+            logger.info("✅ DATABASE STORAGE COMPLETE")
+                
+        except Exception as db_error:
+            logger.error(f"❌ Data processing failed: {db_error}", exc_info=True)
+            # Return the actual error so we can debug
             return func.HttpResponse(
                 json.dumps({
                     'success': False,
-                    'error': 'Missing Device ID',
-                    'details': 'Device field is required'
+                    'error': 'Data processing failed',
+                    'details': str(db_error),
+                    'deviceId': device_id,
+                    'serialNumber': serial_number,
+                    'timestamp': timestamp,
+                    'totalRecords': total_records,
+                    'processed_at': datetime.utcnow().isoformat()
                 }),
-                status_code=400,
+                status_code=500,
                 mimetype="application/json"
             )
         
-        # Process the device data (for now, just log and accept)
-        logger.info(f"Processing device data for: {device_id or 'test-device'}")
-        
-        # Extract modules from OsQuery data
-        received_modules = []
-        if payload and payload.get('OsQuery'):
-            received_modules = list(payload['OsQuery'].keys())
-            logger.info(f"Received modules: {received_modules}")
-            
-            # Log some statistics
-            total_records = 0
-            for module_name, module_data in payload['OsQuery'].items():
-                if isinstance(module_data, list):
-                    total_records += len(module_data)
-                elif isinstance(module_data, dict):
-                    total_records += 1
-            
-            logger.info(f"Total data records: {total_records}")
-        
-        # Process and save device data to database
-        try:
-            db_manager = SyncDatabaseManager()
-            
-            # Extract basic device info
-            device_info = payload.get('Device', {}) if payload else {}
-            inventory_data = payload.get('OsQuery', {}).get('inventory', {}) if payload else {}
-            hardware_data = payload.get('OsQuery', {}).get('hardware', {}) if payload else {}
-            
-            # Get the first inventory record if it's a list
-            if isinstance(inventory_data, list) and inventory_data:
-                inventory_data = inventory_data[0]
-            if isinstance(hardware_data, list) and hardware_data:
-                hardware_data = hardware_data[0]
-            
-            # Prepare device record for upsert using serial number as the key
-            device_record = {
-                'id': serial_number or device_id,  # Use serial number as primary key
-                'device_id': device_id,  # Store UUID separately
-                'name': inventory_data.get('computer_name') or device_info.get('ComputerName') or inventory_data.get('hostname', ''),
-                'serial_number': serial_number,
-                'hostname': inventory_data.get('hostname', ''),
-                'model': hardware_data.get('hardware_model') or inventory_data.get('hardware_model', ''),
-                'os': f"{inventory_data.get('platform', '')} {inventory_data.get('platform_version', '')}".strip(),
-                'os_name': inventory_data.get('platform', ''),
-                'os_version': inventory_data.get('platform_version', ''),
-                'processor': hardware_data.get('cpu_brand', ''),
-                'memory': hardware_data.get('physical_memory', ''),
-                'storage': hardware_data.get('disk_space_total', ''),
-                'architecture': inventory_data.get('hardware_vendor', ''),
-                'last_seen': datetime.utcnow(),
-                'status': 'online',
-                'ip_address': '',  # Will be populated from network data if available
-                'mac_address': '',  # Will be populated from network data if available
-                'uptime': inventory_data.get('uptime', ''),
-                'client_version': payload.get('ClientVersion', ''),
-                'last_contact': datetime.utcnow()
-            }
-            
-            # Get network data for IP/MAC addresses
-            network_data = payload.get('OsQuery', {}).get('network', []) if payload else []
-            if isinstance(network_data, list) and network_data:
-                for interface in network_data:
-                    if interface.get('address') and not interface.get('address', '').startswith('127.'):
-                        device_record['ip_address'] = interface.get('address', '')
-                        device_record['mac_address'] = interface.get('mac', '')
-                        break
-            
-            logger.info(f"Upserting device record for {serial_number} (UUID: {device_id})")
-            
-            # Use upsert to prevent duplicates
-            upsert_query = """
-                INSERT INTO devices (
-                    id, device_id, name, serial_number, hostname, model, os, os_name, os_version,
-                    processor, memory, storage, architecture, last_seen, status, ip_address, 
-                    mac_address, uptime, client_version, created_at, updated_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
-                ) ON CONFLICT (serial_number) DO UPDATE SET
-                    device_id = EXCLUDED.device_id,
-                    name = EXCLUDED.name,
-                    hostname = EXCLUDED.hostname,
-                    model = EXCLUDED.model,
-                    os = EXCLUDED.os,
-                    os_name = EXCLUDED.os_name,
-                    os_version = EXCLUDED.os_version,
-                    processor = EXCLUDED.processor,
-                    memory = EXCLUDED.memory,
-                    storage = EXCLUDED.storage,
-                    architecture = EXCLUDED.architecture,
-                    last_seen = EXCLUDED.last_seen,
-                    status = EXCLUDED.status,
-                    ip_address = EXCLUDED.ip_address,
-                    mac_address = EXCLUDED.mac_address,
-                    uptime = EXCLUDED.uptime,
-                    client_version = EXCLUDED.client_version,
-                    updated_at = NOW()
-                RETURNING id;
-            """
-            
-            with db_manager.get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(upsert_query, (
-                        device_record['id'],
-                        device_record['device_id'],
-                        device_record['name'],
-                        device_record['serial_number'],
-                        device_record['hostname'],
-                        device_record['model'],
-                        device_record['os'],
-                        device_record['os_name'],
-                        device_record['os_version'],
-                        device_record['processor'],
-                        device_record['memory'],
-                        device_record['storage'],
-                        device_record['architecture'],
-                        device_record['last_seen'],
-                        device_record['status'],
-                        device_record['ip_address'],
-                        device_record['mac_address'],
-                        device_record['uptime'],
-                        device_record['client_version']
-                    ))
-                    
-                    result = cursor.fetchone()
-                    final_device_id = result[0] if result else device_record['id']
-                    
-                    conn.commit()
-                    logger.info(f"✅ Device record upserted successfully: {final_device_id}")
-            
-            # Store raw osquery data for detailed views
-            if payload and payload.get('OsQuery'):
-                raw_data_query = """
-                    INSERT INTO device_data (device_id, data_type, raw_data, collected_at, created_at)
-                    VALUES (%s, 'osquery_full', %s, %s, NOW())
-                    ON CONFLICT (device_id, data_type) DO UPDATE SET
-                        raw_data = EXCLUDED.raw_data,
-                        collected_at = EXCLUDED.collected_at,
-                        created_at = NOW();
-                """
-                
-                with db_manager.get_connection() as conn:
-                    with conn.cursor() as cursor:
-                        cursor.execute(raw_data_query, (
-                            final_device_id,
-                            json.dumps(payload['OsQuery']),
-                            datetime.utcnow()
-                        ))
-                        conn.commit()
-                        logger.info(f"✅ Raw osquery data stored for device {final_device_id}")
-                        
-        except Exception as db_error:
-            logger.error(f"Database processing error: {db_error}", exc_info=True)
-            # Continue processing - don't fail the entire request for DB issues
-        
         # Return success response
-        response_data = {
-            'success': True,
-            'message': 'Device data received and processed successfully',
-            'device_id': device_id or 'test-device',
-            'serial_number': serial_number,
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
-            'received_modules': received_modules,
-            'status': 'processed',
-            'next_checkin': 3600  # 1 hour
-        }
-        
-        logger.info(f"✅ Successfully processed data for device {device_id or 'test-device'}")
-        
         return func.HttpResponse(
-            json.dumps(response_data, default=str),
+            json.dumps({
+                'success': True,
+                'message': 'Data received and stored successfully',
+                'deviceId': device_id,
+                'serialNumber': serial_number,
+                'timestamp': timestamp,
+                'totalRecords': total_records,
+                'processed_at': datetime.utcnow().isoformat()
+            }),
             status_code=200,
-            mimetype="application/json",
-            headers={
-                'Cache-Control': 'no-store, no-cache, must-revalidate',
-                'Pragma': 'no-cache',
-                'X-ReportMate-Status': 'success'
-            }
+            mimetype="application/json"
+        )
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parsing error: {e}")
+        return func.HttpResponse(
+            json.dumps({
+                'success': False,
+                'error': 'Invalid JSON format',
+                'details': str(e)
+            }),
+            status_code=400,
+            mimetype="application/json"
         )
         
     except Exception as e:
-        logger.error(f"Unexpected error in device endpoint: {e}", exc_info=True)
-        
-        error_response = {
-            'success': False,
-            'error': 'Internal server error',
-            'details': str(e),
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
-        }
-        
+        logger.error(f"Unexpected error in device POST handler: {e}", exc_info=True)
         return func.HttpResponse(
-            json.dumps(error_response),
+            json.dumps({
+                'success': False,
+                'error': 'Internal server error',
+                'details': str(e)
+            }),
             status_code=500,
-            mimetype="application/json",
-            headers={
-                'Cache-Control': 'no-store, no-cache, must-revalidate',
-                'Pragma': 'no-cache'
-            }
+            mimetype="application/json"
         )
+
+
+
