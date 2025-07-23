@@ -58,3 +58,35 @@ resource "azurerm_postgresql_flexible_server_database" "db" {
   collation = "en_US.utf8"
   charset   = "utf8"
 }
+
+# Database schema initialization via API endpoint (when available)
+resource "null_resource" "database_init_api" {
+  depends_on = [
+    azurerm_postgresql_flexible_server_database.db,
+    azurerm_postgresql_flexible_server_firewall_rule.azure_services,
+    azurerm_postgresql_flexible_server_firewall_rule.public_access
+  ]
+
+  triggers = {
+    database_id = azurerm_postgresql_flexible_server_database.db.id
+    always_run = timestamp()  # Always run to ensure schema is up to date
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Database created successfully"
+      echo "FQDN: ${azurerm_postgresql_flexible_server.pg.fqdn}"
+      echo "Database: ${var.db_name}"
+      echo ""
+      echo "To initialize the database schema, run one of the following:"
+      echo ""
+      echo "Option 1 - Via API (after Functions are deployed):"
+      echo "curl 'https://YOUR_FUNCTION_APP.azurewebsites.net/api/test-db?init=true'"
+      echo ""
+      echo "Option 2 - Via psql client:"
+      echo "PGPASSWORD='${var.db_password}' psql -h '${azurerm_postgresql_flexible_server.pg.fqdn}' -U '${var.db_username}' -d '${var.db_name}' -f '../../schemas/database.sql'"
+      echo ""
+      echo "Note: Database initialization will happen automatically when the API receives its first data."
+    EOT
+  }
+}

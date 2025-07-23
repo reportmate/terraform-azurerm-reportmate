@@ -50,6 +50,12 @@ variable "allowed_ips" {
   default     = ["0.0.0.0/0"]
 }
 
+variable "api_endpoint" {
+  type        = string
+  description = "API endpoint URL for database initialization"
+  default     = ""
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to resources"
