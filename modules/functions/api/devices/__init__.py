@@ -21,18 +21,24 @@ async def list_devices_async():
     try:
         db_manager = AsyncDatabaseManager()
         
-        # Simple query to get devices
+        # Query to get devices with names from inventory data
         query = """
             SELECT 
-                id,
-                name,
-                serial_number,
-                os,
-                status,
-                last_seen,
-                created_at
-            FROM devices 
-            ORDER BY last_seen DESC 
+                d.device_id as id,
+                COALESCE(
+                    (i.data->>'deviceName')::text,
+                    (i.data->>'device_name')::text,
+                    d.serial_number,
+                    'Unknown Device'
+                ) as name,
+                d.serial_number,
+                d.os_version as os,
+                'online' as status,
+                d.last_seen,
+                d.created_at
+            FROM devices d
+            LEFT JOIN inventory i ON d.serial_number = i.device_id
+            ORDER BY d.last_seen DESC NULLS LAST
             LIMIT 50
         """
         
@@ -42,7 +48,7 @@ async def list_devices_async():
         for row in devices_raw:
             device = {
                 'id': row['id'],
-                'name': row['name'],
+                'name': row['name'],  # Now comes from inventory.deviceName with fallback to serial_number
                 'serial_number': row['serial_number'],
                 'os': row['os'],
                 'status': row['status'],

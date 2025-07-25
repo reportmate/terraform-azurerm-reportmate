@@ -324,6 +324,18 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
             cursor.execute(system_query, (device_row[0],))  # Use id (serial number)
             system_row = cursor.fetchone()
             
+            # Get inventory data
+            inventory_query = """
+                SELECT data, collected_at, created_at
+                FROM inventory 
+                WHERE device_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+            """
+            
+            cursor.execute(inventory_query, (device_row[0],))  # Use id (serial number)
+            inventory_row = cursor.fetchone()
+            
             modules = {}
             metadata = {
                 'deviceId': device_data['deviceId'],
@@ -338,6 +350,15 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                 # Update metadata with latest collection time
                 if system_row[1]:  # collected_at
                     metadata['collectedAt'] = system_row[1].isoformat()
+            
+            if inventory_row:
+                modules['inventory'] = inventory_row[0]  # JSON data
+                
+                # Update metadata with latest collection time if newer
+                if inventory_row[1]:  # collected_at
+                    inventory_time = inventory_row[1].isoformat()
+                    if not metadata.get('collectedAt') or inventory_time > metadata['collectedAt']:
+                        metadata['collectedAt'] = inventory_time
             
             cursor.close()
             conn.close()

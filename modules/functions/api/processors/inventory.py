@@ -43,10 +43,13 @@ class InventoryProcessor(BaseModuleProcessor):
             'module_id': self.module_id,
             'device_id': device_id,
             'collected_at': datetime.utcnow().isoformat(),
-            'device_name': self._extract_device_name(inventory_data, system_info),
+            'deviceName': self._extract_device_name(inventory_data, system_info),  # Use camelCase to match API expectations
+            'device_name': self._extract_device_name(inventory_data, system_info),  # Keep snake_case for backward compatibility
             'serial_number': self._extract_serial_number(inventory_data, system_info),
+            'serialNumber': self._extract_serial_number(inventory_data, system_info),  # Add camelCase version
             'uuid': self._extract_device_uuid(inventory_data, system_info),
             'asset_tag': self._extract_asset_tag(inventory_data),
+            'assetTag': self._extract_asset_tag(inventory_data),  # Add camelCase version
             'location': inventory_data.get('location', ''),
             'owner': inventory_data.get('owner', ''),
             'department': inventory_data.get('department', ''),
@@ -57,7 +60,7 @@ class InventoryProcessor(BaseModuleProcessor):
         }
         
         self.logger.info(f"Inventory processed - Serial: {processed_data['serial_number']}, "
-                        f"UUID: {processed_data['uuid']}, Device: {processed_data['device_name']}")
+                        f"UUID: {processed_data['uuid']}, Device: {processed_data['deviceName']}")
         
         return processed_data
     
@@ -71,13 +74,23 @@ class InventoryProcessor(BaseModuleProcessor):
         Returns:
             True if data is valid, False otherwise
         """
-        required_fields = ['module_id', 'device_id', 'device_name', 'serial_number']
+        required_fields = ['module_id', 'device_id']
         
         for field in required_fields:
             if not data.get(field):
                 self.logger.warning(f"Inventory validation failed - missing {field}")
                 return False
         
+        # Check for device name in either format
+        if not (data.get('device_name') or data.get('deviceName')):
+            self.logger.warning("Inventory validation failed - missing device_name/deviceName")
+            return False
+            
+        # Check for serial number in either format
+        if not (data.get('serial_number') or data.get('serialNumber')):
+            self.logger.warning("Inventory validation failed - missing serial_number/serialNumber")
+            return False
+
         if data['module_id'] != self.module_id:
             self.logger.warning(f"Inventory validation failed - incorrect module_id: {data['module_id']}")
             return False
@@ -86,9 +99,10 @@ class InventoryProcessor(BaseModuleProcessor):
     
     def _extract_device_name(self, inventory_data: Dict[str, Any], system_info: Dict[str, Any]) -> str:
         """Extract device name from various sources"""
-        # Priority: inventory allocation > system computer_name > hostname > machine name
+        # Priority: inventory allocation > deviceName (camelCase) > device_name (snake_case) > system computer_name > hostname > machine name
         device_name = (
             inventory_data.get('allocation') or
+            inventory_data.get('deviceName') or
             inventory_data.get('device_name') or
             system_info.get('computer_name') or
             system_info.get('hostname') or
