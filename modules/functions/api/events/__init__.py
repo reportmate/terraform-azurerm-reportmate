@@ -212,7 +212,11 @@ def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                 device_name = serial_number  # Use serial as default name
                 os_name = 'Windows'
                 
-                # Try to get better device info from modules
+                # First check if device_name is provided at the top level of the payload
+                if 'device_name' in unified_payload:
+                    device_name = unified_payload['device_name']
+                
+                # Try to get better device info from modules (fallback)
                 if 'inventory' in unified_payload and isinstance(unified_payload['inventory'], dict):
                     inventory = unified_payload['inventory']
                     device_name = inventory.get('deviceName', device_name)
@@ -277,6 +281,13 @@ def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                         continue
                         
                     if module_data:  # Only store non-empty data
+                        # Special handling for inventory module - inject device name from top-level payload
+                        if module_name == 'inventory' and isinstance(module_data, dict):
+                            # Ensure the device name from the top-level payload is available in inventory data
+                            if 'device_name' in unified_payload:
+                                module_data['deviceName'] = unified_payload['device_name']
+                                module_data['device_name'] = unified_payload['device_name']
+                        
                         # Store directly in the module's dedicated table
                         module_insert_query = f"""
                             INSERT INTO {module_name} (
