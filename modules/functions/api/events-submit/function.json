@@ -6,12 +6,12 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get"],
-      "route": "test-db"
+      "methods": ["get", "post"],
+      "route": "events-submit"
     },
     {
       "type": "http",
-      "direction": "out", 
+      "direction": "out",
       "name": "$return"
     }
   ]

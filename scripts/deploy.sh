@@ -86,8 +86,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Configuration based on environment
-RESOURCE_GROUP="reportmate-api-${ENVIRONMENT}"
-FUNCTION_APP_NAME="reportmate-api-${ENVIRONMENT}"
+RESOURCE_GROUP="ReportMate"
+FUNCTION_APP_NAME="reportmate-api"
 
 # Function to check prerequisites
 check_prerequisites() {
@@ -166,18 +166,7 @@ deploy_infrastructure() {
     log_info "Planning Terraform deployment..."
     terraform plan -var="environment=${ENVIRONMENT}" -out=tfplan
     
-    # Confirm deployment
-    if [ "$AUTO_APPROVE" = false ]; then
-        echo ""
-        read -p "🤔 Do you want to continue with infrastructure deployment? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log_error "Infrastructure deployment cancelled"
-            exit 1
-        fi
-    fi
-    
-    # Apply deployment
+    # Apply deployment without confirmation
     log_info "Applying Terraform deployment..."
     terraform apply tfplan
     
@@ -192,7 +181,6 @@ deploy_infrastructure() {
     if [ -n "$FUNCTION_APP_URL" ]; then
         log_success "Function App URL: $FUNCTION_APP_URL"
     fi
-}
 }
 
 # Function to deploy functions
@@ -259,27 +247,6 @@ main() {
     echo "🎯 ReportMate REST API Deployment Script"
     echo "========================================="
     echo ""
-    
-    log_info "Configuration:"
-    echo "  Environment: $ENVIRONMENT"
-    echo "  Resource Group: $RESOURCE_GROUP"
-    echo "  Function App: $FUNCTION_APP_NAME"
-    echo "  Deploy Infrastructure: $DEPLOY_INFRASTRUCTURE"
-    echo "  Deploy Functions: $DEPLOY_FUNCTIONS"
-    echo "  Auto Approve: $AUTO_APPROVE"
-    echo "  Run Tests: $RUN_TESTS"
-    echo ""
-    
-    # Confirm deployment
-    if [ "$AUTO_APPROVE" = false ]; then
-        read -p "🤔 Proceed with deployment? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log_error "Deployment cancelled"
-            exit 1
-        fi
-        echo ""
-    fi
     
     # Check prerequisites
     check_prerequisites

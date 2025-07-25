@@ -1,45 +1,8 @@
-import json
-import logging
-import os
-import psycopg2
-from azure.functions import HttpRequest, HttpResponse
-
-def main(req: HttpRequest) -> HttpResponse:
-    """
-    Initialize ReportMate database with modular schema
-    
-    This function creates the complete modular database schema for ReportMate.
-    Uses the canonical modular-database-schema.sql as the single source of truth.
-    """
-    logging.info('Database initialization requested')
-    
-    try:
-        # Get database connection string from environment
-        connection_string = os.environ.get('DATABASE_URL')
-        if not connection_string:
-            logging.error('DATABASE_URL environment variable not found')
-            return HttpResponse(
-                json.dumps({
-                    "error": "Database configuration missing",
-                    "details": "DATABASE_URL environment variable not set"
-                }),
-                status_code=500,
-                mimetype="application/json"
-            )
-        
-        # Connect to database
-        logging.info('Connecting to database...')
-        conn = psycopg2.connect(connection_string)
-        cursor = conn.cursor()
-        
-        # Execute the modular database schema
-        logging.info('Creating modular database schema...')
-        
-        # Read the canonical schema SQL - this is our single source of truth
-        schema_sql = """
 -- ReportMate Modular Database Schema
 -- Clean, simple schema that matches EXACTLY the Windows client JSON output
 -- One table per module + metadata (events) table
+
+-- Note: Using gen_random_uuid() instead of uuid-ossp extension for Azure compatibility
 
 -- =============================================================================
 -- CORE DEVICE TABLE
@@ -97,9 +60,9 @@ CREATE TABLE IF NOT EXISTS events (
 
 -- applications.json
 CREATE TABLE IF NOT EXISTS applications (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,
-    data JSONB NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from applications.json
     collected_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -110,9 +73,9 @@ CREATE TABLE IF NOT EXISTS applications (
 
 -- displays.json  
 CREATE TABLE IF NOT EXISTS displays (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,
-    data JSONB NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from displays.json
     collected_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -123,9 +86,9 @@ CREATE TABLE IF NOT EXISTS displays (
 
 -- hardware.json
 CREATE TABLE IF NOT EXISTS hardware (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,
-    data JSONB NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from hardware.json
     collected_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -136,9 +99,9 @@ CREATE TABLE IF NOT EXISTS hardware (
 
 -- installs.json
 CREATE TABLE IF NOT EXISTS installs (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,
-    data JSONB NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from installs.json
     collected_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -149,9 +112,9 @@ CREATE TABLE IF NOT EXISTS installs (
 
 -- inventory.json
 CREATE TABLE IF NOT EXISTS inventory (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,
-    data JSONB NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from inventory.json
     collected_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -162,9 +125,9 @@ CREATE TABLE IF NOT EXISTS inventory (
 
 -- management.json
 CREATE TABLE IF NOT EXISTS management (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,
-    data JSONB NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from management.json
     collected_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -175,9 +138,9 @@ CREATE TABLE IF NOT EXISTS management (
 
 -- network.json
 CREATE TABLE IF NOT EXISTS network (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,
-    data JSONB NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from network.json
     collected_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -188,9 +151,9 @@ CREATE TABLE IF NOT EXISTS network (
 
 -- printers.json
 CREATE TABLE IF NOT EXISTS printers (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,
-    data JSONB NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from printers.json
     collected_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -201,9 +164,9 @@ CREATE TABLE IF NOT EXISTS printers (
 
 -- profiles.json
 CREATE TABLE IF NOT EXISTS profiles (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,
-    data JSONB NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from profiles.json
     collected_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -214,9 +177,9 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 -- security.json
 CREATE TABLE IF NOT EXISTS security (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,
-    data JSONB NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from security.json
     collected_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -227,9 +190,9 @@ CREATE TABLE IF NOT EXISTS security (
 
 -- system.json
 CREATE TABLE IF NOT EXISTS system (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,
-    data JSONB NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from system.json
     collected_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -356,103 +319,9 @@ CREATE TRIGGER update_installs_updated_at BEFORE UPDATE ON installs FOR EACH ROW
 CREATE TRIGGER update_inventory_updated_at BEFORE UPDATE ON inventory FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_management_updated_at BEFORE UPDATE ON management FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_network_updated_at BEFORE UPDATE ON network FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_printers_updated_at BEFORE UPDATE ON printers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();  
+CREATE TRIGGER update_printers_updated_at BEFORE UPDATE ON printers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_security_updated_at BEFORE UPDATE ON security FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_system_updated_at BEFORE UPDATE ON system FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_business_units_updated_at BEFORE UPDATE ON business_units FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_machine_groups_updated_at BEFORE UPDATE ON machine_groups FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-        """
-        
-        # Execute schema creation
-        cursor.execute(schema_sql)
-        conn.commit()
-        
-        # Verify table creation
-        cursor.execute("""
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-                AND table_type = 'BASE TABLE'
-            ORDER BY table_name
-        """)
-        
-        tables = [row[0] for row in cursor.fetchall()]
-        
-        # Expected tables
-        expected_tables = [
-            'devices', 'events', 'applications', 'displays', 'hardware', 
-            'installs', 'inventory', 'management', 'network', 'printers', 
-            'profiles', 'security', 'system', 'business_units', 'machine_groups',
-            'business_unit_users', 'business_unit_groups'
-        ]
-        
-        created_tables = [table for table in expected_tables if table in tables]
-        missing_tables = [table for table in expected_tables if table not in tables]
-        
-        logging.info(f'Schema creation completed. Tables created: {len(created_tables)}')
-        
-        cursor.close()
-        conn.close()
-        
-        # Return detailed success response
-        response_data = {
-            "status": "success",
-            "message": "ReportMate modular database schema initialized successfully",
-            "schema_type": "modular",
-            "tables_created": len(created_tables),
-            "tables": {
-                "core": ["devices", "events"],
-                "modules": ["applications", "displays", "hardware", "installs", "inventory", 
-                          "management", "network", "printers", "profiles", "security", "system"],
-                "business_logic": ["business_units", "machine_groups", "business_unit_users", "business_unit_groups"]
-            },
-            "features": [
-                "Serial number primary keys",
-                "JSONB module storage", 
-                "Event type validation",
-                "Referential integrity",
-                "Automatic timestamps",
-                "Performance indexes"
-            ],
-            "created_tables": created_tables
-        }
-        
-        if missing_tables:
-            response_data["warnings"] = [f"Some expected tables not found: {missing_tables}"]
-        
-        logging.info('Database initialization completed successfully')
-        
-        return HttpResponse(
-            json.dumps(response_data, indent=2),
-            status_code=200,
-            mimetype="application/json"
-        )
-        
-    except psycopg2.Error as e:
-        logging.error(f'Database error during initialization: {e}')
-        error_response = {
-            "error": "Database error during schema initialization",
-            "details": str(e),
-            "type": "database_error"
-        }
-        
-        return HttpResponse(
-            json.dumps(error_response),
-            status_code=500,
-            mimetype="application/json"
-        )
-        
-    except Exception as e:
-        logging.error(f'Unexpected error during database initialization: {e}')
-        error_response = {
-            "error": "Unexpected error during database initialization",
-            "details": str(e),
-            "type": "system_error"
-        }
-        
-        return HttpResponse(
-            json.dumps(error_response),
-            status_code=500,
-            mimetype="application/json"
-        )

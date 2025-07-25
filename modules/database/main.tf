@@ -59,7 +59,7 @@ resource "azurerm_postgresql_flexible_server_database" "db" {
   charset   = "utf8"
 }
 
-# Database schema initialization via API endpoint (when available)
+# Database schema initialization via API endpoint (after functions deployment)
 resource "null_resource" "database_init_api" {
   depends_on = [
     azurerm_postgresql_flexible_server_database.db,
@@ -69,24 +69,26 @@ resource "null_resource" "database_init_api" {
 
   triggers = {
     database_id = azurerm_postgresql_flexible_server_database.db.id
-    always_run = timestamp()  # Always run to ensure schema is up to date
+    # Only run once, unless manually triggered
+    run_once = "initial_setup"
   }
 
   provisioner "local-exec" {
-    command = <<-EOT
-      echo "Database created successfully"
-      echo "FQDN: ${azurerm_postgresql_flexible_server.pg.fqdn}"
-      echo "Database: ${var.db_name}"
+    command = <<-EOF
+      echo "🗄️  Database Infrastructure Ready"
+      echo "════════════════════════════════════════════════════════════════"
+      echo "✅ PostgreSQL Server: ${azurerm_postgresql_flexible_server.pg.fqdn}"
+      echo "✅ Database: ${var.db_name}"
+      echo "✅ Username: ${var.db_username}"
+      echo "✅ Firewall Rules: Configured"
       echo ""
-      echo "To initialize the database schema, run one of the following:"
+      echo "📋 Next Steps:"
+      echo "1. Deploy Azure Functions: terraform apply (functions module)"
+      echo "2. Initialize Schema: curl 'https://reportmate-api.azurewebsites.net/api/init-db?init=true'"
+      echo "3. Validate Setup: pwsh infrastructure/scripts/check.ps1"
       echo ""
-      echo "Option 1 - Via API (after Functions are deployed):"
-      echo "curl 'https://YOUR_FUNCTION_APP.azurewebsites.net/api/test-db?init=true'"
-      echo ""
-      echo "Option 2 - Via psql client:"
-      echo "PGPASSWORD='${var.db_password}' psql -h '${azurerm_postgresql_flexible_server.pg.fqdn}' -U '${var.db_username}' -d '${var.db_name}' -f '../../schemas/database.sql'"
-      echo ""
-      echo "Note: Database initialization will happen automatically when the API receives its first data."
-    EOT
+      echo "🚀 For complete bootstrap, run: pwsh infrastructure/scripts/bootstrap.ps1"
+      echo "════════════════════════════════════════════════════════════════"
+    EOF
   }
 }
