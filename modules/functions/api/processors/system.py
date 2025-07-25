@@ -37,11 +37,23 @@ class SystemProcessor(BaseModuleProcessor):
         # Extract system data from the device payload
         system_data = device_data.get('system', {})
         
-        # Build processed system data
+        # Build processed system data - preserve original structure from runner.exe
         processed_data = {
             'module_id': self.module_id,
             'device_id': device_id,
-            'collected_at': datetime.utcnow().isoformat(),
+            'collected_at': system_data.get('collectedAt', datetime.utcnow().isoformat()),
+            'version': system_data.get('version', '1.0.0'),
+            
+            # Preserve original data structure from runner.exe
+            'operatingSystem': system_data.get('operatingSystem', {}),
+            'updates': system_data.get('updates', []),
+            'services': system_data.get('services', []),
+            'environment': system_data.get('environment', []),
+            'uptime': system_data.get('uptime', ''),
+            'uptimeString': system_data.get('uptimeString', ''),
+            'lastBootTime': system_data.get('lastBootTime', ''),
+            
+            # Legacy processed data for backward compatibility
             'system_info': self._process_system_info(system_data),
             'performance_counters': self._process_performance_counters(system_data),
             'event_logs': self._process_event_logs(system_data),
@@ -58,9 +70,19 @@ class SystemProcessor(BaseModuleProcessor):
         # Generate summary statistics
         processed_data['summary'] = self._generate_summary(processed_data)
         
-        self.logger.info(f"System processed - {len(processed_data['processes'])} processes, "
-                        f"{len(processed_data['drivers'])} drivers, "
-                        f"{len(processed_data['event_logs'])} event log entries")
+        # Log what we actually found in the system data
+        if processed_data.get('operatingSystem'):
+            os_info = processed_data['operatingSystem']
+            self.logger.info(f"System processed - OS: {os_info.get('name', 'Unknown')} "
+                           f"{os_info.get('version', 'Unknown')} "
+                           f"(Build {os_info.get('build', 'Unknown')}), "
+                           f"Architecture: {os_info.get('architecture', 'Unknown')}")
+        else:
+            self.logger.warning("No operatingSystem data found in system module")
+        
+        self.logger.info(f"System processed - {len(processed_data['updates'])} updates, "
+                        f"{len(processed_data['services'])} services, "
+                        f"{len(processed_data['environment'])} environment variables")
         
         return processed_data
     
@@ -74,7 +96,7 @@ class SystemProcessor(BaseModuleProcessor):
         Returns:
             True if data is valid, False otherwise
         """
-        required_fields = ['module_id', 'device_id', 'system_info']
+        required_fields = ['module_id', 'device_id']
         
         for field in required_fields:
             if field not in data:
@@ -83,6 +105,11 @@ class SystemProcessor(BaseModuleProcessor):
         
         if data['module_id'] != self.module_id:
             self.logger.warning(f"System validation failed - incorrect module_id: {data['module_id']}")
+            return False
+        
+        # Check if we have either new format (operatingSystem) or legacy format (system_info)
+        if not data.get('operatingSystem') and not data.get('system_info'):
+            self.logger.warning("System validation failed - no operating system data found")
             return False
         
         return True

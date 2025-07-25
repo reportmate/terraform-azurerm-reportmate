@@ -19,9 +19,13 @@ Quick deploy (functions only, use existing infrastructure)
 Infrastructure only (Terraform deployment)
 
 .PARAMETER Functions
-Functions only (code deployment)
-
-.PARAMETER Containers
+Functions only (code deployment    Write-Host "${Blue}🎯 ReportMate REST API Deployment Script${Reset}"
+    Write-Host "========================================="
+    Write-Host ""
+    
+    # Check prerequisites
+    Test-Prerequisites
+    Write-Host ""tainers
 Containers only (frontend deployment)
 
 .PARAMETER Test
