@@ -309,56 +309,55 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                 'updatedAt': device_row[10].isoformat() if device_row[10] else None
             }
             
-            # Get module data for this device from different tables
-            # Based on the actual schema inspection, data is stored in individual tables like 'system', etc.
-            
-            # Get system data
-            system_query = """
-                SELECT data, collected_at, created_at
-                FROM system 
-                WHERE device_id = %s
-                ORDER BY created_at DESC
-                LIMIT 1
-            """
-            
-            cursor.execute(system_query, (device_row[0],))  # Use id (serial number)
-            system_row = cursor.fetchone()
-            
-            # Get inventory data
-            inventory_query = """
-                SELECT data, collected_at, created_at
-                FROM inventory 
-                WHERE device_id = %s
-                ORDER BY created_at DESC
-                LIMIT 1
-            """
-            
-            cursor.execute(inventory_query, (device_row[0],))  # Use id (serial number)
-            inventory_row = cursor.fetchone()
+            # Get module data for this device from all modular tables
+            # These are the exact same tables that /api/events stores data into
+            valid_modules = [
+                'applications', 'displays', 'hardware', 'installs', 'inventory',
+                'management', 'network', 'printers', 'profiles', 'security', 'system'
+            ]
             
             modules = {}
+            latest_collection_time = None
+            
+            # Query each module table for this device's data
+            for module_name in valid_modules:
+                module_query = f"""
+                    SELECT data, collected_at, created_at
+                    FROM {module_name} 
+                    WHERE device_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """
+                
+                try:
+                    cursor.execute(module_query, (device_row[0],))  # Use id (serial number)
+                    module_row = cursor.fetchone()
+                    
+                    if module_row and module_row[0]:  # If we have data
+                        modules[module_name] = module_row[0]  # JSON data
+                        
+                        # Track the latest collection time across all modules
+                        if module_row[1]:  # collected_at
+                            collection_time = module_row[1].isoformat()
+                            if not latest_collection_time or collection_time > latest_collection_time:
+                                latest_collection_time = collection_time
+                                
+                        logger.info(f"✅ Retrieved {module_name} data for device {device_row[0]}")
+                    else:
+                        logger.info(f"⚠️ No {module_name} data found for device {device_row[0]}")
+                        
+                except Exception as module_error:
+                    logger.warning(f"❌ Failed to query {module_name} table: {module_error}")
+                    # Continue with other modules even if one fails
+                    continue
+            
+            # Build metadata with the latest collection time from any module
             metadata = {
                 'deviceId': device_data['deviceId'],
                 'serialNumber': device_data['serialNumber'],
-                'collectedAt': device_data['lastSeen'],
+                'collectedAt': latest_collection_time or device_data['lastSeen'],
                 'clientVersion': '1.0.0'  # Default version
             }
-            
-            if system_row:
-                modules['system'] = system_row[0]  # JSON data
-                
-                # Update metadata with latest collection time
-                if system_row[1]:  # collected_at
-                    metadata['collectedAt'] = system_row[1].isoformat()
-            
-            if inventory_row:
-                modules['inventory'] = inventory_row[0]  # JSON data
-                
-                # Update metadata with latest collection time if newer
-                if inventory_row[1]:  # collected_at
-                    inventory_time = inventory_row[1].isoformat()
-                    if not metadata.get('collectedAt') or inventory_time > metadata['collectedAt']:
-                        metadata['collectedAt'] = inventory_time
             
             cursor.close()
             conn.close()
