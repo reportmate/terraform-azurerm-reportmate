@@ -275,6 +275,41 @@ class DatabaseManager:
             # Store in generic module_data table as fallback
             await self._store_generic_module_data(device_id, module_id, module_data)
     
+    async def _store_network_data(self, device_id: str, data: Dict[str, Any]):
+        """Store network module data in database"""
+        connection = await self.get_connection()
+        try:
+            # Store network data as JSONB in the network table
+            query = """
+                INSERT INTO network (device_id, data, collected_at, updated_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (device_id) DO UPDATE SET
+                    data = $2,
+                    collected_at = $3,
+                    updated_at = NOW()
+            """
+            
+            # Extract collected_at from data if available
+            collected_at = data.get('collectedAt') or data.get('collected_at')
+            if collected_at and isinstance(collected_at, str):
+                try:
+                    from datetime import datetime
+                    collected_at = datetime.fromisoformat(collected_at.replace('Z', '+00:00'))
+                except:
+                    collected_at = datetime.utcnow()
+            else:
+                collected_at = datetime.utcnow()
+            
+            await connection.execute(query, device_id, json.dumps(data), collected_at)
+            
+            logger.info(f"Successfully stored network data for device {device_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store network data for device {device_id}: {e}")
+            raise
+        finally:
+            await self.release_connection(connection)
+    
     async def _store_printer_data(self, device_id: str, data: Dict[str, Any]):
         """Store printer module data in database"""
         connection = await self.get_connection()
