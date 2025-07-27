@@ -51,7 +51,8 @@ class HardwareProcessor(BaseModuleProcessor):
             'storage': self._process_storage_info(hardware_data),
             'graphics': self._process_graphics_info(hardware_data),
             'thermal': self._process_thermal_info(hardware_data),
-            'power': self._process_power_info(hardware_data)
+            'power': self._process_power_info(hardware_data),
+            'npu': self._process_npu_info(hardware_data)
         }
         
         # Calculate total memory in MB for summary
@@ -257,6 +258,23 @@ class HardwareProcessor(BaseModuleProcessor):
         name = re.sub(r'\s+', ' ', name)  # Normalize whitespace
         
         return name
+    
+    def _process_npu_info(self, hardware_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Process NPU (Neural Processing Unit) information"""
+        npu = hardware_data.get('npu', {})
+        
+        if not npu or not npu.get('is_available', False):
+            return None
+        
+        return {
+            'name': npu.get('name', ''),
+            'manufacturer': self._clean_manufacturer_name(npu.get('manufacturer', '')),
+            'architecture': npu.get('architecture', ''),
+            'compute_units': self.get_float_value(npu, 'compute_units', 0.0),
+            'driver_version': npu.get('driver_version', ''),
+            'driver_date': npu.get('driver_date', ''),
+            'is_available': self.get_bool_value(npu, 'is_available', False)
+        }
     
     def _clean_processor_name(self, name: str) -> str:
         """Clean processor name"""
