@@ -33,7 +33,7 @@ async def list_devices_async():
                 ) as name,
                 d.serial_number,
                 d.os_version as os,
-                'online' as status,
+                'active' as status,
                 d.last_seen,
                 d.created_at
             FROM devices d

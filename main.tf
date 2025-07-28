@@ -127,6 +127,7 @@ module "functions" {
   client_passphrases    = var.client_passphrases
   enable_machine_groups = var.enable_machine_groups
   enable_business_units = var.enable_business_units
+  enable_code_deployment = true  # Enable automatic code deployment
 
   tags = var.tags
 }
