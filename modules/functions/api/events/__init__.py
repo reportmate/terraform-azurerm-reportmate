@@ -61,18 +61,18 @@ def handle_get_events(req: func.HttpRequest) -> func.HttpResponse:
             
             if device_id:
                 query = """
-                    SELECT id, device_id, kind, source, payload, severity, ts
+                    SELECT id, device_id, event_type, message, details, timestamp
                     FROM events 
                     WHERE device_id = %s 
-                    ORDER BY ts DESC 
+                    ORDER BY timestamp DESC 
                     LIMIT %s
                 """
                 cursor.execute(query, (device_id, limit))
             else:
                 query = """
-                    SELECT id, device_id, kind, source, payload, severity, ts
+                    SELECT id, device_id, event_type, message, details, timestamp
                     FROM events 
-                    ORDER BY ts DESC 
+                    ORDER BY timestamp DESC 
                     LIMIT %s
                 """
                 cursor.execute(query, (limit,))
@@ -82,23 +82,21 @@ def handle_get_events(req: func.HttpRequest) -> func.HttpResponse:
             # Format events for response
             formatted_events = []
             for event in events:
+                # Parse details if it's JSON
+                details = event[4]
+                if details and isinstance(details, str):
+                    try:
+                        details = json.loads(details)
+                    except json.JSONDecodeError:
+                        details = {'raw': details}
+
                 formatted_events.append({
                     'id': event[0],
-                    'device_id': event[1],
-                    'kind': event[2],
-                    'source': event[3],
-                    'payload': event[4],
-                    'severity': event[5],
-                    'timestamp': event[6].isoformat() if event[6] else None
-                })
-                formatted_events.append({
-                    'id': event[0],
-                    'device_id': event[1],
-                    'kind': event[2],
-                    'source': event[3],
-                    'payload': event[4],
-                    'severity': event[5],
-                    'timestamp': event[6].isoformat() if event[6] else None
+                    'device': event[1],  # Use 'device' field name to match frontend
+                    'kind': event[2],    # Map event_type to kind for frontend compatibility
+                    'message': event[3],
+                    'payload': details,  # Map details to payload for frontend compatibility
+                    'ts': event[5].isoformat() if event[5] else None  # Map timestamp to ts for frontend
                 })
         
         return func.HttpResponse(
@@ -327,9 +325,9 @@ def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                 
                 event_query = """
                     INSERT INTO events (
-                        device_id, kind, source, payload, 
-                        severity, ts, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        device_id, event_type, message, details, 
+                        timestamp, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
                 """
                 
                 event_data = {
@@ -343,11 +341,10 @@ def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                 
                 cursor.execute(event_query, (
                     serial_number,           # device_id (use serial as foreign key)
-                    event_kind,             # kind (validated)
-                    'runner.exe',           # source
-                    json.dumps(event_data), # payload (JSON)
-                    event_severity,         # severity (validated)
-                    collected_at,           # ts
+                    event_kind,             # event_type (validated)
+                    f"Data collection completed - {modules_stored} modules processed", # message
+                    json.dumps(event_data), # details (JSON)
+                    collected_at,           # timestamp
                     current_time            # created_at
                 ))
                 

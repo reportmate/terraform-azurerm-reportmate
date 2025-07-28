@@ -151,18 +151,17 @@ def handle_event_submission(req: func.HttpRequest) -> func.HttpResponse:
                 # Insert event
                 event_query = """
                     INSERT INTO events (
-                        device_id, kind, source, payload, 
-                        severity, ts, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        device_id, event_type, message, details, 
+                        timestamp, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
                 """
                 
                 cursor.execute(event_query, (
                     serial_number,                      # device_id (use serial as foreign key)
-                    event_kind,                         # kind (validated)
-                    source,                             # source
-                    json.dumps(event_payload),          # payload (JSON)
-                    severity,                           # severity (validated)
-                    current_time,                       # ts
+                    event_kind,                         # event_type (validated)
+                    event_payload.get('message', f'{event_kind.title()} event'), # message
+                    json.dumps(event_payload),          # details (JSON)
+                    current_time,                       # timestamp
                     current_time                        # created_at
                 ))
                 

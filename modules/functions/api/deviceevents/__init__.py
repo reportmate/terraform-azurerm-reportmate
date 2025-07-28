@@ -104,19 +104,19 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 
                 # Build the events query with optional filtering
                 events_query = """
-                    SELECT id, device_id, kind, source, payload, severity, ts
+                    SELECT id, device_id, event_type, message, details, timestamp
                     FROM events 
                     WHERE device_id = %s
                 """
                 query_params = [device_id]
                 
-                # Add kind filter if specified
+                # Add kind filter if specified (map to event_type)
                 if kind:
-                    events_query += " AND kind = %s"
+                    events_query += " AND event_type = %s"
                     query_params.append(kind)
                 
                 # Add ordering and pagination
-                events_query += " ORDER BY ts DESC LIMIT %s OFFSET %s"
+                events_query += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
                 query_params.extend([limit, offset])
                 
                 cursor.execute(events_query, query_params)
@@ -129,7 +129,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 count_params = [device_id]
                 
                 if kind:
-                    count_query += " AND kind = %s"
+                    count_query += " AND event_type = %s"
                     count_params.append(kind)
                 
                 cursor.execute(count_query, count_params)
@@ -140,22 +140,23 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 # Format events for response
                 formatted_events = []
                 for event in events:
+                    # Parse details if it's JSON
+                    details = event[4]
+                    if details and isinstance(details, str):
+                        try:
+                            details = json.loads(details)
+                        except json.JSONDecodeError:
+                            details = {'raw': details}
+
                     event_data = {
                         'id': event[0],
                         'device_id': event[1],
-                        'kind': event[2],
-                        'source': event[3],
-                        'severity': event[5] or 'info',
-                        'timestamp': event[6].isoformat() if event[6] else None,
-                        'payload': {}
+                        'kind': event[2],    # Map event_type to kind for frontend compatibility
+                        'message': event[3],
+                        'timestamp': event[5].isoformat() if event[5] else None,
+                        'ts': event[5].isoformat() if event[5] else None,  # Also include ts for compatibility
+                        'payload': details   # Map details to payload for frontend compatibility
                     }
-                    
-                    # Parse payload JSON
-                    if event[4]:
-                        try:
-                            event_data['payload'] = json.loads(event[4]) if isinstance(event[4], str) else event[4]
-                        except json.JSONDecodeError:
-                            event_data['payload'] = {'raw': str(event[4])}
                     
                     formatted_events.append(event_data)
                 
