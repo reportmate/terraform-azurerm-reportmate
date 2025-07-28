@@ -3,8 +3,14 @@ import json
 import logging
 import pg8000
 import re
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import os
+import sys
+
+# Add the parent directory to the path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared.utils import calculate_device_status
 
 logger = logging.getLogger(__name__)
 
@@ -294,20 +300,8 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                     mimetype="application/json"
                 )
             
-            # Extract device information
-            device_data = {
-                'id': device_row[0],  # id (serial number)
-                'deviceId': device_row[1],  # device_id (ReportMate internal UUID)
-                'name': device_row[2],
-                'serialNumber': device_row[3],
-                'os': device_row[4],
-                'status': device_row[5],
-                'lastSeen': device_row[6].isoformat() if device_row[6] else None,
-                'model': device_row[7],
-                'manufacturer': device_row[8],
-                'createdAt': device_row[9].isoformat() if device_row[9] else None,
-                'updatedAt': device_row[10].isoformat() if device_row[10] else None
-            }
+            # Extract device information and calculate dynamic status from latest module data
+            last_seen_time = device_row[6]  # last_seen timestamp
             
             # Get module data for this device from all modular tables
             # These are the exact same tables that /api/events stores data into
@@ -334,14 +328,17 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                     module_row = cursor.fetchone()
                     
                     if module_row and module_row[0]:  # If we have data
-                        modules[module_name] = module_row[0]  # JSON data
+                        module_data = module_row[0]  # JSON data
                         
-                        # Track the latest collection time across all modules
-                        if module_row[1]:  # collected_at
-                            collection_time = module_row[1].isoformat()
-                            if not latest_collection_time or collection_time > latest_collection_time:
-                                latest_collection_time = collection_time
-                                
+                        # Add collectedAt timestamp to module data for status calculation
+                        if module_row[1]:  # collected_at from database
+                            module_data['collectedAt'] = module_row[1].isoformat()
+                            
+                            # Track the latest collection time across all modules
+                            if not latest_collection_time or module_row[1] > latest_collection_time:
+                                latest_collection_time = module_row[1]
+                        
+                        modules[module_name] = module_data
                         logger.info(f"✅ Retrieved {module_name} data for device {device_row[0]}")
                     else:
                         logger.info(f"⚠️ No {module_name} data found for device {device_row[0]}")
@@ -351,11 +348,41 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                     # Continue with other modules even if one fails
                     continue
             
+            # Get recent events for status calculation (last 24 hours)
+            events_query = """
+                SELECT event_type, created_at
+                FROM events 
+                WHERE device_id = (SELECT id FROM devices WHERE device_id = %s)
+                AND created_at >= NOW() - INTERVAL '24 hours'
+                AND event_type IN ('warning', 'error')
+                ORDER BY created_at DESC
+                LIMIT 10
+            """
+            cursor.execute(events_query, (device_row[1],))  # Use device_id (UUID)
+            recent_events = [{'event_type': row[0], 'created_at': row[1]} for row in cursor.fetchall()]
+            
+            # Calculate status using latest collection time and recent events
+            calculated_status = calculate_device_status(latest_collection_time or last_seen_time, recent_events)
+            
+            device_data = {
+                'id': device_row[0],  # id (serial number)
+                'deviceId': device_row[1],  # device_id (ReportMate internal UUID)
+                'name': device_row[2],
+                'serialNumber': device_row[3],
+                'os': device_row[4],
+                'status': calculated_status,  # Now calculated from latest module data!
+                'lastSeen': last_seen_time.isoformat() if last_seen_time else None,
+                'model': device_row[7],
+                'manufacturer': device_row[8],
+                'createdAt': device_row[9].isoformat() if device_row[9] else None,
+                'updatedAt': device_row[10].isoformat() if device_row[10] else None
+            }
+            
             # Build metadata with the latest collection time from any module
             metadata = {
                 'deviceId': device_data['deviceId'],
                 'serialNumber': device_data['serialNumber'],
-                'collectedAt': latest_collection_time or device_data['lastSeen'],
+                'collectedAt': latest_collection_time.isoformat() if latest_collection_time else device_data['lastSeen'],
                 'clientVersion': '1.0.0'  # Default version
             }
             

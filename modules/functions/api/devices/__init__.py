@@ -8,11 +8,13 @@ import asyncio
 import azure.functions as func
 import os
 import sys
+from datetime import datetime, timezone, timedelta
 
 # Add the parent directory to the path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.async_database import AsyncDatabaseManager
+from shared.utils import calculate_device_status
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ async def list_devices_async():
     try:
         db_manager = AsyncDatabaseManager()
         
-        # Query to get devices with names from inventory data
+        # Query to get devices with names from inventory data and recent events
         query = """
             SELECT 
                 d.device_id as id,
@@ -33,9 +35,10 @@ async def list_devices_async():
                 ) as name,
                 d.serial_number,
                 d.os_version as os,
-                'active' as status,
                 d.last_seen,
-                d.created_at
+                d.created_at,
+                -- Get inventory data for filtering
+                i.data as inventory_data
             FROM devices d
             LEFT JOIN inventory i ON d.serial_number = i.device_id
             ORDER BY d.last_seen DESC NULLS LAST
@@ -46,14 +49,42 @@ async def list_devices_async():
         
         devices = []
         for row in devices_raw:
+            # Get recent events for this device (last 24 hours)
+            events_query = """
+                SELECT event_type, created_at
+                FROM events 
+                WHERE device_id = (SELECT id FROM devices WHERE device_id = %s)
+                AND created_at >= NOW() - INTERVAL '24 hours'
+                AND event_type IN ('warning', 'error')
+                ORDER BY created_at DESC
+                LIMIT 10
+            """
+            recent_events = await db_manager.execute_query(events_query, (row['id'],))
+            
+            # Calculate dynamic status based on last_seen and recent events
+            calculated_status = calculate_device_status(row['last_seen'], recent_events)
+            
+            # Extract inventory data for additional fields
+            inventory_data = row.get('inventory_data', {}) or {}
+            
             device = {
-                'id': row['id'],
+                'deviceId': row['id'],
+                'serialNumber': row['serial_number'],
                 'name': row['name'],  # Now comes from inventory.deviceName with fallback to serial_number
-                'serial_number': row['serial_number'],
                 'os': row['os'],
-                'status': row['status'],
-                'last_seen': row['last_seen'].isoformat() if row['last_seen'] else None,
-                'created_at': row['created_at'].isoformat() if row['created_at'] else None
+                'status': calculated_status,  # Now dynamically calculated with events!
+                'lastSeen': row['last_seen'].isoformat() if row['last_seen'] else None,
+                'totalEvents': 0,  # TODO: Calculate from events table
+                'lastEventTime': row['last_seen'].isoformat() if row['last_seen'] else None,
+                'modules': {
+                    'inventory': {
+                        'assetTag': inventory_data.get('assetTag'),
+                        'deviceName': inventory_data.get('deviceName'),
+                        'location': inventory_data.get('location'),
+                        'usage': inventory_data.get('usage'),
+                        'catalog': inventory_data.get('catalog')
+                    }
+                } if inventory_data else {}
             }
             devices.append(device)
         

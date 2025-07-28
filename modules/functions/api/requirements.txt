@@ -3,6 +3,8 @@ azure-functions==1.18.0
 
 # Database drivers (pg8000 works best with Azure Functions)
 pg8000==1.30.3
+# Backup driver for Azure Functions
+psycopg2-binary==2.9.9
 
 # HTTP client for external requests
 requests==2.31.0
