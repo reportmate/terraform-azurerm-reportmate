@@ -37,11 +37,41 @@ class ManagementProcessor(BaseModuleProcessor):
         # Extract management data from the device payload
         management_data = device_data.get('management', {})
         
-        # Build processed management data
+        # Handle new modular structure from Windows client
+        if management_data:
+            self.logger.info(f"Processing management data with keys: {list(management_data.keys())}")
+            
+            # Extract enhanced device identification
+            device_details = management_data.get('deviceDetails', {})
+            intune_device_id = device_details.get('intuneDeviceId', '')
+            entra_object_id = device_details.get('entraObjectId', '')
+            
+            if intune_device_id:
+                self.logger.info(f"Found Intune Device ID: {intune_device_id}")
+            if entra_object_id:
+                self.logger.info(f"Found Entra Object ID: {entra_object_id}")
+        
+        # Build processed management data - preserve original structure from Windows client
         processed_data = {
             'module_id': self.module_id,
             'device_id': device_id,
-            'collected_at': datetime.utcnow().isoformat(),
+            'collected_at': management_data.get('collectedAt', datetime.utcnow().isoformat()),
+            
+            # Core management data structures
+            'device_state': management_data.get('deviceState', {}),
+            'device_details': management_data.get('deviceDetails', {}),
+            'tenant_details': management_data.get('tenantDetails', {}),
+            'user_state': management_data.get('userState', {}),
+            'sso_state': management_data.get('ssoState', {}),
+            'diagnostic_data': management_data.get('diagnosticData', {}),
+            'mdm_enrollment': management_data.get('mdmEnrollment', {}),
+            'profiles': management_data.get('profiles', []),
+            'compliance_policies': management_data.get('compliancePolicies', []),
+            'metadata': management_data.get('metadata', {}),
+            'ownership_type': management_data.get('ownershipType', ''),
+            'last_sync': management_data.get('lastSync', ''),
+            
+            # Legacy compatibility fields
             'services': self._process_services(management_data),
             'scheduled_tasks': self._process_scheduled_tasks(management_data),
             'group_policies': self._process_group_policies(management_data),
@@ -56,9 +86,11 @@ class ManagementProcessor(BaseModuleProcessor):
         # Generate summary statistics
         processed_data['summary'] = self._generate_summary(processed_data)
         
-        self.logger.info(f"Management processed - {len(processed_data['services'])} services, "
-                        f"{len(processed_data['scheduled_tasks'])} tasks, "
-                        f"{len(processed_data['user_accounts'])} user accounts")
+        mdm_status = processed_data['mdm_enrollment'].get('isEnrolled', False)
+        provider = processed_data['mdm_enrollment'].get('provider', 'Unknown')
+        enrollment_type = processed_data['mdm_enrollment'].get('enrollmentType', 'Unknown')
+        
+        self.logger.info(f"Management processed - MDM Enrolled: {mdm_status}, Provider: {provider}, Type: {enrollment_type}")
         
         return processed_data
     
