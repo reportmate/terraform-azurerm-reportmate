@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS devices (
 CREATE TABLE IF NOT EXISTS events (
     id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,           -- References devices.id (serial number)
-    event_type VARCHAR(20) NOT NULL CHECK (event_type IN ('success', 'warning', 'error', 'info')),
+    event_type VARCHAR(20) NOT NULL CHECK (event_type IN ('success', 'warning', 'error', 'info', 'system')),
     message TEXT,
     details JSONB,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

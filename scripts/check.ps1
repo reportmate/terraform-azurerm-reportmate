@@ -103,7 +103,7 @@ $CONFIG = @{
         'applications', 'displays', 'hardware', 'installs', 'inventory',
         'management', 'network', 'printers', 'profiles', 'security', 'system'
     )
-    ValidEventTypes = @('success', 'warning', 'error', 'info', 'system')
+    ValidEventTypes = @('success', 'warning', 'error', 'info')
     CanonicalSchema = "infrastructure\schemas\modular-database-schema.sql"
     ProhibitedSchemaFiles = @(
         'azure-database-schema.sql',
