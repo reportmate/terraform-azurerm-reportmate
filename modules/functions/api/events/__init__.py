@@ -125,7 +125,7 @@ def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
     """Handle POST requests for storing unified device payloads"""
     
     # Define allowed event types (strict validation)
-    ALLOWED_EVENT_TYPES = {'success', 'warning', 'error', 'info', 'system'}
+    ALLOWED_EVENT_TYPES = {'success', 'warning', 'error', 'info'}
     
     try:
         # Parse request body
@@ -311,7 +311,7 @@ def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                         modules_stored += 1
                 
                 # Store event record for historical tracking with validated event type
-                event_kind = 'system'        # Data collection is a system event (VALID)
+                event_kind = 'info'         # Data collection is an info event (VALID)
                 event_severity = 'info'      # Default severity (VALID)
                 
                 # Validate event type is in allowed list (strict validation)

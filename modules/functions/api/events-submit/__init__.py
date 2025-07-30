@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.sync_database import SyncDatabaseManager
 
 # Strictly allowed event types - no other types are permitted
-ALLOWED_EVENT_TYPES = {'success', 'warning', 'error', 'info', 'system'}
+ALLOWED_EVENT_TYPES = {'success', 'warning', 'error', 'info'}
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     """
