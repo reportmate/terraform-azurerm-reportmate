@@ -310,6 +310,181 @@ class DatabaseManager:
         finally:
             await self.release_connection(connection)
     
+    async def _store_installs_data(self, device_id: str, data: Dict[str, Any]):
+        """Store installs module data in database"""
+        connection = await self.get_connection()
+        try:
+            # Store installs data as JSONB in the installs table
+            query = """
+                INSERT INTO installs (device_id, data, collected_at, updated_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (device_id) DO UPDATE SET
+                    data = $2,
+                    collected_at = $3,
+                    updated_at = NOW()
+            """
+            
+            # Extract collected_at from data if available
+            collected_at = data.get('collectedAt') or data.get('collected_at')
+            if collected_at and isinstance(collected_at, str):
+                try:
+                    from datetime import datetime
+                    collected_at = datetime.fromisoformat(collected_at.replace('Z', '+00:00'))
+                except:
+                    collected_at = datetime.utcnow()
+            else:
+                collected_at = datetime.utcnow()
+            
+            await connection.execute(query, device_id, json.dumps(data), collected_at)
+            
+            logger.info(f"Successfully stored enhanced Cimian installs data for device {device_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store installs data for device {device_id}: {e}")
+            raise
+        finally:
+            await self.release_connection(connection)
+    
+    async def _store_inventory_data(self, device_id: str, data: Dict[str, Any]):
+        """Store inventory module data in database"""
+        connection = await self.get_connection()
+        try:
+            # Store inventory data as JSONB in the inventory table
+            query = """
+                INSERT INTO inventory (device_id, data, collected_at, updated_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (device_id) DO UPDATE SET
+                    data = $2,
+                    collected_at = $3,
+                    updated_at = NOW()
+            """
+            
+            # Extract collected_at from data if available
+            collected_at = data.get('collectedAt') or data.get('collected_at')
+            if collected_at and isinstance(collected_at, str):
+                try:
+                    from datetime import datetime
+                    collected_at = datetime.fromisoformat(collected_at.replace('Z', '+00:00'))
+                except:
+                    collected_at = datetime.utcnow()
+            else:
+                collected_at = datetime.utcnow()
+            
+            await connection.execute(query, device_id, json.dumps(data), collected_at)
+            
+            logger.info(f"Successfully stored inventory data for device {device_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store inventory data for device {device_id}: {e}")
+            raise
+        finally:
+            await self.release_connection(connection)
+    
+    async def _store_management_data(self, device_id: str, data: Dict[str, Any]):
+        """Store management module data in database"""
+        connection = await self.get_connection()
+        try:
+            # Store management data as JSONB in the management table
+            query = """
+                INSERT INTO management (device_id, data, collected_at, updated_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (device_id) DO UPDATE SET
+                    data = $2,
+                    collected_at = $3,
+                    updated_at = NOW()
+            """
+            
+            # Extract collected_at from data if available
+            collected_at = data.get('collectedAt') or data.get('collected_at')
+            if collected_at and isinstance(collected_at, str):
+                try:
+                    from datetime import datetime
+                    collected_at = datetime.fromisoformat(collected_at.replace('Z', '+00:00'))
+                except:
+                    collected_at = datetime.utcnow()
+            else:
+                collected_at = datetime.utcnow()
+            
+            await connection.execute(query, device_id, json.dumps(data), collected_at)
+            
+            logger.info(f"Successfully stored management data for device {device_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store management data for device {device_id}: {e}")
+            raise
+        finally:
+            await self.release_connection(connection)
+    
+    async def _store_profiles_data(self, device_id: str, data: Dict[str, Any]):
+        """Store profiles module data in database"""
+        connection = await self.get_connection()
+        try:
+            # Store profiles data as JSONB in the profiles table
+            query = """
+                INSERT INTO profiles (device_id, data, collected_at, updated_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (device_id) DO UPDATE SET
+                    data = $2,
+                    collected_at = $3,
+                    updated_at = NOW()
+            """
+            
+            # Extract collected_at from data if available
+            collected_at = data.get('collectedAt') or data.get('collected_at')
+            if collected_at and isinstance(collected_at, str):
+                try:
+                    from datetime import datetime
+                    collected_at = datetime.fromisoformat(collected_at.replace('Z', '+00:00'))
+                except:
+                    collected_at = datetime.utcnow()
+            else:
+                collected_at = datetime.utcnow()
+            
+            await connection.execute(query, device_id, json.dumps(data), collected_at)
+            
+            logger.info(f"Successfully stored profiles data for device {device_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store profiles data for device {device_id}: {e}")
+            raise
+        finally:
+            await self.release_connection(connection)
+    
+    async def _store_displays_data(self, device_id: str, data: Dict[str, Any]):
+        """Store displays module data in database"""
+        connection = await self.get_connection()
+        try:
+            # Store displays data as JSONB in the displays table
+            query = """
+                INSERT INTO displays (device_id, data, collected_at, updated_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (device_id) DO UPDATE SET
+                    data = $2,
+                    collected_at = $3,
+                    updated_at = NOW()
+            """
+            
+            # Extract collected_at from data if available
+            collected_at = data.get('collectedAt') or data.get('collected_at')
+            if collected_at and isinstance(collected_at, str):
+                try:
+                    from datetime import datetime
+                    collected_at = datetime.fromisoformat(collected_at.replace('Z', '+00:00'))
+                except:
+                    collected_at = datetime.utcnow()
+            else:
+                collected_at = datetime.utcnow()
+            
+            await connection.execute(query, device_id, json.dumps(data), collected_at)
+            
+            logger.info(f"Successfully stored displays data for device {device_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store displays data for device {device_id}: {e}")
+            raise
+        finally:
+            await self.release_connection(connection)
+    
     async def _store_printer_data(self, device_id: str, data: Dict[str, Any]):
         """Store printer module data in database"""
         connection = await self.get_connection()
