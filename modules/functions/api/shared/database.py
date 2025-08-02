@@ -161,11 +161,12 @@ class DatabaseManager:
                 return {
                     'success': True,
                     'message': 'Data stored successfully (mock)',
-                    'device_id': device_id,
+                    'device_id': serial_number,  # Return serial number for frontend consistency
                     'serial_number': serial_number,
                     'modules_processed': enabled_modules,
                     'timestamp': collected_at,
-                    'storage_mode': 'mock'
+                    'storage_mode': 'mock',
+                    'internal_uuid': device_id  # Keep UUID for internal reference if needed
                 }
             
             # For real database, implement actual storage logic here
@@ -182,24 +183,29 @@ class DatabaseManager:
                 event_type = 'info'  # Default event type
                 message = f"Data collection completed for {len(enabled_modules)} modules"
                 
+                # CRITICAL FIX: Use serial_number instead of device_id (UUID) for event storage
+                # The events table device_id field should contain the human-readable serial number
+                # not the internal UUID. This ensures the frontend displays the correct identifier.
+                
                 if self.driver == "sqlite":
                     cursor.execute(
                         "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (?, ?, ?, ?, ?)",
-                        (device_id, event_type, message, json.dumps(unified_payload), collected_at)
+                        (serial_number, event_type, message, json.dumps(unified_payload), collected_at)
                     )
                 else:
                     cursor.execute(
                         "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (%s, %s, %s, %s, %s)",
-                        (device_id, event_type, message, json.dumps(unified_payload), collected_at)
+                        (serial_number, event_type, message, json.dumps(unified_payload), collected_at)
                     )
                 
                 return {
                     'success': True,
                     'message': 'Data stored successfully',
-                    'device_id': device_id,
+                    'device_id': serial_number,  # Return serial number for frontend consistency
                     'serial_number': serial_number,
                     'modules_processed': enabled_modules,
-                    'timestamp': collected_at
+                    'timestamp': collected_at,
+                    'internal_uuid': device_id  # Keep UUID for internal reference if needed
                 }
                 
         except Exception as e:
