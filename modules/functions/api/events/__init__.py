@@ -156,12 +156,47 @@ def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
         client_version = metadata.get('clientVersion', 'unknown')
         collected_at = metadata.get('collectedAt', datetime.now(timezone.utc).isoformat())
         
-        # Validate required fields
+        # Validate required fields and ensure UUID + serial number combination
         if device_id == 'unknown-device' or serial_number == 'unknown-serial':
             return func.HttpResponse(
                 json.dumps({
                     'error': 'Invalid device identification',
                     'details': 'Both deviceId (UUID) and serialNumber are required'
+                }),
+                status_code=400,
+                headers={'Content-Type': 'application/json'}
+            )
+        
+        # CRITICAL PROTECTION: Validate UUID format for device_id
+        import re
+        uuid_pattern = r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        if not re.match(uuid_pattern, device_id):
+            return func.HttpResponse(
+                json.dumps({
+                    'error': 'Invalid device UUID format',
+                    'details': f'deviceId must be a valid UUID format, got: {device_id}'
+                }),
+                status_code=400,
+                headers={'Content-Type': 'application/json'}
+            )
+        
+        # CRITICAL PROTECTION: Validate serial number is NOT a UUID
+        if re.match(uuid_pattern, serial_number):
+            return func.HttpResponse(
+                json.dumps({
+                    'error': 'Invalid serial number format',
+                    'details': f'serialNumber must not be a UUID format, got: {serial_number}. Expected human-readable serial like 0F33V9G25083HJ'
+                }),
+                status_code=400,
+                headers={'Content-Type': 'application/json'}
+            )
+        
+        # CRITICAL PROTECTION: Ensure deviceId and serialNumber are different
+        if device_id == serial_number:
+            return func.HttpResponse(
+                json.dumps({
+                    'error': 'Device identification mismatch',
+                    'details': 'deviceId (UUID) and serialNumber must be different values'
                 }),
                 status_code=400,
                 headers={'Content-Type': 'application/json'}
@@ -187,11 +222,12 @@ def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                     json.dumps({
                         'success': True,
                         'message': 'Unified payload processed successfully',
-                        'device_id': device_id,
+                        'device_id': serial_number,  # Return serial number for frontend consistency
                         'serial_number': serial_number,
                         'modules_processed': storage_result.get('modules_processed', []),
                         'timestamp': storage_result.get('timestamp'),
-                        'storage_mode': 'mock'  # Indicate we're using mock storage
+                        'storage_mode': storage_result.get('storage_mode', 'database'),
+                        'internal_uuid': device_id  # Keep UUID for internal reference if needed
                     }),
                     status_code=200,
                     headers={'Content-Type': 'application/json'}
@@ -203,8 +239,9 @@ def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                         'success': False,
                         'error': 'Database storage failed',
                         'details': storage_result.get('details', 'Unknown error'),
-                        'device_id': device_id,
-                        'serial_number': serial_number
+                        'device_id': serial_number,  # Return serial number for frontend consistency
+                        'serial_number': serial_number,
+                        'internal_uuid': device_id  # Keep UUID for internal reference if needed
                     }),
                     status_code=500,
                     headers={'Content-Type': 'application/json'}
@@ -217,21 +254,9 @@ def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                     'success': False,
                     'error': 'Database storage failed',
                     'details': str(db_error),
-                    'device_id': device_id,
-                    'serial_number': serial_number
-                }),
-                status_code=500,
-                headers={'Content-Type': 'application/json'}
-            )
-        except Exception as db_error:
-            logging.error(f"Database storage error: {str(db_error)}", exc_info=True)
-            return func.HttpResponse(
-                json.dumps({
-                    'success': False,
-                    'error': 'Database storage failed',
-                    'details': str(db_error),
-                    'device_id': device_id,
-                    'serial_number': serial_number
+                    'device_id': serial_number,  # Return serial number for frontend consistency
+                    'serial_number': serial_number,
+                    'internal_uuid': device_id  # Keep UUID for internal reference if needed
                 }),
                 status_code=500,
                 headers={'Content-Type': 'application/json'}
