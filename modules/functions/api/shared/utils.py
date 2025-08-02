@@ -5,21 +5,35 @@ Shared utilities for ReportMate API
 from datetime import datetime, timezone, timedelta
 
 
-def calculate_device_status(last_seen):
+def calculate_device_status(last_seen, recent_events=None):
     """
-    Calculate device status based on last seen timestamp
-    Returns: 'active', 'stale', 'warning', or 'error'
+    Calculate device status based on last seen timestamp and recent events
     
-    This is the centralized status calculation logic used across all API endpoints.
+    NEW LOGIC per user requirements:
+    - active: < 24 hours 
+    - stale: 24 hours - 7 days
+    - missing: 7+ days
+    - warning/error: Come strictly from events data (installs module errors)
     
-    Status Definitions:
-    - active: Device reported within last 4 hours
-    - warning: Device reported within last 24 hours but more than 4 hours ago  
-    - stale: Device reported within last week but more than 24 hours ago
-    - error: Device hasn't reported in over a week or has invalid timestamp
+    Args:
+        last_seen: datetime object or None (collectedAt timestamp)
+        recent_events: list of recent events with 'event_type' field (optional)
+        
+    Returns:
+        str: One of 'active', 'stale', 'missing', 'warning', 'error'
     """
+    # First check for event-based status (overrides time-based status)
+    if recent_events:
+        # Check for error events first (highest priority)
+        if any(event.get('event_type') == 'error' for event in recent_events):
+            return 'error'
+        # Check for warning events
+        if any(event.get('event_type') == 'warning' for event in recent_events):
+            return 'warning'
+    
+    # If no events or no error/warning events, calculate time-based status
     if not last_seen:
-        return 'error'  # No last seen time at all
+        return 'missing'
     
     now = datetime.now(timezone.utc)
     
@@ -34,7 +48,7 @@ def calculate_device_status(last_seen):
             else:
                 last_seen = datetime.fromisoformat(last_seen)
         except ValueError:
-            return 'error'  # Invalid timestamp format
+            return 'missing'  # Invalid timestamp format
     
     # Ensure last_seen is timezone-aware
     if last_seen.tzinfo is None:
@@ -42,15 +56,13 @@ def calculate_device_status(last_seen):
     
     time_diff = now - last_seen
     
-    # Define status thresholds
-    if time_diff <= timedelta(hours=4):
-        return 'active'    # Reported within last 4 hours
-    elif time_diff <= timedelta(hours=24):
-        return 'warning'   # Reported within last 24 hours but more than 4 hours ago
+    # Updated time-based status thresholds per user requirements
+    if time_diff <= timedelta(hours=24):
+        return 'active'    # < 24 hours
     elif time_diff <= timedelta(days=7):
-        return 'stale'     # Reported within last week but more than 24 hours ago
+        return 'stale'     # 24 hours - 7 days
     else:
-        return 'error'     # Haven't seen in over a week
+        return 'missing'   # 7+ days
 
 
 def get_device_status_from_modules(device_data):

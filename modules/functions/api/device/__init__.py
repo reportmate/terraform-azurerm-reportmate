@@ -361,8 +361,8 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
             cursor.execute(events_query, (device_row[1],))  # Use device_id (UUID)
             recent_events = [{'event_type': row[0], 'created_at': row[1]} for row in cursor.fetchall()]
             
-            # Calculate status using latest collection time and recent events
-            calculated_status = calculate_device_status(latest_collection_time or last_seen_time, recent_events)
+            # Calculate status using latest collection time (function only takes one parameter)
+            calculated_status = calculate_device_status(latest_collection_time or last_seen_time)
             
             device_data = {
                 'id': device_row[0],  # id (serial number)

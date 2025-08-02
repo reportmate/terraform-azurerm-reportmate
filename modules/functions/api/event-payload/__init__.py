@@ -11,7 +11,7 @@ import sys
 # Add the parent directory to the path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared.sync_database import SyncDatabaseManager
+from shared.database import SyncDatabaseManager
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     """

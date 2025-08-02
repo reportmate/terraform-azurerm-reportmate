@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 # Add the parent directory to the path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared.sync_database import SyncDatabaseManager
+from shared.database import SyncDatabaseManager
 
 # Strictly allowed event types - no other types are permitted
 ALLOWED_EVENT_TYPES = {'success', 'warning', 'error', 'info'}
