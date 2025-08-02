@@ -13,7 +13,7 @@ from datetime import datetime, timezone, timedelta
 # Add the parent directory to the path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared.async_database import AsyncDatabaseManager
+from shared.database import AsyncDatabaseManager
 from shared.utils import calculate_device_status
 
 logger = logging.getLogger(__name__)

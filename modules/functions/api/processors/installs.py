@@ -18,11 +18,19 @@ class InstallsProcessor(BaseModuleProcessor):
     """
     
     @staticmethod
-    def map_cimian_status_to_reportmate(cimian_status: str) -> str:
+    def map_cimian_status_to_reportmate(self, cimian_status: str, latest_version: str = None) -> str:
         """
         Maps Cimian's detailed status values to ReportMate's simplified dashboard statuses
         Uses only: Installed, Pending, Warning, Error, Removed
+        
+        Args:
+            cimian_status: The original Cimian status
+            latest_version: The latest version (if "Unknown", override to "Error")
         """
+        # # CRITICAL: Override to Error if version is Unknown (matches Windows client logic)
+        # if latest_version == "Unknown":
+        #     return "Error"
+            
         if not cimian_status:
             return "Pending"  # Default unknown to Pending
             
@@ -216,9 +224,12 @@ class InstallsProcessor(BaseModuleProcessor):
         
         for install in cimian_items:
             if isinstance(install, dict):
-                # Get original Cimian status and map it to ReportMate status
+                # Get original Cimian status and latest version 
                 original_status = install.get('currentStatus', install.get('Status', install.get('status', 'Unknown')))
-                mapped_status = self.map_cimian_status_to_reportmate(original_status)
+                latest_version = install.get('latestVersion', install.get('Version', install.get('version', '')))
+                
+                # Map status with version check for Unknown version → Error override
+                mapped_status = self.map_cimian_status_to_reportmate(original_status, latest_version)
                 
                 processed_install = {
                     # Core fields - Enhanced Cimian structure
@@ -226,9 +237,9 @@ class InstallsProcessor(BaseModuleProcessor):
                     'name': install.get('itemName', install.get('Name', install.get('name', 'Unknown'))),
                     'display_name': install.get('displayName', install.get('DisplayName', install.get('displayName', ''))),
                     'item_type': install.get('itemType', install.get('ItemType', install.get('itemType', ''))),
-                    'status': mapped_status,  # Use mapped ReportMate status
+                    'status': mapped_status,  # Use mapped ReportMate status with Unknown version override
                     'original_status': original_status,  # Store original Cimian status for reference
-                    'version': install.get('latestVersion', install.get('Version', install.get('version', ''))),
+                    'version': latest_version,  # Use already retrieved latest_version
                     'installed_version': install.get('installedVersion', install.get('InstalledVersion', install.get('installedVersion', ''))),
                     'last_seen_in_session': install.get('lastSeenInSession', install.get('LastSeenInSession', install.get('lastSeenInSession', ''))),
                     'last_successful_time': self._parse_datetime(install.get('LastSuccessfulTime', install.get('lastSuccessfulTime'))),
