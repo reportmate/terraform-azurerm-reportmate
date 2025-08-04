@@ -17,7 +17,6 @@ class InstallsProcessor(BaseModuleProcessor):
     Handles Windows Updates, software installations, patches, and package managers
     """
     
-    @staticmethod
     def map_cimian_status_to_reportmate(self, cimian_status: str, latest_version: str = None) -> str:
         """
         Maps Cimian's detailed status values to ReportMate's simplified dashboard statuses

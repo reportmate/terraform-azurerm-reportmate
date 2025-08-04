@@ -144,72 +144,174 @@ class DatabaseManager:
                 raise e
     
     def store_event_data(self, unified_payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Store unified device event data - mock implementation for development"""
+        """Store unified device payload with full modular data support"""
         
         try:
-            # Extract metadata
-            metadata = unified_payload.get('metadata', {})
-            device_id = metadata.get('deviceId', 'unknown-device')
-            serial_number = metadata.get('serialNumber', 'unknown-serial')
-            enabled_modules = metadata.get('enabledModules', [])
-            collected_at = metadata.get('collectedAt', datetime.now(timezone.utc).isoformat())
+            # Extract metadata - handle both PascalCase (C#) and camelCase serialization
+            metadata = unified_payload.get('Metadata', {}) or unified_payload.get('metadata', {})
+            device_id = metadata.get('DeviceId', metadata.get('deviceId', 'unknown-device'))
+            serial_number = metadata.get('SerialNumber', metadata.get('serialNumber', 'unknown-serial'))
+            enabled_modules = metadata.get('EnabledModules', metadata.get('enabledModules', []))
+            collected_at = metadata.get('CollectedAt', metadata.get('collectedAt', datetime.now(timezone.utc).isoformat()))
+            client_version = metadata.get('ClientVersion', metadata.get('clientVersion', 'unknown'))
+            platform = metadata.get('Platform', metadata.get('platform', 'Windows'))
             
-            logger.info(f"Mock storage for device {device_id} with {len(enabled_modules)} modules")
+            logger.info(f"Processing unified payload for device {serial_number} with {len(enabled_modules)} modules")
             
             # For mock database, just return success
             if self.driver == "mock":
                 return {
                     'success': True,
                     'message': 'Data stored successfully (mock)',
-                    'device_id': serial_number,  # Return serial number for frontend consistency
+                    'device_id': serial_number,
                     'serial_number': serial_number,
                     'modules_processed': enabled_modules,
                     'timestamp': collected_at,
                     'storage_mode': 'mock',
-                    'internal_uuid': device_id  # Keep UUID for internal reference if needed
+                    'internal_uuid': device_id
                 }
             
-            # For real database, implement actual storage logic here
-            # This would involve:
-            # 1. Storing device registration data
-            # 2. Storing module data in respective tables
-            # 3. Storing events data
-            # 4. Updating device last_seen timestamp
+            # Define all supported module names (matches database table names)
+            ALL_MODULES = [
+                'applications', 'displays', 'hardware', 'installs', 'inventory',
+                'management', 'network', 'printers', 'profiles', 'security', 'system'
+            ]
+            
+            modules_processed = []
+            events_stored = 0
             
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # Simple event storage for now
-                event_type = 'info'  # Default event type
-                message = f"Data collection completed for {len(enabled_modules)} modules"
+                # 1. STORE/UPDATE DEVICE REGISTRATION
+                logger.info(f"Updating device registration for {serial_number}")
                 
-                # CRITICAL FIX: Use serial_number instead of device_id (UUID) for event storage
-                # The events table device_id field should contain the human-readable serial number
-                # not the internal UUID. This ensures the frontend displays the correct identifier.
+                # Extract device info from metadata for device registration
+                device_name = metadata.get('hostname', metadata.get('deviceName', serial_number))
+                current_time = datetime.now(timezone.utc).isoformat()
                 
                 if self.driver == "sqlite":
-                    cursor.execute(
-                        "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (?, ?, ?, ?, ?)",
-                        (serial_number, event_type, message, json.dumps(unified_payload), collected_at)
-                    )
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO devices 
+                        (id, device_id, name, serial_number, last_seen, client_version, status, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (serial_number, device_id, device_name, serial_number, collected_at, client_version, 'online', current_time, current_time))
                 else:
-                    cursor.execute(
-                        "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (%s, %s, %s, %s, %s)",
-                        (serial_number, event_type, message, json.dumps(unified_payload), collected_at)
-                    )
+                    cursor.execute("""
+                        INSERT INTO devices 
+                        (id, device_id, name, serial_number, last_seen, client_version, status, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        ON CONFLICT (id) DO UPDATE SET
+                            device_id = EXCLUDED.device_id,
+                            name = EXCLUDED.name,
+                            last_seen = EXCLUDED.last_seen,
+                            client_version = EXCLUDED.client_version,
+                            status = EXCLUDED.status,
+                            updated_at = NOW()
+                    """, (serial_number, device_id, device_name, serial_number, collected_at, client_version, 'online'))
+                
+                # 2. STORE MODULE DATA (the missing piece!)
+                for module_name in ALL_MODULES:
+                    # Check if this module has data in the payload (both PascalCase and camelCase)
+                    module_data = unified_payload.get(module_name.capitalize(), unified_payload.get(module_name))
+                    
+                    if module_data and module_data is not None:
+                        logger.info(f"Processing {module_name} module data")
+                        
+                        # Convert module data to JSON string for storage
+                        module_json = json.dumps(module_data)
+                        current_time = datetime.now(timezone.utc).isoformat()
+                        
+                        if self.driver == "sqlite":
+                            cursor.execute(f"""
+                                INSERT OR REPLACE INTO {module_name}
+                                (device_id, data, collected_at, updated_at, created_at)
+                                VALUES (?, ?, ?, ?, ?)
+                            """, (serial_number, module_json, collected_at, current_time, current_time))
+                        else:
+                            cursor.execute(f"""
+                                INSERT INTO {module_name}
+                                (device_id, data, collected_at, updated_at, created_at)
+                                VALUES (%s, %s, %s, NOW(), NOW())
+                                ON CONFLICT (device_id) DO UPDATE SET
+                                    data = EXCLUDED.data,
+                                    collected_at = EXCLUDED.collected_at,
+                                    updated_at = NOW()
+                            """, (serial_number, module_json, collected_at))
+                        
+                        modules_processed.append(module_name)
+                        logger.info(f"✅ Stored {module_name} module data for device {serial_number}")
+                
+                # 3. STORE EVENTS DATA
+                events = unified_payload.get('Events', []) or unified_payload.get('events', [])
+                
+                if events:
+                    for event in events:
+                        event_type = event.get('eventType', 'info').lower()
+                        message = event.get('message', 'Event logged')
+                        details = json.dumps(event.get('details', {}))
+                        timestamp = event.get('timestamp', collected_at)
+                        module_id = event.get('moduleId', 'unknown')
+                        
+                        # Validate event type
+                        if event_type not in ['success', 'warning', 'error', 'info']:
+                            logger.warning(f"Invalid event type '{event_type}', defaulting to 'info'")
+                            event_type = 'info'
+                        
+                        # Add moduleId to event details for filtering
+                        event_details = json.loads(details)
+                        event_details['module_id'] = module_id
+                        details = json.dumps(event_details)
+                        
+                        if self.driver == "sqlite":
+                            cursor.execute(
+                                "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (?, ?, ?, ?, ?)",
+                                (serial_number, event_type, message, details, timestamp)
+                            )
+                        else:
+                            cursor.execute(
+                                "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (%s, %s, %s, %s, %s)",
+                                (serial_number, event_type, message, details, timestamp)
+                            )
+                        events_stored += 1
+                        
+                    logger.info(f"✅ Stored {events_stored} events for device {serial_number}")
+                else:
+                    # Fallback: store a generic data collection event if no specific events
+                    event_type = 'info'
+                    message = f"Data collection completed for {len(modules_processed)} modules"
+                    details = json.dumps({
+                        'modules': modules_processed, 
+                        'collection_type': 'routine',
+                        'module_id': 'system'
+                    })
+                    
+                    if self.driver == "sqlite":
+                        cursor.execute(
+                            "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (?, ?, ?, ?, ?)",
+                            (serial_number, event_type, message, details, collected_at)
+                        )
+                    else:
+                        cursor.execute(
+                            "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (%s, %s, %s, %s, %s)",
+                            (serial_number, event_type, message, details, collected_at)
+                        )
+                    events_stored = 1
+                    logger.info(f"✅ Stored fallback data collection event for device {serial_number}")
                 
                 return {
                     'success': True,
-                    'message': 'Data stored successfully',
-                    'device_id': serial_number,  # Return serial number for frontend consistency
+                    'message': f'Complete data storage: {len(modules_processed)} modules, {events_stored} events',
+                    'device_id': serial_number,
                     'serial_number': serial_number,
-                    'modules_processed': enabled_modules,
+                    'modules_processed': modules_processed,
+                    'events_stored': events_stored,
                     'timestamp': collected_at,
-                    'internal_uuid': device_id  # Keep UUID for internal reference if needed
+                    'internal_uuid': device_id
                 }
                 
         except Exception as e:
-            logger.error(f"Failed to store event data: {e}")
+            logger.error(f"Failed to store unified payload: {e}", exc_info=True)
             return {
                 'success': False,
                 'error': 'Storage failed',
