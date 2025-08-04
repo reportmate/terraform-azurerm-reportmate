@@ -1,0 +1,9 @@
+# Function dependencies
+azure-functions
+azure-identity
+azure-storage-queue
+azure-storage-blob
+azure-core
+pg8000
+cryptography
+requests

@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional, Union
 from abc import ABC, abstractmethod
 import asyncio
-import asyncpg
+import pg8000
 import os
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ class BaseModuleProcessor(ABC):
         """
         pass
     
-    async def store_module_data(self, data: Dict[str, Any], connection: asyncpg.Connection) -> bool:
+    async def store_module_data(self, data: Dict[str, Any], connection: Any) -> bool:
         """
         Store the processed module data to the database
         
@@ -93,7 +93,7 @@ class BaseModuleProcessor(ABC):
             self.logger.error(f"Failed to store {self.module_id} data: {e}")
             return False
     
-    async def retrieve_module_data(self, device_id: str, connection: asyncpg.Connection) -> Optional[Dict[str, Any]]:
+    async def retrieve_module_data(self, device_id: str, connection: Any) -> Optional[Dict[str, Any]]:
         """
         Retrieve the latest module data for a device
         

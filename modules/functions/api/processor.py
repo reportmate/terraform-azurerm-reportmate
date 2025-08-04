@@ -7,10 +7,18 @@ import logging
 import asyncio
 from datetime import datetime
 from typing import Dict, List, Any, Optional
-from .shared.base_processor import BaseModuleProcessor
-from .shared.database import DatabaseManager
-from .shared.auth import AuthenticationManager
-from .processors import PROCESSOR_REGISTRY
+import sys
+import os
+
+# Add the current directory to Python path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+from shared.base_processor import BaseModuleProcessor
+from shared.database import DatabaseManager
+from shared.auth import AuthenticationManager
+from processors import PROCESSOR_REGISTRY
 import json
 
 logger = logging.getLogger(__name__)
