@@ -9,8 +9,10 @@ import sys
 import asyncio
 
 # Add the parent directory to the path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(parent_dir)
 
+# Import modules with absolute path resolution
 from shared.utils import calculate_device_status
 from processor import DeviceDataProcessor
 from shared.database import DatabaseManager
@@ -59,15 +61,21 @@ async def handle_device_data_ingestion(req: func.HttpRequest) -> func.HttpRespon
         serial_number = None
         device_id = None
         
-        # Try to extract from various possible locations in the payload
-        if 'payload' in device_data and device_data['payload']:
+        # PRIMARY: Check metadata section (Windows client structure)
+        if 'metadata' in device_data and device_data['metadata']:
+            metadata = device_data['metadata']
+            serial_number = metadata.get('serialNumber') or metadata.get('SerialNumber')
+            device_id = metadata.get('deviceId') or metadata.get('DeviceId')
+        
+        # FALLBACK 1: Try to extract from payload wrapper (if present)
+        if not serial_number and 'payload' in device_data and device_data['payload']:
             payload = device_data['payload']
             if 'device' in payload and payload['device']:
                 device_dict = payload['device']
                 serial_number = device_dict.get('serialNumber') or device_dict.get('SerialNumber')
                 device_id = device_dict.get('deviceId') or device_dict.get('DeviceId')
         
-        # Fallback to top-level fields
+        # FALLBACK 2: Check top-level fields
         if not serial_number:
             serial_number = device_data.get('serialNumber') or device_data.get('SerialNumber') or device_data.get('device')
         if not device_id:

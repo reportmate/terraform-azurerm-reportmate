@@ -6,7 +6,7 @@ Handles physical device hardware information
 import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
-from ..shared.base_processor import BaseModuleProcessor
+from shared.base_processor import BaseModuleProcessor
 import json
 import re
 

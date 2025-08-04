@@ -6,7 +6,7 @@ Handles network configuration, interfaces, and connectivity data
 import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
-from ..shared.base_processor import BaseModuleProcessor
+from shared.base_processor import BaseModuleProcessor
 import json
 
 logger = logging.getLogger(__name__)
