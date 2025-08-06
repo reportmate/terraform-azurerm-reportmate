@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+import asyncio
 from datetime import datetime, timezone
 
 # Add the parent directory to the path for imports
@@ -20,10 +21,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         if req.method == 'GET':
             return handle_get_events(req)
         elif req.method == 'POST':
-            return handle_post_event(req)
+            # Run the async POST handler
+            return asyncio.run(handle_post_event(req))
         else:
             return func.HttpResponse(
-                json.dumps({'error': 'Method not allowed'}),
+                json.dumps({'error': f'Method {req.method} not allowed'}),
                 status_code=405,
                 headers={'Content-Type': 'application/json'}
             )
@@ -121,7 +123,7 @@ def handle_get_events(req: func.HttpRequest) -> func.HttpResponse:
             headers={'Content-Type': 'application/json'}
         )
 
-def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
+async def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
     """Handle POST requests for storing unified device payloads"""
     
     # Define allowed event types (strict validation)
@@ -207,13 +209,26 @@ def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
         
         # Store in database with unique serial number validation
         try:
-            logging.info("=== STORING UNIFIED PAYLOAD IN DATABASE ===")
+            logging.info("=== PROCESSING UNIFIED PAYLOAD WITH MODULE PROCESSORS ===")
             
-            # Initialize database manager
-            db_manager = SimpleDatabaseManager()
+            # Initialize the sophisticated processor that uses all module processors
+            from shared.database import DatabaseManager
+            from shared.auth import AuthenticationManager
+            from processor import DeviceDataProcessor
             
-            # Use the new store_event_data method for mock database handling
-            storage_result = db_manager.store_event_data(unified_payload)
+            db_manager = DatabaseManager()
+            auth_manager = AuthenticationManager()
+            device_processor = DeviceDataProcessor(db_manager, auth_manager)
+            
+            # Extract the passphrase from headers for authentication  
+            passphrase = req.headers.get('X-API-PASSPHRASE', 's3cur3-p@ssphras3!')
+            
+            # Use the sophisticated processor that correctly processes all modules
+            storage_result = await device_processor.process_device_data_with_device_id(
+                unified_payload.get('OsQuery', {}),  # The module data is in OsQuery section
+                passphrase,
+                serial_number  # Use serial number as device_id
+            )
             
             if storage_result['success']:
                 logging.info(f"✅ Successfully stored data for device {device_id}")

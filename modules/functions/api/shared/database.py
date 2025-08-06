@@ -317,6 +317,184 @@ class DatabaseManager:
                 'error': 'Storage failed',
                 'details': str(e)
             }
+    
+    async def upsert_device(self, device_record: Dict[str, Any]) -> bool:
+        """
+        Insert or update device record
+        
+        Args:
+            device_record: Device data to store
+            
+        Returns:
+            bool: True if successful
+        """
+        try:
+            # For mock driver, just return success
+            if self.driver == "mock":
+                logger.info(f"Mock upsert_device for device {device_record.get('device_id', 'unknown')}")
+                return True
+            
+            # Extract data from device record with proper field mapping
+            device_uuid = device_record.get('device_id')  # UUID
+            device_primary_key = device_record.get('id')  # Serial number (primary key)
+            serial_number = device_record.get('serial_number')  # Serial number
+            computer_name = device_record.get('computer_name', 'Unknown')
+            manufacturer = device_record.get('manufacturer', 'Unknown')
+            model = device_record.get('model', 'Unknown')
+            machine_group_id = device_record.get('machine_group_id')
+            business_unit_id = device_record.get('business_unit_id')
+            last_seen = device_record.get('last_seen')
+            status = device_record.get('status', 'active')
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if self.driver == "sqlite":
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO devices 
+                        (id, device_id, serial_number, name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (device_primary_key, device_uuid, serial_number, computer_name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status))
+                else:
+                    cursor.execute("""
+                        INSERT INTO devices (id, device_id, serial_number, name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        ON CONFLICT (id)
+                        DO UPDATE SET
+                            name = EXCLUDED.name,
+                            manufacturer = EXCLUDED.manufacturer,
+                            model = EXCLUDED.model,
+                            machine_group_id = EXCLUDED.machine_group_id,
+                            business_unit_id = EXCLUDED.business_unit_id,
+                            last_seen = EXCLUDED.last_seen,
+                            status = EXCLUDED.status,
+                            updated_at = NOW()
+                    """, (device_primary_key, device_uuid, serial_number, computer_name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status))
+                
+                conn.commit()
+                logger.info(f"Device record upserted for {device_primary_key}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Failed to upsert device record: {e}")
+            return False
+    
+    async def update_device_last_seen(self, device_id: str) -> bool:
+        """
+        Update the last_seen timestamp for a device
+        
+        Args:
+            device_id: Device ID to update
+            
+        Returns:
+            bool: True if successful
+        """
+        try:
+            # For mock driver, just return success
+            if self.driver == "mock":
+                logger.info(f"Mock update_device_last_seen for device {device_id}")
+                return True
+            
+            from datetime import datetime
+            last_seen = datetime.utcnow().isoformat()
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if self.driver == "sqlite":
+                    cursor.execute("""
+                        UPDATE devices 
+                        SET last_seen = ?
+                        WHERE device_id = ?
+                    """, (last_seen, device_id))
+                else:
+                    cursor.execute("""
+                        UPDATE devices 
+                        SET last_seen = %s, updated_at = NOW()
+                        WHERE device_id = %s
+                    """, (last_seen, device_id))
+                
+                conn.commit()
+                logger.info(f"Updated last_seen for device {device_id}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Failed to update device last_seen: {e}")
+            return False
+    
+    async def store_module_data(self, device_id: str, module_id: str, module_data: Dict[str, Any]) -> bool:
+        """
+        Store module-specific data in the database
+        
+        Args:
+            device_id: Device ID 
+            module_id: Module identifier (hardware, software, etc.)
+            module_data: Module data to store
+            
+        Returns:
+            bool: True if successful
+        """
+        try:
+            # For mock driver, just return success
+            if self.driver == "mock":
+                logger.info(f"Mock store_module_data for device {device_id}, module {module_id}")
+                return True
+            
+            from datetime import datetime
+            timestamp = datetime.utcnow().isoformat()
+            
+            # Convert module data to JSON string for storage
+            import json
+            data_json = json.dumps(module_data)
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if self.driver == "sqlite":
+                    # For SQLite, use module_data table (legacy)
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO module_data 
+                        (device_id, module_id, data, last_updated)
+                        VALUES (?, ?, ?, ?)
+                    """, (device_id, module_id, data_json, timestamp))
+                else:
+                    # For PostgreSQL, store in module-specific table (hardware, applications, etc.)
+                    table_name = module_id  # Use module_id as table name
+                    
+                    # Use parameterized query to prevent SQL injection
+                    cursor.execute(f"""
+                        INSERT INTO {table_name} (device_id, data, collected_at, created_at)
+                        VALUES (%s, %s, %s, NOW())
+                        ON CONFLICT (device_id)
+                        DO UPDATE SET
+                            data = EXCLUDED.data,
+                            collected_at = EXCLUDED.collected_at,
+                            updated_at = NOW()
+                    """, (device_id, data_json, timestamp))
+                
+                # CRITICAL FIX: Create an event after successful module data storage
+                event_type = 'info'
+                message = f"Module '{module_id}' data collected and stored"
+                event_details = json.dumps({
+                    'module_id': module_id,
+                    'collection_type': 'modular',
+                    'data_size_kb': len(data_json) / 1024,
+                    'timestamp': timestamp
+                })
+                
+                # Store the event
+                cursor.execute("""
+                    INSERT INTO events (device_id, event_type, message, details, timestamp)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (device_id, event_type, message, event_details, timestamp))
+                
+                conn.commit()
+                logger.info(f"✅ Stored module data for device {device_id} in {module_id} table AND created event")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Failed to store module data: {e}")
+            return False
 
 # Mock classes for when no database drivers are available
 class MockConnection:
