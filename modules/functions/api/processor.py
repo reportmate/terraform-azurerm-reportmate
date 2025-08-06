@@ -338,16 +338,16 @@ class DeviceDataProcessor:
         """
         available_modules = []
         
+        # Only process modules that actually have data in the payload
         for module_id in PROCESSOR_REGISTRY.keys():
             if module_id in device_data and device_data[module_id]:
                 available_modules.append(module_id)
         
-        # Always try to process these core modules if any data is present
-        core_modules = ['inventory', 'system', 'hardware']
-        for module in core_modules:
-            if module not in available_modules and any(key in device_data for key in device_data.keys()):
-                available_modules.append(module)
+        # REMOVED: The problematic "core modules" forcing logic that was overwriting existing data
+        # This was causing modules NOT sent by runner.exe to get processed with empty data,
+        # which would overwrite existing good data in the database.
         
+        self.logger.info(f"Processing only modules with actual data: {available_modules}")
         return available_modules
     
     async def _register_device(self, device_id: str, device_data: Dict[str, Any], 
@@ -356,7 +356,7 @@ class DeviceDataProcessor:
         Register or update device in database
         
         Args:
-            device_id: Device identifier
+            device_id: Device identifier (serial number when called from device endpoint)
             device_data: Raw device data
             machine_group: Machine group information
             business_unit: Business unit information
@@ -369,8 +369,14 @@ class DeviceDataProcessor:
         manufacturer = device_data.get('hardware', {}).get('system_manufacturer', 'Unknown')
         model = device_data.get('hardware', {}).get('system_model', 'Unknown')
         
+        # Generate UUID for device_id field, use device_id (serial number) as primary key and serial_number
+        import uuid
+        uuid_device_id = str(uuid.uuid4())
+        
         device_record = {
-            'device_id': device_id,
+            'id': device_id,  # This will be the serial number (primary key)
+            'device_id': uuid_device_id,  # This will be the UUID
+            'serial_number': device_id,  # This will also be the serial number
             'computer_name': computer_name,
             'manufacturer': manufacturer,
             'model': model,

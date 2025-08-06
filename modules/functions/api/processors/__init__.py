@@ -10,9 +10,10 @@ from processors.installs import InstallsProcessor
 from processors.inventory import InventoryProcessor
 from processors.management import ManagementProcessor
 from processors.network import NetworkProcessor
+from processors.peripherals import PeripheralsProcessor
 from processors.printers import PrintersProcessor
 from processors.profiles import ProfilesProcessor
-# from processors.security import SecurityProcessor  # TODO: Implement SecurityProcessor
+from processors.security import SecurityProcessor
 from processors.system import SystemProcessor
 
 __all__ = [
@@ -23,9 +24,10 @@ __all__ = [
     'InventoryProcessor',
     'ManagementProcessor',
     'NetworkProcessor',
+    'PeripheralsProcessor',
     'PrintersProcessor',
     'ProfilesProcessor',
-    # 'SecurityProcessor',  # TODO: Implement SecurityProcessor
+    'SecurityProcessor',
     'SystemProcessor'
 ]
 
@@ -38,9 +40,10 @@ PROCESSOR_REGISTRY = {
     'inventory': InventoryProcessor,
     'management': ManagementProcessor,
     'network': NetworkProcessor,
+    'peripherals': PeripheralsProcessor,
     'printers': PrintersProcessor,
     'profiles': ProfilesProcessor,
-    # 'security': SecurityProcessor,  # TODO: Implement SecurityProcessor
+    'security': SecurityProcessor,
     'system': SystemProcessor
 }
 
