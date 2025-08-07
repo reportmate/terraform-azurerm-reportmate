@@ -427,7 +427,7 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
             # These are the exact same tables that /api/events stores data into
             valid_modules = [
                 'applications', 'displays', 'hardware', 'installs', 'inventory',
-                'management', 'network', 'printers', 'profiles', 'security', 'system'
+                'management', 'network', 'peripherals', 'printers', 'profiles', 'security', 'system'
             ]
             
             modules = {}
