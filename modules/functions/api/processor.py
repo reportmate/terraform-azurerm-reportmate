@@ -44,8 +44,15 @@ class DeviceDataProcessor:
         # Initialize all module processors
         self.processors = {}
         for module_id, processor_class in PROCESSOR_REGISTRY.items():
-            self.processors[module_id] = processor_class()
-            self.logger.debug(f"Initialized {module_id} processor")
+            try:
+                self.processors[module_id] = processor_class()
+                self.logger.info(f"✅ DEBUG: Initialized processor for module '{module_id}'")
+            except Exception as e:
+                self.logger.error(f"❌ DEBUG: Failed to initialize processor for module '{module_id}': {e}")
+        
+        self.logger.info(f"🔍 DEBUG: Total processors initialized: {len(self.processors)}")
+        self.logger.info(f"🔍 DEBUG: Available processor modules: {list(self.processors.keys())}")
+        self.logger.info(f"🔍 DEBUG: Registry modules: {list(PROCESSOR_REGISTRY.keys())}")
     
     async def process_device_data(self, device_data: Dict[str, Any], machine_group_passphrase: str) -> Dict[str, Any]:
         """
@@ -158,7 +165,8 @@ class DeviceDataProcessor:
             Processing result with status and processed data
         """
         try:
-            self.logger.info(f"Starting device data processing with explicit device_id: {device_id}")
+            self.logger.info(f"🔍 CRITICAL DEBUG: Starting device data processing with explicit device_id: {device_id}")
+            self.logger.info(f"🔍 CRITICAL DEBUG: Received device_data keys: {list(device_data.keys())}")
             
             # Authenticate and get machine group info
             auth_result = await self.auth_manager.authenticate_machine_group(machine_group_passphrase)
@@ -252,6 +260,20 @@ class DeviceDataProcessor:
         """
         processor = self.processors[module_id]
         
+        # Extract module data with support for both lowercase and capitalized keys
+        module_data = None
+        if module_id in device_data:
+            module_data = device_data[module_id]
+        elif module_id.capitalize() in device_data:
+            module_data = device_data[module_id.capitalize()]
+            # Create a copy of device_data with lowercase key for processor compatibility
+            device_data_copy = dict(device_data)
+            device_data_copy[module_id] = module_data
+            device_data = device_data_copy
+        
+        if module_data is None:
+            raise ValueError(f"Module {module_id} data not found in device payload")
+        
         # Process the module data
         processed_data = await processor.process_module_data(device_data, device_id)
         
@@ -338,10 +360,47 @@ class DeviceDataProcessor:
         """
         available_modules = []
         
+        # DEBUG: Log the actual structure being received
+        self.logger.info(f"🔍 DEBUG: device_data top-level keys: {list(device_data.keys())}")
+        self.logger.info(f"🔍 DEBUG: PROCESSOR_REGISTRY keys: {list(PROCESSOR_REGISTRY.keys())}")
+        
         # Only process modules that actually have data in the payload
         for module_id in PROCESSOR_REGISTRY.keys():
-            if module_id in device_data and device_data[module_id]:
+            # Check both lowercase (processor registry) and capitalized (client payload) versions
+            data_found = False
+            module_data = None
+            
+            # Check lowercase key first (processor registry format)
+            if module_id in device_data and device_data[module_id] is not None:
+                data_found = True
+                module_data = device_data[module_id]
+                self.logger.info(f"🔍 DEBUG: Found module '{module_id}' (lowercase) in device_data")
+            # Check capitalized key (client payload format)
+            elif module_id.capitalize() in device_data and device_data[module_id.capitalize()] is not None:
+                data_found = True
+                module_data = device_data[module_id.capitalize()]
+                self.logger.info(f"🔍 DEBUG: Found module '{module_id}' as '{module_id.capitalize()}' (capitalized) in device_data")
+            
+            if data_found:
+                self.logger.info(f"🔍 DEBUG: Module '{module_id}' data type: {type(module_data)}")
+                self.logger.info(f"🔍 DEBUG: Module '{module_id}' data keys: {list(module_data.keys()) if isinstance(module_data, dict) else 'not a dict'}")
                 available_modules.append(module_id)
+            else:
+                # Check if either version exists but is None/missing
+                if module_id in device_data:
+                    if device_data[module_id] is None:
+                        self.logger.info(f"🔍 DEBUG: Module '{module_id}' (lowercase) exists but is None")
+                    else:
+                        self.logger.info(f"🔍 DEBUG: Module '{module_id}' (lowercase) exists but was falsy (empty): {device_data[module_id]}")
+                elif module_id.capitalize() in device_data:
+                    cap_data = device_data[module_id.capitalize()]
+                    if cap_data is None:
+                        self.logger.info(f"🔍 DEBUG: Module '{module_id}' as '{module_id.capitalize()}' exists but is None")
+                    else:
+                        self.logger.info(f"🔍 DEBUG: Module '{module_id}' as '{module_id.capitalize()}' exists but was falsy (empty): {cap_data}")
+                # Only log once for missing modules to avoid spam
+                elif module_id == 'installs':
+                    self.logger.info(f"🔍 DEBUG: Module '{module_id}' not found in device_data keys: {list(device_data.keys())}")
         
         # REMOVED: The problematic "core modules" forcing logic that was overwriting existing data
         # This was causing modules NOT sent by runner.exe to get processed with empty data,
@@ -521,3 +580,4 @@ class DeviceDataProcessor:
                 'success': False,
                 'error': str(e)
             }
+# Force update 08/07/2025 11:16:07

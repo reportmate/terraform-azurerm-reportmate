@@ -10,13 +10,12 @@ A comprehensive Terraform module for deploying ReportMate infrastructure on Azur
 
 ```
 infrastructure/
-├── terraform/          # Main Terraform configuration files
-│   ├── main.tf         # Primary infrastructure definition
-│   ├── variables.tf    # Input variables
-│   ├── outputs.tf      # Output values
-│   ├── terraform.tf    # Provider and version constraints
-│   ├── backend.tf      # State backend configuration
-│   └── README.md       # Terraform-specific documentation
+├── main.tf             # Primary infrastructure definition
+├── variables.tf        # Input variables
+├── outputs.tf          # Output values
+├── versions.tf         # Provider and version constraints
+├── backend.tf          # State backend configuration
+├── CONTAINER_UPDATE_GUIDE.md  # Container update documentation
 ├── modules/            # Reusable Terraform modules
 │   ├── database/       # PostgreSQL database module
 │   ├── storage/        # Azure Storage module
@@ -259,6 +258,47 @@ module "reportmate" {
   # ... other variables
 }
 ```
+
+## Container Updates
+
+For updating production containers after deployment, see the comprehensive guide and automated scripts:
+
+- **📖 Complete Guide**: [CONTAINER_UPDATE_GUIDE.md](./CONTAINER_UPDATE_GUIDE.md)
+- **🔧 Update Scripts**: [scripts/](./scripts/)
+
+### Quick Update Commands
+
+**PowerShell (Windows):**
+```powershell
+# Standard container update (auto-discovers all resources)
+.\scripts\update.ps1
+
+# Check current status
+.\scripts\update.ps1 -Action status
+
+# Rollback if needed
+.\scripts\update.ps1 -Action rollback
+```
+
+**Bash (Linux/macOS/WSL):**
+```bash
+# Standard container update (auto-discovers all resources) 
+./scripts/update.sh
+
+# Check current status
+./scripts/update.sh status
+
+# Rollback if needed
+./scripts/update.sh rollback
+```
+
+The update process includes:
+- ✅ **Smart configuration discovery** from Terraform outputs and Azure resources
+- ✅ Automated building and pushing to ACR
+- ✅ Container App deployment with health checks
+- ✅ Front Door cache invalidation
+- ✅ Production verification
+- ✅ Automatic rollback on failure
 
 ## Required Variables
 

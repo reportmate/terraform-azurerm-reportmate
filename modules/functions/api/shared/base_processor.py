@@ -9,8 +9,10 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional, Union
 from abc import ABC, abstractmethod
 import asyncio
-import pg8000
 import os
+
+# Database imports handled by database manager
+DATABASE_DRIVER = None
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,6 @@
 import azure.functions as func
 import json
 import logging
-import pg8000
 from datetime import datetime
 import os
 

@@ -207,28 +207,61 @@ async def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
         logging.info(f"Processing unified payload for device {device_id} (serial: {serial_number})")
         logging.info(f"Collection type: {collection_type}, Modules: {enabled_modules}")
         
+        # Debug: Log the actual payload structure
+        payload_keys = list(unified_payload.keys())
+        logging.info(f"🔍 DEBUG: Unified payload top-level keys: {payload_keys}")
+        
+        # Check if OsQuery key exists and what's in it
+        osquery_data = unified_payload.get('OsQuery', {})
+        osquery_keys = list(osquery_data.keys()) if osquery_data else []
+        logging.info(f"🔍 DEBUG: OsQuery section keys: {osquery_keys}")
+        
+        # Also check for other common data locations
+        if 'modules' in unified_payload:
+            modules_keys = list(unified_payload['modules'].keys()) if isinstance(unified_payload['modules'], dict) else []
+            logging.info(f"🔍 DEBUG: modules section keys: {modules_keys}")
+        if 'data' in unified_payload:
+            data_keys = list(unified_payload['data'].keys()) if isinstance(unified_payload['data'], dict) else []
+            logging.info(f"🔍 DEBUG: data section keys: {data_keys}")
+        
         # Store in database with unique serial number validation
         try:
             logging.info("=== PROCESSING UNIFIED PAYLOAD WITH MODULE PROCESSORS ===")
             
             # Initialize the sophisticated processor that uses all module processors
-            from shared.database import DatabaseManager
-            from shared.auth import AuthenticationManager
-            from processor import DeviceDataProcessor
+            try:
+                from shared.database import DatabaseManager
+                from shared.auth import AuthenticationManager
+                from processor import DeviceDataProcessor
+                logging.info("✅ Successfully imported processor modules")
+            except Exception as import_error:
+                logging.error(f"❌ IMPORT ERROR: Failed to import processor modules: {import_error}")
+                raise
             
-            db_manager = DatabaseManager()
-            auth_manager = AuthenticationManager()
-            device_processor = DeviceDataProcessor(db_manager, auth_manager)
+            try:
+                db_manager = DatabaseManager()
+                auth_manager = AuthenticationManager()
+                device_processor = DeviceDataProcessor(db_manager, auth_manager)
+                logging.info("✅ Successfully initialized processor instances")
+            except Exception as init_error:
+                logging.error(f"❌ INIT ERROR: Failed to initialize processors: {init_error}")
+                raise
             
             # Extract the passphrase from headers for authentication  
             passphrase = req.headers.get('X-API-PASSPHRASE', 's3cur3-p@ssphras3!')
+            logging.info(f"🔍 Using passphrase: {passphrase[:10]}...")
             
             # Use the sophisticated processor that correctly processes all modules
-            storage_result = await device_processor.process_device_data_with_device_id(
-                unified_payload.get('OsQuery', {}),  # The module data is in OsQuery section
-                passphrase,
-                serial_number  # Use serial number as device_id
-            )
+            try:
+                storage_result = await device_processor.process_device_data_with_device_id(
+                    unified_payload,  # Pass the full unified payload which contains module data as top-level properties
+                    passphrase,
+                    serial_number  # Use serial number as device_id
+                )
+                logging.info(f"✅ Processor completed with result: {storage_result}")
+            except Exception as process_error:
+                logging.error(f"❌ PROCESSING ERROR: Device processor failed: {process_error}")
+                raise
             
             if storage_result['success']:
                 logging.info(f"✅ Successfully stored data for device {device_id}")
@@ -239,15 +272,52 @@ async def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                         'message': 'Unified payload processed successfully',
                         'device_id': serial_number,  # Return serial number for frontend consistency
                         'serial_number': serial_number,
-                        'modules_processed': storage_result.get('modules_processed', []),
+                        'modules_processed': storage_result.get('modules_processed', 0),
                         'timestamp': storage_result.get('timestamp'),
                         'storage_mode': storage_result.get('storage_mode', 'database'),
-                        'internal_uuid': device_id  # Keep UUID for internal reference if needed
+                        'internal_uuid': device_id,  # Keep UUID for internal reference if needed
+                        'debug_info': {  # TEMPORARY DEBUG INFO
+                            'storage_result_keys': list(storage_result.keys()),
+                            'processing_results_count': len(storage_result.get('processing_results', {})),
+                            'available_modules': storage_result.get('summary', {}).get('available_modules', []),
+                            'processing_errors': storage_result.get('processing_errors', [])
+                        }
                     }),
                     status_code=200,
                     headers={'Content-Type': 'application/json'}
                 )
             else:
+                # FALLBACK: Even if module processing failed, update device last_seen for dashboard
+                logging.warning(f"Module processing failed, but updating last_seen as fallback for device {serial_number}")
+                try:
+                    # Simple database update for last_seen field
+                    from shared.database import SyncDatabaseManager
+                    fallback_db = SyncDatabaseManager()
+                    
+                    with fallback_db.get_connection() as conn:
+                        cursor = conn.cursor()
+                        
+                        # Update the device's last_seen to current timestamp
+                        update_query = """
+                            UPDATE devices 
+                            SET last_seen = NOW(), updated_at = NOW()
+                            WHERE id = %s OR serial_number = %s
+                        """
+                        cursor.execute(update_query, (serial_number, serial_number))
+                        
+                        # Also create a basic event for tracking
+                        event_insert = """
+                            INSERT INTO events (device_id, event_type, message, timestamp, created_at)
+                            VALUES (%s, 'info', 'Data transmission received (module processing failed)', NOW(), NOW())
+                        """
+                        cursor.execute(event_insert, (serial_number,))
+                        
+                        conn.commit()
+                        logging.info(f"✅ Fallback: Updated last_seen for device {serial_number}")
+                        
+                except Exception as fallback_error:
+                    logging.error(f"❌ Fallback last_seen update failed: {fallback_error}")
+                
                 logging.error(f"❌ Failed to store data: {storage_result}")
                 return func.HttpResponse(
                     json.dumps({
@@ -256,6 +326,9 @@ async def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                         'details': storage_result.get('details', 'Unknown error'),
                         'device_id': serial_number,  # Return serial number for frontend consistency
                         'serial_number': serial_number,
+                        'modules_processed': 0,
+                        'fallback_applied': True,
+                        'message': 'last_seen updated despite processing failure',
                         'internal_uuid': device_id  # Keep UUID for internal reference if needed
                     }),
                     status_code=500,
@@ -287,3 +360,5 @@ async def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500,
             headers={'Content-Type': 'application/json'}
         )
+# Debug update 08/07/2025 11:18:43
+# Debug response 08/07/2025 11:21:35

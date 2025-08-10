@@ -1,7 +1,6 @@
 import azure.functions as func
 import json
 import logging
-import pg8000
 import re
 from datetime import datetime, timezone, timedelta
 import os
@@ -390,9 +389,8 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
         }
         
         try:
-            # Connect to database
-            conn = pg8000.connect(**conn_params)
-            cursor = conn.cursor()
+            # Use DatabaseManager instead of direct connection
+            db_manager = DatabaseManager()
             
             # Look up device by serial number (which is the primary key 'id')
             device_query = """
@@ -404,12 +402,9 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                 LIMIT 1
             """
             
-            cursor.execute(device_query, (serial_number, serial_number))
-            device_row = cursor.fetchone()
+            device_result = db_manager.execute_query(device_query, (serial_number, serial_number))
             
-            if not device_row:
-                cursor.close()
-                conn.close()
+            if not device_result:
                 return func.HttpResponse(
                     json.dumps({
                         'success': False,
@@ -420,8 +415,9 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                     mimetype="application/json"
                 )
             
+            device_row = device_result[0]
             # Extract device information and calculate dynamic status from latest module data
-            last_seen_time = device_row[6]  # last_seen timestamp
+            last_seen_time = device_row.get('last_seen')  # last_seen timestamp
             
             # Get module data for this device from all modular tables
             # These are the exact same tables that /api/events stores data into
@@ -444,24 +440,24 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                 """
                 
                 try:
-                    cursor.execute(module_query, (device_row[0],))  # Use id (serial number)
-                    module_row = cursor.fetchone()
+                    module_result = db_manager.execute_query(module_query, (device_row['id'],))  # Use id (serial number)
                     
-                    if module_row and module_row[0]:  # If we have data
-                        module_data = module_row[0]  # JSON data
+                    if module_result and module_result[0].get('data'):  # If we have data
+                        module_data = module_result[0]['data']  # JSON data
+                        collected_at = module_result[0].get('collected_at')
                         
                         # Add collectedAt timestamp to module data for status calculation
-                        if module_row[1]:  # collected_at from database
-                            module_data['collectedAt'] = module_row[1].isoformat()
+                        if collected_at:  # collected_at from database
+                            module_data['collectedAt'] = collected_at.isoformat() if hasattr(collected_at, 'isoformat') else str(collected_at)
                             
                             # Track the latest collection time across all modules
-                            if not latest_collection_time or module_row[1] > latest_collection_time:
-                                latest_collection_time = module_row[1]
+                            if not latest_collection_time or collected_at > latest_collection_time:
+                                latest_collection_time = collected_at
                         
                         modules[module_name] = module_data
-                        logger.info(f"✅ Retrieved {module_name} data for device {device_row[0]}")
+                        logger.info(f"✅ Retrieved {module_name} data for device {device_row['id']}")
                     else:
-                        logger.info(f"⚠️ No {module_name} data found for device {device_row[0]}")
+                        logger.info(f"⚠️ No {module_name} data found for device {device_row['id']}")
                         
                 except Exception as module_error:
                     logger.warning(f"❌ Failed to query {module_name} table: {module_error}")
@@ -478,36 +474,33 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                 ORDER BY created_at DESC
                 LIMIT 10
             """
-            cursor.execute(events_query, (device_row[1],))  # Use device_id (UUID)
-            recent_events = [{'event_type': row[0], 'created_at': row[1]} for row in cursor.fetchall()]
+            recent_events_result = db_manager.execute_query(events_query, (device_row['device_id'],))  # Use device_id (UUID)
+            recent_events = [{'event_type': row['event_type'], 'created_at': row['created_at']} for row in recent_events_result]
             
             # Calculate status using latest collection time (function only takes one parameter)
             calculated_status = calculate_device_status(latest_collection_time or last_seen_time)
             
             device_data = {
-                'id': device_row[0],  # id (serial number)
-                'deviceId': device_row[1],  # device_id (ReportMate internal UUID)
-                'name': device_row[2],
-                'serialNumber': device_row[3],
-                'os': device_row[4],
+                'id': device_row['id'],  # id (serial number)
+                'deviceId': device_row['device_id'],  # device_id (ReportMate internal UUID)
+                'name': device_row['name'],
+                'serialNumber': device_row['serial_number'],
+                'os': device_row['os'],
                 'status': calculated_status,  # Now calculated from latest module data!
-                'lastSeen': last_seen_time.isoformat() if last_seen_time else None,
-                'model': device_row[7],
-                'manufacturer': device_row[8],
-                'createdAt': device_row[9].isoformat() if device_row[9] else None,
-                'updatedAt': device_row[10].isoformat() if device_row[10] else None
+                'lastSeen': last_seen_time.isoformat() if hasattr(last_seen_time, 'isoformat') else str(last_seen_time) if last_seen_time else None,
+                'model': device_row.get('model'),
+                'manufacturer': device_row.get('manufacturer'),
+                'createdAt': device_row['created_at'].isoformat() if device_row.get('created_at') and hasattr(device_row['created_at'], 'isoformat') else str(device_row.get('created_at')) if device_row.get('created_at') else None,
+                'updatedAt': device_row['updated_at'].isoformat() if device_row.get('updated_at') and hasattr(device_row['updated_at'], 'isoformat') else str(device_row.get('updated_at')) if device_row.get('updated_at') else None
             }
             
             # Build metadata with the latest collection time from any module
             metadata = {
                 'deviceId': device_data['deviceId'],
                 'serialNumber': device_data['serialNumber'],
-                'collectedAt': latest_collection_time.isoformat() if latest_collection_time else device_data['lastSeen'],
+                'collectedAt': latest_collection_time.isoformat() if hasattr(latest_collection_time, 'isoformat') else str(latest_collection_time) if latest_collection_time else device_data['lastSeen'],
                 'clientVersion': '1.0.0'  # Default version
             }
-            
-            cursor.close()
-            conn.close()
             
             # Return device data in the expected format
             response_data = {

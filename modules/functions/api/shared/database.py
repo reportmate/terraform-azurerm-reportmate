@@ -474,11 +474,37 @@ class DatabaseManager:
                 
                 # CRITICAL FIX: Create an event after successful module data storage
                 event_type = 'info'
-                message = f"Module '{module_id}' data collected and stored"
+                
+                # Create user-friendly messages for single and multiple modules
+                if module_id == 'installs':
+                    message = "Installs module reported data"
+                elif module_id == 'network':
+                    message = "Network module reported data"
+                elif module_id == 'management':
+                    message = "Management module reported data"
+                elif module_id == 'system':
+                    message = "System module reported data"
+                elif module_id == 'hardware':
+                    message = "Hardware module reported data"
+                elif module_id == 'security':
+                    message = "Security module reported data"
+                elif module_id == 'applications':
+                    message = "Applications module reported data"
+                elif module_id == 'inventory':
+                    message = "Inventory module reported data"
+                elif module_id == 'profiles':
+                    message = "Profiles module reported data"
+                elif module_id == 'displays':
+                    message = "Displays module reported data"
+                elif module_id == 'printers':
+                    message = "Printers module reported data"
+                else:
+                    message = f"{module_id.capitalize()} module reported data"
+                
                 event_details = json.dumps({
                     'module_id': module_id,
                     'collection_type': 'modular',
-                    'data_size_kb': len(data_json) / 1024,
+                    'data_size_kb': round(len(data_json) / 1024, 1),
                     'timestamp': timestamp
                 })
                 
