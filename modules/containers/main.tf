@@ -90,6 +90,34 @@ resource "azurerm_container_app" "container_dev" {
         name  = "NEXT_PUBLIC_DEBUG"
         value = "true"
       }
+
+      env {
+        name  = "PORT"
+        value = "3000"
+      }
+
+      # Add startup and liveness probes for dev too
+      startup_probe {
+        transport = "HTTP"
+        port      = 3000
+        path      = "/"
+        
+        failure_count_threshold = 3
+        initial_delay           = 10
+        interval_seconds        = 10
+        timeout                 = 5
+      }
+
+      liveness_probe {
+        transport = "HTTP"
+        port      = 3000
+        path      = "/"
+        
+        failure_count_threshold = 3
+        initial_delay           = 30
+        interval_seconds        = 30
+        timeout                 = 5
+      }
     }
 
     min_replicas = 0 # Allow scaling to zero for dev
@@ -174,6 +202,45 @@ resource "azurerm_container_app" "container_prod" {
       env {
         name  = "API_BASE_URL"
         value = "https://${var.function_app_hostname}"
+      }
+
+      env {
+        name  = "PORT"
+        value = "3000"
+      }
+
+      # Add startup and liveness probes
+      startup_probe {
+        transport = "HTTP"
+        port      = 3000
+        path      = "/"
+        
+        failure_count_threshold = 3
+        initial_delay           = 10
+        interval_seconds        = 10
+        timeout                 = 5
+      }
+
+      liveness_probe {
+        transport = "HTTP"
+        port      = 3000
+        path      = "/"
+        
+        failure_count_threshold = 3
+        initial_delay           = 30
+        interval_seconds        = 30
+        timeout                 = 5
+      }
+
+      readiness_probe {
+        transport = "HTTP"
+        port      = 3000
+        path      = "/"
+        
+        failure_count_threshold = 3
+        interval_seconds        = 10
+        timeout                 = 5
+        success_count_threshold = 1
       }
     }
 

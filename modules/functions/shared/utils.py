@@ -8,9 +8,9 @@ def calculate_device_status(last_seen, recent_events=None):
     Calculate device status based on last seen timestamp and recent events
     
     NEW LOGIC per user requirements:
-    - active: < 24 hours 
-    - stale: 24 hours - 7 days
-    - missing: 7+ days
+    - active: < 3 days 
+    - stale: 3 days - 10 days
+    - missing: 10+ days
     - warning/error: Come strictly from events data (installs module errors)
     
     Args:
@@ -40,9 +40,9 @@ def calculate_device_status(last_seen, recent_events=None):
     time_diff = now - last_seen
     
     # Updated time-based status thresholds per user requirements
-    if time_diff <= timedelta(hours=24):
-        return 'active'    # < 24 hours
-    elif time_diff <= timedelta(days=7):
-        return 'stale'     # 24 hours - 7 days
+    if time_diff <= timedelta(days=3):
+        return 'active'    # < 3 days
+    elif time_diff <= timedelta(days=10):
+        return 'stale'     # 3 days - 10 days
     else:
-        return 'missing'   # 7+ days
+        return 'missing'   # 10+ days

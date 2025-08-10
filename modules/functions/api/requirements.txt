@@ -1,9 +1,8 @@
 # Azure Functions runtime
 azure-functions>=1.18.0
 
-# Database drivers - use pure Python drivers for better compatibility
+# Database drivers - use pg8000 for pure Python PostgreSQL connectivity
 pg8000>=1.30.0
-# psycopg2-binary>=2.9.7  # Disabled due to ARM64 Windows compilation issues
 
 # HTTP client for external requests
 requests==2.31.0
