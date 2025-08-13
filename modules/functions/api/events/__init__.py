@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 # Add the parent directory to the path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared.database import SimpleDatabaseManager
+from shared.database import SyncDatabaseManager
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     """
@@ -44,7 +44,19 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 def handle_get_events(req: func.HttpRequest) -> func.HttpResponse:
     """Handle GET requests for retrieving events from database"""
     try:
-        db_manager = SimpleDatabaseManager()
+        db_manager = SyncDatabaseManager()
+        
+        # Test database connection first
+        if not db_manager.test_connection():
+            logging.warning("Database connection test failed for events")
+            return func.HttpResponse(
+                json.dumps({
+                    'error': 'Database connection failed',
+                    'details': 'Unable to connect to database for events retrieval'
+                }),
+                status_code=503,
+                headers={'Content-Type': 'application/json'}
+            )
         
         # Get query parameters
         device_id = req.params.get('device_id')
@@ -57,10 +69,8 @@ def handle_get_events(req: func.HttpRequest) -> func.HttpResponse:
         except ValueError:
             limit = 100
         
-        # Query events from database
-        with db_manager.get_connection() as conn:
-            cursor = conn.cursor()
-            
+        # Query events from database using reliable method
+        try:
             if device_id:
                 query = """
                     SELECT id, device_id, event_type, message, details, timestamp
@@ -69,7 +79,7 @@ def handle_get_events(req: func.HttpRequest) -> func.HttpResponse:
                     ORDER BY timestamp DESC 
                     LIMIT %s
                 """
-                cursor.execute(query, (device_id, limit))
+                events_raw = db_manager.execute_query(query, (device_id, limit))
             else:
                 query = """
                     SELECT id, device_id, event_type, message, details, timestamp
@@ -77,40 +87,55 @@ def handle_get_events(req: func.HttpRequest) -> func.HttpResponse:
                     ORDER BY timestamp DESC 
                     LIMIT %s
                 """
-                cursor.execute(query, (limit,))
+                events_raw = db_manager.execute_query(query, (limit,))
             
-            events = cursor.fetchall()
+            logging.info(f"Retrieved {len(events_raw)} events from database")
             
             # Format events for response
             formatted_events = []
-            for event in events:
-                # Parse details if it's JSON
-                details = event[4]
-                if details and isinstance(details, str):
-                    try:
-                        details = json.loads(details)
-                    except json.JSONDecodeError:
-                        details = {'raw': details}
+            for event in events_raw:
+                try:
+                    # Parse details if it's JSON
+                    details = event.get('details', {})
+                    if details and isinstance(details, str):
+                        try:
+                            details = json.loads(details)
+                        except json.JSONDecodeError:
+                            details = {'raw': details}
 
-                formatted_events.append({
-                    'id': event[0],
-                    'device': event[1],  # Use 'device' field name to match frontend
-                    'kind': event[2],    # Map event_type to kind for frontend compatibility
-                    'message': event[3],
-                    'payload': details,  # Map details to payload for frontend compatibility
-                    'ts': event[5].isoformat() if event[5] else None  # Map timestamp to ts for frontend
-                })
+                    formatted_events.append({
+                        'id': event.get('id'),
+                        'device': event.get('device_id'),  # Use 'device' field name to match frontend
+                        'kind': event.get('event_type'),    # Map event_type to kind for frontend compatibility
+                        'message': event.get('message'),
+                        'payload': details,  # Map details to payload for frontend compatibility
+                        'ts': event.get('timestamp').isoformat() if event.get('timestamp') else None  # Map timestamp to ts for frontend
+                    })
+                except Exception as event_error:
+                    logging.error(f"Error processing event row: {event_error}")
+                    continue
         
-        return func.HttpResponse(
-            json.dumps({
-                'success': True,
-                'events': formatted_events,
-                'count': len(formatted_events),
-                'device_id': device_id
-            }),
-            status_code=200,
-            headers={'Content-Type': 'application/json'}
-        )
+            return func.HttpResponse(
+                json.dumps({
+                    'success': True,
+                    'events': formatted_events,
+                    'count': len(formatted_events),
+                    'device_id': device_id
+                }),
+                status_code=200,
+                headers={'Content-Type': 'application/json'}
+            )
+            
+        except Exception as query_error:
+            logging.error(f'Database query error: {str(query_error)}', exc_info=True)
+            return func.HttpResponse(
+                json.dumps({
+                    'error': 'Database query failed',
+                    'details': str(query_error)
+                }),
+                status_code=500,
+                headers={'Content-Type': 'application/json'}
+            )
         
     except Exception as e:
         logging.error(f'Error retrieving events: {str(e)}', exc_info=True)
@@ -291,29 +316,26 @@ async def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                 logging.warning(f"Module processing failed, but updating last_seen as fallback for device {serial_number}")
                 try:
                     # Simple database update for last_seen field
-                    from shared.database import SyncDatabaseManager
                     fallback_db = SyncDatabaseManager()
                     
-                    with fallback_db.get_connection() as conn:
-                        cursor = conn.cursor()
-                        
-                        # Update the device's last_seen to current timestamp
+                    if fallback_db.test_connection():
                         update_query = """
                             UPDATE devices 
                             SET last_seen = NOW(), updated_at = NOW()
-                            WHERE id = %s OR serial_number = %s
+                            WHERE device_id = %s OR serial_number = %s
                         """
-                        cursor.execute(update_query, (serial_number, serial_number))
+                        result = fallback_db.execute_query(update_query, (serial_number, serial_number))
                         
                         # Also create a basic event for tracking
                         event_insert = """
                             INSERT INTO events (device_id, event_type, message, timestamp, created_at)
                             VALUES (%s, 'info', 'Data transmission received (module processing failed)', NOW(), NOW())
                         """
-                        cursor.execute(event_insert, (serial_number,))
+                        fallback_db.execute_query(event_insert, (serial_number,))
                         
-                        conn.commit()
                         logging.info(f"✅ Fallback: Updated last_seen for device {serial_number}")
+                    else:
+                        logging.error("❌ Fallback database connection failed")
                         
                 except Exception as fallback_error:
                     logging.error(f"❌ Fallback last_seen update failed: {fallback_error}")
