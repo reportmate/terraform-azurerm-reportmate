@@ -137,12 +137,18 @@ check_prerequisites() {
     fi
     
     if [ "$DEPLOY_FUNCTIONS" = true ]; then
-        if [ ! -d "modules/functions/api" ] || [ ! -f "modules/functions/api/requirements.txt" ]; then
-            log_error "API functions directory or requirements.txt not found in modules/functions/api."
+        # Check if we're in the root directory and adjust path accordingly
+        if [ -d "infrastructure/modules/functions/api" ]; then
+            FUNCTIONS_PATH="infrastructure/modules/functions"
+        elif [ -d "modules/functions/api" ]; then
+            FUNCTIONS_PATH="modules/functions"
+        else
+            log_error "API functions directory not found. Expected in infrastructure/modules/functions/api or modules/functions/api."
             exit 1
         fi
-        if [ ! -d "modules/functions" ]; then
-            log_error "Functions module directory not found."
+        
+        if [ ! -f "${FUNCTIONS_PATH}/requirements.txt" ]; then
+            log_error "requirements.txt not found in ${FUNCTIONS_PATH}."
             exit 1
         fi
     fi
@@ -187,8 +193,8 @@ deploy_infrastructure() {
 deploy_functions() {
     log_info "Deploying Functions using Azure Functions Core Tools..."
     
-    # Change to API directory
-    cd modules/functions/api
+    # Change to API directory using the detected functions path
+    cd "${FUNCTIONS_PATH}/api"
     
     # Install Python dependencies
     log_info "Installing Python dependencies..."
@@ -200,8 +206,12 @@ deploy_functions() {
     
     log_success "Functions deployed successfully!"
     
-    # Return to original directory
-    cd ../../..
+    # Return to original directory - adjust based on the depth
+    if [ "$FUNCTIONS_PATH" = "infrastructure/modules/functions" ]; then
+        cd ../../../../
+    else
+        cd ../../..
+    fi
 }
 
 # Function to test deployment
