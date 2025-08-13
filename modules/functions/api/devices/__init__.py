@@ -1,10 +1,8 @@
 """
-Devices List Endpoint for ReportMate
-Handles listing all devices and device search/filtering
+Devices List Endpoint for ReportMate - SIMPLIFIED VERSION
 """
 import logging
 import json
-import asyncio
 import azure.functions as func
 import os
 import sys
@@ -13,13 +11,12 @@ from datetime import datetime, timezone, timedelta
 # Add the parent directory to the path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared.database import SyncDatabaseManager  # Use sync instead of async to avoid connection issues
-from shared.utils import calculate_device_status
+from shared.database import SyncDatabaseManager
 
 logger = logging.getLogger(__name__)
 
 def list_devices_sync():
-    """List devices using sync database connection (more reliable in Azure Functions)"""
+    """List devices using sync database connection with enhanced device names"""
     try:
         logger.info("Starting devices list query")
         db_manager = SyncDatabaseManager()
@@ -29,7 +26,7 @@ def list_devices_sync():
             logger.warning("Database connection test failed, returning mock data")
             raise Exception("Database connection failed")
         
-        # Simple query first - just get devices
+        # Simple query to get devices
         query = """
             SELECT 
                 device_id,
@@ -42,7 +39,7 @@ def list_devices_sync():
             LIMIT 10
         """
         
-        logger.info("Executing simplified devices query...")
+        logger.info("Executing devices query...")
         devices_raw = db_manager.execute_query(query)
         logger.info(f"Got {len(devices_raw)} raw device records")
         
@@ -52,37 +49,73 @@ def list_devices_sync():
         
         devices = []
         for row in devices_raw:
+            device_id = row.get('device_id', 'unknown')
+            serial_number = row.get('serial_number', 'Unknown Serial')
+            os_version = row.get('os_version', 'Unknown OS')
+            last_seen = row.get('last_seen')
+            
+            logger.info(f"Processing device {device_id} ({serial_number})")
+            
+            # Try to get device name from inventory
+            device_name = serial_number  # Default fallback
+            
             try:
-                # Safely extract device data from row
-                device_id = row.get('device_id', 'unknown')
-                serial_number = row.get('serial_number', 'Unknown Serial')
-                os_version = row.get('os_version', 'Unknown OS')
-                last_seen = row.get('last_seen')
+                inventory_query = """
+                    SELECT module_data 
+                    FROM modules 
+                    WHERE device_id = %s AND module_id = 'inventory'
+                    ORDER BY collected_at DESC
+                    LIMIT 1
+                """
+                inventory_result = db_manager.execute_query(inventory_query, (device_id,))
                 
-                logger.info(f"Processing device {device_id} ({serial_number})")
-                
-                # For now, skip complex queries and use simple status logic
-                calculated_status = 'active' if last_seen else 'missing'
-                
-                # Build simple device object
-                device = {
-                    'deviceId': device_id,
-                    'serialNumber': serial_number,
-                    'name': serial_number,  # Use serial as name for now
-                    'os': os_version,
-                    'status': calculated_status,
-                    'lastSeen': last_seen.isoformat() if last_seen else None,
-                    'totalEvents': 0,
-                    'lastEventTime': last_seen.isoformat() if last_seen else None,
-                    'modules': {}
-                }
-                devices.append(device)
-                logger.info(f"Added device {device['name']} with status {device['status']}")
-                
-            except Exception as device_error:
-                logger.error(f"Error processing device row: {device_error}")
-                continue
-                
+                if inventory_result:
+                    module_data = inventory_result[0].get('module_data')
+                    if module_data:
+                        if isinstance(module_data, str):
+                            parsed_data = json.loads(module_data)
+                        else:
+                            parsed_data = module_data
+                            
+                        # Look for device name in inventory data
+                        if 'inventory' in parsed_data:
+                            inventory = parsed_data['inventory']
+                            device_name = (
+                                inventory.get('deviceName') or 
+                                inventory.get('computerName') or 
+                                inventory.get('hostname') or 
+                                serial_number
+                            )
+                            logger.info(f"Found device name: {device_name}")
+                        
+            except Exception as e:
+                logger.warning(f"Could not get inventory for {device_id}: {e}")
+            
+            # Calculate status
+            status = 'active'
+            if last_seen:
+                hours_ago = (datetime.now(timezone.utc) - last_seen.replace(tzinfo=timezone.utc)).total_seconds() / 3600
+                if hours_ago > 24:
+                    status = 'offline'
+                elif hours_ago > 1:
+                    status = 'warning'
+            else:
+                status = 'missing'
+            
+            device = {
+                'deviceId': device_id,
+                'serialNumber': serial_number,
+                'name': device_name,
+                'os': os_version,
+                'status': status,
+                'lastSeen': last_seen.isoformat() if last_seen else None,
+                'totalEvents': 0,
+                'lastEventTime': last_seen.isoformat() if last_seen else None,
+                'modules': {}
+            }
+            devices.append(device)
+            logger.info(f"Added device: {device['name']}")
+        
         logger.info(f"Successfully processed {len(devices)} devices")
         return {
             'success': True,
@@ -93,66 +126,47 @@ def list_devices_sync():
     except Exception as e:
         logger.error(f"Error listing devices: {e}", exc_info=True)
         
-        # Return mock data if database fails (degraded mode)
-        logger.warning("🔄 Returning mock device data due to database error")
+        # Return mock data
         mock_devices = [
             {
                 'deviceId': '0F33V9G25083HJ',
                 'serialNumber': '0F33V9G25083HJ', 
-                'name': 'Rod Christiansen (Database Failed)',
+                'name': 'Rod Christiansen (Fallback)',
                 'os': 'Windows 11',
                 'status': 'active',
                 'lastSeen': datetime.now(timezone.utc).isoformat(),
                 'totalEvents': 1,
                 'lastEventTime': datetime.now(timezone.utc).isoformat(),
-                'modules': {
-                    'inventory': {
-                        'deviceName': 'Rod Christiansen (Database Failed)',
-                        'location': 'Database Connection Issue',
-                        'usage': 'Development'
-                    }
-                }
+                'modules': {}
             }
         ]
         
         return {
-            'success': True,  # Return success even with mock data
+            'success': True,
             'devices': mock_devices,
             'count': len(mock_devices),
-            'warning': f'Using mock data due to database error: {str(e)}'
+            'warning': f'Using mock data: {str(e)}'
         }
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Devices list endpoint using sync database (more reliable)
+    Devices list endpoint
     """
-    
     try:
         logger.info("Devices endpoint called")
         
-        # Use sync function instead of async
         result = list_devices_sync()
 
         if result['success']:
-            # Return the devices array, not wrapped in another object
-            response_data = result['devices']  # Extract the devices array
-            
             return func.HttpResponse(
-                json.dumps(response_data, indent=2),
+                json.dumps(result['devices'], indent=2),
                 status_code=200,
                 mimetype="application/json",
-                headers={
-                    'X-Data-Source': 'azure-functions-fixed',
-                    'X-Device-Count': str(len(response_data))
-                }
+                headers={'X-Data-Source': 'azure-functions-simplified'}
             )
         else:
-            logger.error(f"Devices query failed: {result}")
             return func.HttpResponse(
-                json.dumps({
-                    'error': 'Database query failed',
-                    'details': result.get('error', 'Unknown error')
-                }, indent=2),
+                json.dumps({'error': 'Failed to get devices'}, indent=2),
                 status_code=500,
                 mimetype="application/json"
             )
@@ -160,7 +174,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logger.error(f"Critical error in devices endpoint: {e}", exc_info=True)
         
-        # Emergency fallback - return mock data to prevent total failure
+        # Emergency fallback
         mock_response = [
             {
                 'deviceId': '0F33V9G25083HJ',
@@ -177,10 +191,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         
         return func.HttpResponse(
             json.dumps(mock_response, indent=2),
-            status_code=200,  # Return 200 so frontend works
+            status_code=200,
             mimetype="application/json",
-            headers={
-                'X-Data-Source': 'emergency-fallback',
-                'X-Warning': 'critical-error-fallback-active'
-            }
+            headers={'X-Data-Source': 'emergency-fallback'}
         )

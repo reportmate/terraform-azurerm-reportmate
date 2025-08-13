@@ -521,6 +521,28 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to store module data: {e}")
             return False
+    
+    def test_connection(self) -> bool:
+        """Test database connection"""
+        try:
+            if self.driver == "mock":
+                logger.info("Mock database connection test - always returns True")
+                return True
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                # Simple test query
+                if self.driver == "sqlite":
+                    cursor.execute("SELECT 1")
+                else:
+                    cursor.execute("SELECT 1")
+                cursor.fetchone()
+                logger.info("Database connection test successful")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Database connection test failed: {e}")
+            return False
 
 # Mock classes for when no database drivers are available
 class MockConnection:

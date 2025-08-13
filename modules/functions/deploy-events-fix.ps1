@@ -74,7 +74,7 @@ if ($functionApps) {
     try {
         # Deploy the package
         Write-Host "🔄 Uploading package..." -ForegroundColor Yellow
-        az functionapp deployment source config-zip --resource-group "reportmate-resources" --name $functionAppName --src $packageName
+        az functionapp deployment source config-zip --resource-group "ReportMate" --name $functionAppName --src $packageName
         
         if ($LASTEXITCODE -eq 0) {
             Write-Host "✅ Deployment successful!" -ForegroundColor Green
