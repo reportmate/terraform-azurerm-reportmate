@@ -50,13 +50,10 @@ resource "azurerm_container_app" "container_dev" {
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
 
-  # Assign managed identity to Container App (only if using custom registry)
-  dynamic "identity" {
-    for_each = var.use_custom_registry ? [1] : []
-    content {
-      type         = "UserAssigned"
-      identity_ids = [var.managed_identity_id]
-    }
+  # Assign managed identity to Container App
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [var.managed_identity_id]
   }
 
   lifecycle {
@@ -168,13 +165,10 @@ resource "azurerm_container_app" "container_prod" {
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
 
-  # Assign managed identity to Container App (only if using custom registry)
-  dynamic "identity" {
-    for_each = var.use_custom_registry ? [1] : []
-    content {
-      type         = "UserAssigned"
-      identity_ids = [var.managed_identity_id]
-    }
+  # Assign managed identity to Container App for Key Vault access and ACR
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [var.managed_identity_id]
   }
 
   lifecycle {
@@ -218,6 +212,54 @@ resource "azurerm_container_app" "container_prod" {
       env {
         name  = "PORT"
         value = "3000"
+      }
+
+      # Authentication secrets from Key Vault (if available)
+      dynamic "env" {
+        for_each = var.key_vault_uri != null && var.auth_secrets != null ? [1] : []
+        content {
+          name        = "NEXTAUTH_SECRET"
+          secret_name = var.auth_secrets.nextauth_secret_name
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.key_vault_uri != null && var.auth_secrets != null ? [1] : []
+        content {
+          name        = "AZURE_AD_CLIENT_SECRET"
+          secret_name = var.auth_secrets.client_secret_name
+        }
+      }
+
+      # Authentication non-sensitive environment variables
+      env {
+        name  = "AZURE_AD_CLIENT_ID"
+        value = "" # Will be set by automation
+      }
+
+      env {
+        name  = "AZURE_AD_TENANT_ID"
+        value = "" # Will be set by automation
+      }
+
+      env {
+        name  = "AUTH_PROVIDERS"
+        value = "azure-ad"
+      }
+
+      env {
+        name  = "DEFAULT_AUTH_PROVIDER"
+        value = "azure-ad"
+      }
+
+      env {
+        name  = "ALLOWED_DOMAINS"
+        value = "ecuad.ca"
+      }
+
+      env {
+        name  = "REQUIRE_EMAIL_VERIFICATION"
+        value = "false"
       }
 
       # Add startup and liveness probes
@@ -267,6 +309,28 @@ resource "azurerm_container_app" "container_prod" {
     traffic_weight {
       percentage      = 100
       latest_revision = true
+    }
+  }
+
+  # Key Vault secrets configuration
+  dynamic "secret" {
+    for_each = var.key_vault_uri != null && var.auth_secrets != null ? [
+      {
+        name     = var.auth_secrets.nextauth_secret_name
+        identity = var.managed_identity_id
+        key_vault_secret_id = "${var.key_vault_uri}secrets/${var.auth_secrets.nextauth_secret_name}"
+      },
+      {
+        name     = var.auth_secrets.client_secret_name
+        identity = var.managed_identity_id
+        key_vault_secret_id = "${var.key_vault_uri}secrets/${var.auth_secrets.client_secret_name}"
+      }
+    ] : []
+    
+    content {
+      name                = secret.value.name
+      identity            = secret.value.identity
+      key_vault_secret_id = secret.value.key_vault_secret_id
     }
   }
 

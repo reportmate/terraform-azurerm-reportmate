@@ -84,6 +84,21 @@ variable "log_analytics_workspace_id" {
   description = "Log Analytics workspace ID"
 }
 
+variable "key_vault_uri" {
+  type        = string
+  description = "Key Vault URI for secret references"
+  default     = null
+}
+
+variable "auth_secrets" {
+  type = object({
+    nextauth_secret_name = string
+    client_secret_name   = string
+  })
+  description = "Authentication secret names in Key Vault"
+  default = null
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to resources"
