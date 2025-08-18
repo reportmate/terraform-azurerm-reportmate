@@ -246,3 +246,74 @@ variable "tags" {
     ManagedBy   = "Terraform"
   }
 }
+
+# =================================================================
+# AUTHENTICATION CONFIGURATION
+# =================================================================
+
+variable "auth_sign_in_audience" {
+  type        = string
+  description = "Who can sign in to the application"
+  default     = "AzureADMyOrg"
+  validation {
+    condition = contains([
+      "AzureADMyOrg",
+      "AzureADMultipleOrgs", 
+      "AzureADandPersonalMicrosoftAccount",
+      "PersonalMicrosoftAccount"
+    ], var.auth_sign_in_audience)
+    error_message = "Sign in audience must be one of: AzureADMyOrg, AzureADMultipleOrgs, AzureADandPersonalMicrosoftAccount, PersonalMicrosoftAccount."
+  }
+}
+
+variable "auth_providers" {
+  type        = list(string)
+  description = "List of enabled authentication providers"
+  default     = ["azure-ad"]
+  validation {
+    condition = alltrue([
+      for provider in var.auth_providers : contains([
+        "azure-ad",
+        "google", 
+        "credentials"
+      ], provider)
+    ])
+    error_message = "Auth providers must be one of: azure-ad, google, credentials."
+  }
+}
+
+variable "default_auth_provider" {
+  type        = string
+  description = "Default authentication provider"
+  default     = "azure-ad"
+}
+
+variable "allowed_auth_domains" {
+  type        = list(string)
+  description = "List of allowed email domains for authentication"
+  default     = ["ecuad.ca"]
+}
+
+variable "require_email_verification" {
+  type        = bool
+  description = "Whether to require email verification for certain providers"
+  default     = false
+}
+
+variable "auth_client_secret_expiry" {
+  type        = string
+  description = "Expiry date for the Azure AD client secret (RFC3339 format)"
+  default     = null
+}
+
+variable "enable_key_vault" {
+  type        = bool
+  description = "Enable Azure Key Vault for secure secret storage"
+  default     = true
+}
+
+variable "key_vault_name" {
+  type        = string
+  description = "Name of the Azure Key Vault for secret storage"
+  default     = "reportmate-kv"
+}

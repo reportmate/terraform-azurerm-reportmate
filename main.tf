@@ -92,6 +92,89 @@ module "identity" {
   tags = var.tags
 }
 
+# Authentication Module
+module "auth" {
+  source = "./modules/auth"
+
+  # Application Configuration
+  app_display_name = "ReportMate${var.environment != "prod" ? " (${title(var.environment)})" : ""}"
+  homepage_url     = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : module.containers.frontend_url
+  logout_url       = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}/auth/signout" : "${module.containers.frontend_url}/auth/signout"
+  
+  # OAuth Configuration
+  redirect_uris = concat([
+    # Production/Custom domain URLs
+    var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}/api/auth/callback/azure-ad" : "${module.containers.frontend_url}/api/auth/callback/azure-ad"
+  ], var.environment != "prod" ? [
+    # Development URLs for non-prod environments
+    "http://localhost:3000/api/auth/callback/azure-ad"
+  ] : [])
+  
+  # Security Settings
+  app_role_assignment_required = var.environment == "prod" ? true : false
+  grant_admin_consent         = var.environment == "dev" ? true : false  # Auto-consent only in dev
+  sign_in_audience           = var.auth_sign_in_audience
+  
+  # App Ownership
+  app_owners = ["rchristiansen@ecuad.ca"]
+  
+  # Authorized Groups for Sign-in
+  authorized_groups = ["f4ac6007-f859-4dad-99d7-38dce9eec42d"]
+  
+  # Authentication Configuration
+  auth_providers        = var.auth_providers
+  default_auth_provider = var.default_auth_provider
+  allowed_domains      = var.allowed_auth_domains
+  require_email_verification = var.require_email_verification
+  
+  # Secret Management (if Key Vault is enabled)
+  enable_key_vault = var.enable_key_vault
+  key_vault_id = var.enable_key_vault ? module.key_vault[0].key_vault_id : null
+  client_secret_expiry = var.auth_client_secret_expiry
+  
+  # Environment and Tagging
+  environment   = var.environment
+  tags         = var.tags
+  azuread_tags = ["ReportMate", "Authentication", "Environment:${var.environment}"]
+}
+
+# Automatically configure Container App with authentication environment variables (non-sensitive only)
+resource "null_resource" "configure_container_app_auth" {
+  count = var.deploy_prod ? 1 : 0
+  
+  depends_on = [
+    module.auth,
+    module.containers
+  ]
+
+  triggers = {
+    # Trigger update when authentication configuration changes
+    auth_app_id = module.auth.application_id
+    auth_tenant_id = module.auth.tenant_id
+  }
+
+  provisioner "local-exec" {
+    command = "az containerapp update --name reportmate-container-prod --resource-group ${azurerm_resource_group.rg.name} --set-env-vars AZURE_AD_CLIENT_ID=${module.auth.application_id} AZURE_AD_TENANT_ID=${module.auth.tenant_id}"
+  }
+}
+
+# Optional Key Vault Module for secure secret storage
+module "key_vault" {
+  count  = var.enable_key_vault ? 1 : 0
+  source = "./modules/key_vault"
+
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+
+  key_vault_name = var.key_vault_name
+  environment    = var.environment
+
+  # Grant access to managed identity
+  managed_identity_principal_id = module.identity.managed_identity_principal_id
+
+  tags = var.tags
+}
+
 # Functions Module (Azure Functions API)
 module "functions" {
   source = "./modules/functions"
@@ -154,6 +237,13 @@ module "containers" {
   function_app_hostname          = module.functions.function_app_hostname
   app_insights_connection_string = module.monitoring.app_insights_connection_string
   log_analytics_workspace_id     = module.monitoring.log_analytics_id
+
+  # Key Vault integration for secrets
+  key_vault_uri = var.enable_key_vault ? module.key_vault[0].key_vault_uri : null
+  auth_secrets = var.enable_key_vault ? {
+    nextauth_secret_name = "reportmate-nextauth-secret"
+    client_secret_name   = "reportmate-auth-client-secret"
+  } : null
 
   tags = var.tags
 }

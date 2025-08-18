@@ -1,0 +1,190 @@
+# Example usage of the ReportMate Auth module
+# This file shows different configuration scenarios
+
+# Development Environment
+module "reportmate_auth_dev" {
+  source = "./modules/auth"
+  
+  # Application Configuration
+  app_display_name = "ReportMate (Development)"
+  homepage_url     = "http://localhost:3000"
+  logout_url       = "http://localhost:3000/auth/signout"
+  
+  # OAuth Configuration
+  redirect_uris = [
+    "http://localhost:3000/api/auth/callback/azure-ad"
+  ]
+  
+  # Security Settings (relaxed for development)
+  app_role_assignment_required = false  # Allow all users
+  grant_admin_consent         = true   # Auto-grant consent
+  
+  # Authentication Configuration
+  auth_providers        = ["azure-ad", "credentials"]  # Enable local auth for testing
+  default_auth_provider = "azure-ad"
+  allowed_domains      = ["example.com", "gmail.com"]  # Allow broader domains for testing
+  require_email_verification = false
+  
+  # Environment
+  environment = "dev"
+  tags       = ["ReportMate", "Authentication", "Development"]
+}
+
+# Staging Environment
+module "reportmate_auth_staging" {
+  source = "./modules/auth"
+  
+  # Application Configuration
+  app_display_name = "ReportMate (Staging)"
+  homepage_url     = "https://reportmate-staging.yourdomain.com"
+  logout_url       = "https://reportmate-staging.yourdomain.com/auth/signout"
+  
+  # OAuth Configuration
+  redirect_uris = [
+    "https://reportmate-staging.yourdomain.com/api/auth/callback/azure-ad",
+    "http://localhost:3000/api/auth/callback/azure-ad"  # For local testing against staging
+  ]
+  
+  # Security Settings
+  app_role_assignment_required = true
+  grant_admin_consent         = false  # Manual consent for staging
+  
+  # Authentication Configuration
+  auth_providers        = ["azure-ad"]
+  default_auth_provider = "azure-ad"
+  allowed_domains      = ["example.com"]
+  require_email_verification = false
+  
+  # Secret Management
+  key_vault_id = azurerm_key_vault.reportmate_staging.id
+  client_secret_expiry = "2025-12-31T23:59:59Z"
+  
+  # Environment
+  environment = "staging"
+  tags       = ["ReportMate", "Authentication", "Staging"]
+}
+
+# Production Environment
+module "reportmate_auth_prod" {
+  source = "./modules/auth"
+  
+  # Application Configuration
+  app_display_name = "ReportMate"
+  homepage_url     = "https://reportmate.yourdomain.com"
+  logout_url       = "https://reportmate.yourdomain.com/auth/signout"
+  
+  # OAuth Configuration
+  redirect_uris = [
+    "https://reportmate.yourdomain.com/api/auth/callback/azure-ad"
+  ]
+  
+  # Security Settings (strict for production)
+  app_role_assignment_required = true
+  grant_admin_consent         = false  # Always manual in production
+  sign_in_audience           = "AzureADMyOrg"  # Only your organization tenant
+  
+  # Authentication Configuration
+  auth_providers        = ["azure-ad"]  # Only Azure AD in production
+  default_auth_provider = "azure-ad"
+  allowed_domains      = ["example.com"]  # Strict domain restriction
+  require_email_verification = false
+  
+  # Secret Management
+  key_vault_id = azurerm_key_vault.reportmate_prod.id
+  client_secret_expiry = "2026-12-31T23:59:59Z"  # Longer expiry for production
+  
+  # Custom App Roles (if needed)
+  app_roles = [
+    {
+      allowed_member_types = ["User"]
+      description          = "ReportMate Super Administrator - Complete system access"
+      display_name         = "Super Administrator"
+      enabled              = true
+      id                   = "0a09510a-43b1-4e9f-b71d-4dc9cd1d4c1e"
+      value                = "super-admin"
+    },
+    {
+      allowed_member_types = ["User"]
+      description          = "ReportMate Administrator - Full access to all features"
+      display_name         = "Administrator"
+      enabled              = true
+      id                   = "1b19509b-32b1-4e9f-b71d-4dc9cd1d4c1e"
+      value                = "admin"
+    },
+    {
+      allowed_member_types = ["User"]
+      description          = "ReportMate Faculty - Access to view and manage devices"
+      display_name         = "Faculty"
+      enabled              = true
+      id                   = "2c29610c-43c2-5f0f-c82e-5ed9de2e5d2f"
+      value                = "faculty"
+    },
+    {
+      allowed_member_types = ["User"]
+      description          = "ReportMate Staff - Access to view device information"
+      display_name         = "Staff"
+      enabled              = true
+      id                   = "3d39721d-54d3-6010-d93f-6fe0ef3f6e30"
+      value                = "staff"
+    },
+    {
+      allowed_member_types = ["User"]
+      description          = "ReportMate Student - Limited device access"
+      display_name         = "Student"
+      enabled              = true
+      id                   = "4e4a832e-65e4-7121-ea40-70f1f04f7f41"
+      value                = "student"
+    }
+  ]
+  
+  # Environment
+  environment = "production"
+  tags       = ["ReportMate", "Authentication", "Production"]
+}
+
+# Outputs for each environment
+output "dev_auth_config" {
+  description = "Development authentication configuration"
+  value = {
+    application_id = module.reportmate_auth_dev.application_id
+    tenant_id     = module.reportmate_auth_dev.tenant_id
+    signin_url    = "http://localhost:3000/auth/signin"
+  }
+}
+
+output "staging_auth_config" {
+  description = "Staging authentication configuration"
+  value = {
+    application_id = module.reportmate_auth_staging.application_id
+    tenant_id     = module.reportmate_auth_staging.tenant_id
+    signin_url    = "https://reportmate-staging.yourdomain.com/auth/signin"
+  }
+}
+
+output "prod_auth_config" {
+  description = "Production authentication configuration"
+  value = {
+    application_id = module.reportmate_auth_prod.application_id
+    tenant_id     = module.reportmate_auth_prod.tenant_id
+    signin_url    = "https://reportmate.yourdomain.com/auth/signin"
+  }
+}
+
+# Environment-specific secrets (sensitive)
+output "dev_environment_variables" {
+  description = "Development environment variables"
+  value       = module.reportmate_auth_dev.environment_variables
+  sensitive   = true
+}
+
+output "staging_environment_variables" {
+  description = "Staging environment variables"
+  value       = module.reportmate_auth_staging.environment_variables
+  sensitive   = true
+}
+
+output "prod_environment_variables" {
+  description = "Production environment variables"
+  value       = module.reportmate_auth_prod.environment_variables
+  sensitive   = true
+}

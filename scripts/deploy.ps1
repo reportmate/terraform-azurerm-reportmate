@@ -19,8 +19,35 @@ Quick deploy (functions only, use existing infrastructure)
 Infrastructure only (Terraform deployment)
 
 .PARAMETER Functions
-Functions only (code deployment    Write-Host "${Blue}🎯 ReportMate REST API Deployment Script${Reset}"
-    Write-Host "========================================="
+Functions only (code deployment    Write-Host "${Blue}🎯 ReportMate REST API Deployment Script${Reset}"    Write-Host ""
+    Write-Host "${Green}🎉 DEPLOYMENT COMPLETED! 🎉${Reset}"
+    Write-Host "=========================="
+    Write-Host ""
+    Write-Success "ReportMate REST API is deployed and ready!"
+    Write-Host ""
+    
+    if ($DeployFunctions) {
+        Write-Host "📋 Next steps:"
+        Write-Host "1. Test the API endpoints"
+        Write-Host "2. Update Windows client configuration"
+        Write-Host "3. Update web application configuration"
+        Write-Host "4. Set up monitoring and alerts"
+    }
+    
+    if ($DeployContainers) {
+        Write-Host ""
+        Write-Host "🔐 Authentication setup:"
+        Write-Host "1. Grant admin consent for Azure AD application:"
+        Write-Host "   .\scripts\grant-admin-consent.ps1"
+        Write-Host "2. Test authentication at: https://reportmate.ecuad.ca"
+        Write-Host "3. Verify group access control is working"
+    }
+    
+    if ($DeployInfrastructure) {
+        Write-Host ""
+        Write-Host "💡 Infrastructure deployed successfully!"
+        Write-Host "   You can now use quick deployments with: .\deploy.ps1 -Quick"
+    }======================================="
     Write-Host ""
     
     # Check prerequisites
@@ -539,19 +566,39 @@ function Deploy-Containers {
         }
         
         Write-Info "Found container deployment script: $containerScript"
+        Write-Info "Building and deploying Next.js application with authentication..."
         
-        # Run container deployment
-        & $containerScript -Environment $Environment
+        # Change to container directory
+        Push-Location (Split-Path $containerScript -Parent)
         
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "Container deployment completed!"
-        } else {
-            Write-Warning "Container deployment may have had issues. Check output above."
+        try {
+            # Run container deployment with force build to ensure latest code
+            & .\deploy.ps1 -Environment $Environment -ForceBuild
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "Container deployment completed!"
+                
+                # Get the container app URL if available
+                try {
+                    $containerUrl = az containerapp show --name "reportmate-container-$Environment" --resource-group $ResourceGroup --query "properties.configuration.ingress.fqdn" -o tsv 2>$null
+                    if ($containerUrl) {
+                        Write-Success "Container URL: https://$containerUrl"
+                        $script:FrontendUrl = "https://$containerUrl"
+                    }
+                } catch {
+                    Write-Info "Could not retrieve container URL"
+                }
+            } else {
+                Write-Warning "Container deployment may have had issues. Check output above."
+            }
+        } finally {
+            Pop-Location
         }
         
     } catch {
         Write-Warning "Container deployment failed: $_"
-        Write-Warning "You can deploy containers manually using: .\apps\www\deploy.ps1 -Environment $Environment"
+        Write-Warning "You can deploy containers manually using:"
+        Write-Warning "  cd apps\www && .\deploy.ps1 -Environment $Environment -ForceBuild"
     }
 }
 

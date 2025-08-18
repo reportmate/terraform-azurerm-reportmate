@@ -53,6 +53,40 @@ enable_business_units = true
 enable_pipeline_permissions   = false
 pipeline_service_principal_id = ""
 
+# =================================================================
+# AUTHENTICATION CONFIGURATION
+# =================================================================
+
+# Azure AD Authentication
+auth_sign_in_audience = "AzureADMyOrg"  # Only your organization
+auth_providers        = ["azure-ad"]
+default_auth_provider = "azure-ad"
+
+# Security Settings
+allowed_auth_domains        = ["ecuad.ca"]  # Replace with your domain(s)
+require_email_verification  = false
+auth_client_secret_expiry   = "2026-12-31T23:59:59Z"  # 2 years from now
+
+# Secret Storage
+enable_key_vault = true
+key_vault_name   = "reportmate-kv-prod"  # Must be globally unique
+
+# =================================================================
+# MULTI-ENVIRONMENT EXAMPLE
+# =================================================================
+
+# For development environment, you might want:
+# auth_sign_in_audience = "AzureADMyOrg"
+# auth_providers = ["azure-ad", "credentials"]  # Enable local auth for testing
+# allowed_auth_domains = ["ecuad.ca", "gmail.com"]  # Broader for testing
+# enable_key_vault = false  # Simpler for dev
+
+# For staging environment:
+# auth_sign_in_audience = "AzureADMyOrg"
+# auth_providers = ["azure-ad"]
+# allowed_auth_domains = ["ecuad.ca"]
+# enable_key_vault = true
+
 # Tags
 tags = {
   Environment = "production"
