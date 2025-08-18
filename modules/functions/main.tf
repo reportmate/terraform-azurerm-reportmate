@@ -57,6 +57,7 @@ resource "azurerm_linux_function_app" "api" {
   app_settings = {
     FUNCTIONS_WORKER_RUNTIME              = "python"
     WEBSITE_RUN_FROM_PACKAGE              = "1"
+    WEBSITE_MOUNT_ENABLED                 = "1"
     AZURE_STORAGE_CONNECTION_STRING       = var.storage_connection_string
     QUEUE_NAME                            = var.queue_name
     DATABASE_URL                          = var.database_url
