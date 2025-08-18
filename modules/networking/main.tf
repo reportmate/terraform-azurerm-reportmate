@@ -66,6 +66,13 @@ resource "azurerm_cdn_frontdoor_origin" "main" {
   origin_host_header             = var.frontend_fqdn
   priority                       = 1
   weight                         = 1000
+
+  lifecycle {
+    ignore_changes = [
+      host_name,
+      origin_host_header
+    ]
+  }
 }
 
 # Front Door API Origin
@@ -81,6 +88,13 @@ resource "azurerm_cdn_frontdoor_origin" "api" {
   origin_host_header             = var.function_app_hostname
   priority                       = 1
   weight                         = 1000
+
+  lifecycle {
+    ignore_changes = [
+      host_name,
+      origin_host_header
+    ]
+  }
 }
 
 # Front Door Endpoint

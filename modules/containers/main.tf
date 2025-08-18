@@ -3,6 +3,17 @@ resource "random_id" "container_suffix" {
   byte_length = 4
 }
 
+# Extract image name and tag from container_image variable
+locals {
+  # Extract image name and tag from the full image path
+  # e.g., "reportmateacr.azurecr.io/reportmate-web:latest" -> "reportmate-web:latest"
+  image_name_tag = var.use_custom_registry ? (
+    length(split("/", var.container_image)) > 1 ? 
+    split("/", var.container_image)[length(split("/", var.container_image)) - 1] : 
+    var.container_image
+  ) : var.container_image
+}
+
 # Container Registry (optional - only if using custom registry)
 resource "azurerm_container_registry" "acr" {
   count               = var.use_custom_registry ? 1 : 0
@@ -57,7 +68,7 @@ resource "azurerm_container_app" "container_dev" {
   template {
     container {
       name   = "container"
-      image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/reportmate:latest" : var.container_image
+      image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/${local.image_name_tag}" : var.container_image
       cpu    = 0.25
       memory = "0.5Gi"
 
@@ -175,7 +186,7 @@ resource "azurerm_container_app" "container_prod" {
   template {
     container {
       name   = "container"
-      image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/reportmate:latest" : var.container_image
+      image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/${local.image_name_tag}" : var.container_image
       cpu    = 0.5   # More CPU for production
       memory = "1Gi" # More memory for production
 
