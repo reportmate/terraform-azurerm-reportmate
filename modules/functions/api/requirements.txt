@@ -1,14 +1,11 @@
 # Azure Functions runtime
 azure-functions>=1.18.0
 
-# Database drivers - use pg8000 for pure Python PostgreSQL connectivity
-pg8000>=1.30.0
+# Database drivers - PostgreSQL connectivity
+psycopg2-binary>=2.9.0
 
 # HTTP client for external requests
 requests==2.31.0
-
-# JSON handling
-# Using built-in json
 
 # Date/time utilities
 python-dateutil==2.8.2

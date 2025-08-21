@@ -4,6 +4,7 @@ azure-identity
 azure-storage-queue
 azure-storage-blob
 azure-core
+psycopg2-binary
 pg8000
 cryptography
 requests
