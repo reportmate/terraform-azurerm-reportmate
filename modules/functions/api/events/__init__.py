@@ -272,8 +272,28 @@ async def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                 logging.error(f"❌ INIT ERROR: Failed to initialize processors: {init_error}")
                 raise
             
-            # Extract the passphrase from headers for authentication  
-            passphrase = req.headers.get('X-API-PASSPHRASE', 's3cur3-p@ssphras3!')
+            # Extract the passphrase from payload or headers for authentication
+            # Priority 1: Check payload body (Windows client sends it here)
+            passphrase = unified_payload.get('metadata', {}).get('passphrase') or unified_payload.get('passphrase')
+            
+            # Priority 2: Check headers
+            if not passphrase:
+                passphrase = req.headers.get('X-API-PASSPHRASE')
+            
+            # Priority 3: Check environment for valid passphrases
+            if not passphrase:
+                client_passphrases = os.getenv('CLIENT_PASSPHRASES', '')
+                if client_passphrases:
+                    # Use the first configured passphrase as default
+                    valid_passphrases = [p.strip() for p in client_passphrases.split(',') if p.strip()]
+                    if valid_passphrases:
+                        passphrase = valid_passphrases[0]
+                        logging.info("🔍 Using first configured passphrase as default")
+                else:
+                    # Fallback to legacy default for backward compatibility
+                    passphrase = 's3cur3-p@ssphras3!'
+                    logging.warning("🔍 No passphrases configured, using legacy default")
+            
             logging.info(f"🔍 Using passphrase: {passphrase[:10]}...")
             
             # Use the sophisticated processor that correctly processes all modules
