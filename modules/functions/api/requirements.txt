@@ -2,7 +2,8 @@
 azure-functions>=1.18.0
 
 # Database drivers - PostgreSQL connectivity
-psycopg2-binary>=2.9.0
+# psycopg2-binary>=2.9.0  # Commented out due to Windows ARM compilation issues
+pg8000>=1.29.0
 
 # HTTP client for external requests
 requests==2.31.0

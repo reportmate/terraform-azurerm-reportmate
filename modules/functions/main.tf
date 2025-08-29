@@ -71,6 +71,7 @@ resource "azurerm_linux_function_app" "api" {
     
     # Client authentication
     CLIENT_PASSPHRASES    = var.client_passphrases
+    API_KEY              = var.api_key
     ENABLE_MACHINE_GROUPS = var.enable_machine_groups
     ENABLE_BUSINESS_UNITS = var.enable_business_units
     
