@@ -208,6 +208,7 @@ module "functions" {
 
   # Configuration
   client_passphrases    = var.client_passphrases
+  api_key              = var.api_key
   enable_machine_groups = var.enable_machine_groups
   enable_business_units = var.enable_business_units
   enable_code_deployment = true  # Enable automatic code deployment

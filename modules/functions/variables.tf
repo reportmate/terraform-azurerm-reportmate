@@ -121,6 +121,13 @@ variable "client_passphrases" {
   sensitive   = true
 }
 
+variable "api_key" {
+  type        = string
+  description = "API key for client authentication"
+  default     = ""
+  sensitive   = true
+}
+
 variable "enable_machine_groups" {
   type        = bool
   description = "Enable machine groups"

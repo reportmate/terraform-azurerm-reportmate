@@ -87,6 +87,14 @@ def list_devices_sync():
                                 serial_number
                             )
                             logger.info(f"Found device name: {device_name}")
+                        else:
+                            # Try root level deviceName
+                            device_name = (
+                                parsed_data.get('deviceName') or
+                                parsed_data.get('computerName') or
+                                parsed_data.get('hostname') or
+                                serial_number
+                            )
                         
             except Exception as e:
                 logger.warning(f"Could not get inventory for {device_id}: {e}")
