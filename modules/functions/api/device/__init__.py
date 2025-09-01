@@ -499,7 +499,7 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                 'deviceId': device_data['deviceId'],
                 'serialNumber': device_data['serialNumber'],
                 'collectedAt': latest_collection_time.isoformat() if hasattr(latest_collection_time, 'isoformat') else str(latest_collection_time) if latest_collection_time else device_data['lastSeen'],
-                'clientVersion': '1.0.0'  # Default version
+                'clientVersion': '2025.09.01.1044'  # Latest Windows client version
             }
             
             # Return device data in the expected clean format for frontend (matching sample-api.json)
