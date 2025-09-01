@@ -99,6 +99,12 @@ variable "auth_secrets" {
   default = null
 }
 
+variable "client_passphrases" {
+  type        = string
+  description = "Client authentication passphrases (comma-separated)"
+  sensitive   = true
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to resources"

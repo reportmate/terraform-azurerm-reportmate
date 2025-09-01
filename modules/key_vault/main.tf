@@ -50,3 +50,12 @@ resource "azurerm_role_assignment" "managed_identity" {
   role_definition_name = "Key Vault Secrets User"
   principal_id         = var.managed_identity_principal_id
 }
+
+# Grant access to DevOps Resource InfraSec group
+resource "azurerm_role_assignment" "devops_group" {
+  count                = var.devops_resource_infrasec_group_object_id != null ? 1 : 0
+  scope                = azurerm_key_vault.reportmate.id
+  role_definition_name = "Key Vault Administrator"
+  principal_type       = "Group"
+  principal_id         = var.devops_resource_infrasec_group_object_id
+}

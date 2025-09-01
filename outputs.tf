@@ -1,10 +1,10 @@
 # ReportMate Infrastructure Outputs
 
 # API Outputs
-output "api_url" {
-  description = "URL of the ReportMate API"
-  value       = module.functions.function_app_url
-}
+# output "api_url" {
+#   description = "URL of the ReportMate API"
+#   value       = module.functions.function_app_url
+# }
 
 output "api_hostname" {
   description = "Hostname of the ReportMate API"

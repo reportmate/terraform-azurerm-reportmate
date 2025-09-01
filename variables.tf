@@ -324,3 +324,9 @@ variable "key_vault_name" {
   description = "Name of the Azure Key Vault for secret storage"
   default     = "reportmate-kv"
 }
+
+variable "devops_resource_infrasec_group_object_id" {
+  type        = string
+  description = "Object ID of the DevOps Resource InfraSec group for Key Vault access"
+  default     = null
+}

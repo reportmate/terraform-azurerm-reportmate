@@ -19,40 +19,9 @@ Quick deploy (functions only, use existing infrastructure)
 Infrastructure only (Terraform deployment)
 
 .PARAMETER Functions
-Functions only (code deployment    Write-Host "${Blue}🎯 ReportMate REST API Deployment Script${Reset}"    Write-Host ""
-    Write-Host "${Green}🎉 DEPLOYMENT COMPLETED! 🎉${Reset}"
-    Write-Host "=========================="
-    Write-Host ""
-    Write-Success "ReportMate REST API is deployed and ready!"
-    Write-Host ""
-    
-    if ($DeployFunctions) {
-        Write-Host "📋 Next steps:"
-        Write-Host "1. Test the API endpoints"
-        Write-Host "2. Update Windows client configuration"
-        Write-Host "3. Update web application configuration"
-        Write-Host "4. Set up monitoring and alerts"
-    }
-    
-    if ($DeployContainers) {
-        Write-Host ""
-        Write-Host "🔐 Authentication setup:"
-        Write-Host "1. Grant admin consent for Azure AD application:"
-        Write-Host "   .\scripts\grant-admin-consent.ps1"
-        Write-Host "2. Test authentication at: https://reportmate.ecuad.ca"
-        Write-Host "3. Verify group access control is working"
-    }
-    
-    if ($DeployInfrastructure) {
-        Write-Host ""
-        Write-Host "💡 Infrastructure deployed successfully!"
-        Write-Host "   You can now use quick deployments with: .\deploy.ps1 -Quick"
-    }======================================="
-    Write-Host ""
-    
-    # Check prerequisites
-    Test-Prerequisites
-    Write-Host ""tainers
+Functions only (code deployment)
+
+.PARAMETER Containers
 Containers only (frontend deployment)
 
 .PARAMETER Test
@@ -555,8 +524,14 @@ function Deploy-Containers {
     Write-Info "Deploying containers using the container deployment script..."
     
     try {
-        # Check if container deployment script exists
-        $containerScript = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "apps\www\deploy.ps1"
+        # Calculate path to container script from infrastructure directory
+        # We're in infrastructure/scripts, need to go up 2 levels to get to root
+        $rootPath = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+        $containerScript = Join-Path $rootPath "apps\www\deploy.ps1"
+        
+        Write-Info "Looking for container script at: $containerScript"
+        Write-Info "Current script location: $PSScriptRoot"
+        Write-Info "Calculated root path: $rootPath"
         
         if (-not (Test-Path $containerScript)) {
             Write-Warning "Container deployment script not found at: $containerScript"
@@ -572,8 +547,8 @@ function Deploy-Containers {
         Push-Location (Split-Path $containerScript -Parent)
         
         try {
-            # Run container deployment with force build to ensure latest code
-            & .\deploy.ps1 -Environment $Environment -ForceBuild
+            # Run container deployment using the dedicated script
+            & .\scripts\deploy-containers.ps1 -Environment $Environment -ForceBuild
             
             if ($LASTEXITCODE -eq 0) {
                 Write-Success "Container deployment completed!"
