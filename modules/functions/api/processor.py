@@ -286,66 +286,115 @@ class DeviceDataProcessor:
     
     def _extract_device_id(self, device_data: Dict[str, Any]) -> Optional[str]:
         """
-        Extract unique device identifier from device data
+        Extract device serial number from payload structure
+        Uses the metadata.serialNumber field as the primary identifier for API routing
         
         Args:
             device_data: Raw device data
             
         Returns:
-            Device identifier or None if not found
+            Device serial number or None if not found
         """
-        # Try multiple sources for device identification
-        device_id_sources = [
-            ('hardware', 'motherboard_serial'),
-            ('hardware', 'bios_serial'),
-            ('system', 'system_info', 'uuid'),
-            ('system', 'system_info', 'serial_number'),
-            ('inventory', 'computer_name'),
-            ('network', 'network_adapters', 0, 'mac_address')  # First adapter MAC
-        ]
-        
-        for source in device_id_sources:
-            try:
-                value = device_data
-                for key in source:
-                    if isinstance(key, int):
-                        # Array index
-                        if isinstance(value, list) and len(value) > key:
-                            value = value[key]
-                        else:
-                            break
-                    else:
-                        # Dictionary key
-                        if isinstance(value, dict) and key in value:
-                            value = value[key]
-                        else:
-                            break
-                
-                if value and isinstance(value, str) and len(value) > 5:
-                    self.logger.debug(f"Device ID extracted from {'.'.join(map(str, source))}: {value}")
-                    return value
-                    
-            except Exception as e:
-                self.logger.debug(f"Failed to extract device ID from {source}: {e}")
-                continue
-        
-        # Fallback: generate from computer name + MAC address
+        # Primary: metadata.serialNumber field (for API routing)
         try:
-            computer_name = device_data.get('inventory', {}).get('computer_name', '')
-            mac_address = ''
-            
-            adapters = device_data.get('network', {}).get('network_adapters', [])
-            if adapters and len(adapters) > 0:
-                mac_address = adapters[0].get('mac_address', '')
-            
-            if computer_name and mac_address:
-                device_id = f"{computer_name}_{mac_address}".replace(':', '').replace('-', '')
-                self.logger.debug(f"Generated fallback device ID: {device_id}")
-                return device_id
-                
+            metadata = device_data.get('metadata', {})
+            if metadata:
+                serial_number = metadata.get('serialNumber')
+                if serial_number and isinstance(serial_number, str) and len(serial_number.strip()) > 2:
+                    self.logger.debug(f"Device serial number extracted from metadata.serialNumber: {serial_number}")
+                    return serial_number.strip()
         except Exception as e:
-            self.logger.warning(f"Failed to generate fallback device ID: {e}")
+            self.logger.debug(f"Failed to extract metadata.serialNumber: {e}")
         
+        # Fallback: Try top-level serialNumber
+        try:
+            serial_number = device_data.get('serialNumber')
+            if serial_number and isinstance(serial_number, str) and len(serial_number.strip()) > 2:
+                self.logger.debug(f"Device serial number extracted from top-level: {serial_number}")
+                return serial_number.strip()
+        except Exception as e:
+            self.logger.debug(f"Failed to extract top-level serialNumber: {e}")
+        
+        # Fallback: Try _metadata device_id field
+        try:
+            metadata = device_data.get('_metadata', {})
+            if metadata:
+                device_id = metadata.get('device_id')
+                if device_id and isinstance(device_id, str) and len(device_id.strip()) > 2:
+                    self.logger.debug(f"Device ID extracted from _metadata.device_id: {device_id}")
+                    return device_id.strip()
+        except Exception as e:
+            self.logger.debug(f"Failed to extract device ID from metadata: {e}")
+            
+        # Last resort: Try inventory module
+        try:
+            inventory = device_data.get('inventory', {})
+            if inventory:
+                serial_sources = ['serialNumber', 'serial_number', 'device_serial']
+                for field in serial_sources:
+                    serial = inventory.get(field)
+                    if serial and isinstance(serial, str) and len(serial.strip()) > 2:
+                        self.logger.debug(f"Device ID extracted from inventory.{field}: {serial}")
+                        return serial.strip()
+        except Exception as e:
+            self.logger.debug(f"Failed to extract device ID from inventory: {e}")
+        
+        self.logger.warning("No valid device serial number found in data")
+        return None
+    
+    def _extract_device_uuid(self, device_data: Dict[str, Any]) -> Optional[str]:
+        """
+        Extract device UUID from payload structure
+        Uses the metadata.deviceId field as the primary UUID for device registration
+        
+        Args:
+            device_data: Raw device data
+            
+        Returns:
+            Device UUID or None if not found
+        """
+        # Primary: metadata.deviceId field (contains the proper UUID)
+        try:
+            metadata = device_data.get('metadata', {})
+            if metadata:
+                device_uuid = metadata.get('deviceId')
+                if device_uuid and isinstance(device_uuid, str) and len(device_uuid.strip()) > 10:
+                    # Validate UUID format (basic check)
+                    uuid_str = device_uuid.strip()
+                    if '-' in uuid_str and len(uuid_str) >= 32:
+                        self.logger.debug(f"Device UUID extracted from metadata.deviceId: {uuid_str}")
+                        return uuid_str
+        except Exception as e:
+            self.logger.debug(f"Failed to extract metadata.deviceId: {e}")
+        
+        # Fallback: Top-level deviceId field 
+        try:
+            device_uuid = device_data.get('deviceId')
+            if device_uuid and isinstance(device_uuid, str) and len(device_uuid.strip()) > 10:
+                # Validate UUID format (basic check)
+                uuid_str = device_uuid.strip()
+                if '-' in uuid_str and len(uuid_str) >= 32:
+                    self.logger.debug(f"Device UUID extracted from top-level deviceId: {uuid_str}")
+                    return uuid_str
+        except Exception as e:
+            self.logger.debug(f"Failed to extract top-level deviceId: {e}")
+        
+        # Fallback: Try inventory module UUID
+        try:
+            inventory = device_data.get('inventory', {})
+            if inventory:
+                uuid_sources = ['uuid', 'deviceId', 'device_uuid']
+                for field in uuid_sources:
+                    uuid_val = inventory.get(field)
+                    if uuid_val and isinstance(uuid_val, str) and len(uuid_val.strip()) > 10:
+                        uuid_str = uuid_val.strip()
+                        if '-' in uuid_str and len(uuid_str) >= 32:
+                            self.logger.debug(f"Device UUID extracted from inventory.{field}: {uuid_str}")
+                            return uuid_str
+        except Exception as e:
+            self.logger.debug(f"Failed to extract device UUID from inventory: {e}")
+        
+        self.logger.warning("No valid device UUID found in data")
         return None
     
     def _detect_available_modules(self, device_data: Dict[str, Any]) -> List[str]:
@@ -415,7 +464,7 @@ class DeviceDataProcessor:
         Register or update device in database
         
         Args:
-            device_id: Device identifier (serial number when called from device endpoint)
+            device_id: Device serial number (for API routing)
             device_data: Raw device data
             machine_group: Machine group information
             business_unit: Business unit information
@@ -423,22 +472,42 @@ class DeviceDataProcessor:
         Returns:
             Device record
         """
-        # Extract basic device info for registration
+        # Extract proper device UUID from top-level data
+        device_uuid = self._extract_device_uuid(device_data)
+        if not device_uuid:
+            raise ValueError(f"No valid device UUID found in device data for device {device_id}")
+        
+        # Extract device information for registration
         computer_name = device_data.get('inventory', {}).get('computer_name', device_id)
         manufacturer = device_data.get('hardware', {}).get('system_manufacturer', 'Unknown')
         model = device_data.get('hardware', {}).get('system_model', 'Unknown')
         
-        # Generate UUID for device_id field, use device_id (serial number) as primary key and serial_number
-        import uuid
-        uuid_device_id = str(uuid.uuid4())
+        # Extract client version from metadata first, then fallback to top-level
+        client_version = '1.0.0'  # Default fallback
+        try:
+            # Primary: Check metadata.clientVersion (ReportMate Windows client format)
+            metadata = device_data.get('metadata', {})
+            if metadata and 'clientVersion' in metadata:
+                client_version = metadata['clientVersion']
+                self.logger.debug(f"Client version extracted from metadata.clientVersion: {client_version}")
+            # Fallback: Check top-level clientVersion
+            elif 'clientVersion' in device_data:
+                client_version = device_data['clientVersion']
+                self.logger.debug(f"Client version extracted from top-level clientVersion: {client_version}")
+        except Exception as e:
+            self.logger.debug(f"Failed to extract client version: {e}, using default")
+            client_version = '1.0.0'
+        
+        self.logger.info(f"🔍 REGISTER DEBUG: Device UUID: {device_uuid}, Serial: {device_id}")
         
         device_record = {
-            'id': device_id,  # This will be the serial number (primary key)
-            'device_id': uuid_device_id,  # This will be the UUID
+            'id': device_id,  # This will be the serial number (primary key for API routing)
+            'device_id': device_uuid,  # This will be the actual device UUID
             'serial_number': device_id,  # This will also be the serial number
             'computer_name': computer_name,
             'manufacturer': manufacturer,
             'model': model,
+            'client_version': client_version,
             'machine_group_id': machine_group['id'],
             'business_unit_id': business_unit['id'],
             'last_seen': datetime.utcnow().isoformat(),

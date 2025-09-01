@@ -502,22 +502,15 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                 'clientVersion': '1.0.0'  # Default version
             }
             
-            # Return device data in the expected nested format for frontend
+            # Return device data in the expected clean format for frontend (matching sample-api.json)
             response_data = {
                 'success': True,
                 'device': {
-                    'id': device_data['id'],  # serial number
-                    'deviceId': device_data['deviceId'],  # UUID
-                    'name': device_data['name'],
+                    'deviceId': device_data['deviceId'],
                     'serialNumber': device_data['serialNumber'],
-                    'os': device_data['os'],
-                    'status': device_data['status'],
                     'lastSeen': device_data['lastSeen'],
-                    'model': device_data.get('model'),
-                    'manufacturer': device_data.get('manufacturer'),
-                    'createdAt': device_data.get('createdAt'),
-                    'updatedAt': device_data.get('updatedAt'),
-                    'modules': modules  # Nest modules under device.modules
+                    'clientVersion': metadata.get('clientVersion', '1.0.0'),
+                    'modules': modules
                 }
             }
             

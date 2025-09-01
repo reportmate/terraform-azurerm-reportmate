@@ -104,6 +104,11 @@ resource "azurerm_container_app" "container_dev" {
         value = "3000"
       }
 
+      env {
+        name  = "REPORTMATE_PASSPHRASE"
+        value = var.client_passphrases
+      }
+
       # Add startup and liveness probes for dev too
       startup_probe {
         transport = "HTTP"
@@ -260,6 +265,16 @@ resource "azurerm_container_app" "container_prod" {
       env {
         name  = "REQUIRE_EMAIL_VERIFICATION"
         value = "false"
+      }
+
+      env {
+        name  = "REPORTMATE_PASSPHRASE"
+        value = var.client_passphrases
+      }
+
+      env {
+        name  = "NEXT_PUBLIC_AUTO_SSO"
+        value = "true"
       }
 
       # Add startup and liveness probes

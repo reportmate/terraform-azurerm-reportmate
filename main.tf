@@ -172,6 +172,9 @@ module "key_vault" {
   # Grant access to managed identity
   managed_identity_principal_id = module.identity.managed_identity_principal_id
 
+  # Grant access to DevOps Resource InfraSec group
+  devops_resource_infrasec_group_object_id = var.devops_resource_infrasec_group_object_id
+
   tags = var.tags
 }
 
@@ -245,6 +248,8 @@ module "containers" {
     nextauth_secret_name = "reportmate-nextauth-secret"
     client_secret_name   = "reportmate-auth-client-secret"
   } : null
+
+  client_passphrases = var.client_passphrases
 
   tags = var.tags
 }

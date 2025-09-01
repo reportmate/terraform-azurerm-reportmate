@@ -55,6 +55,12 @@ variable "managed_identity_principal_id" {
   default     = null
 }
 
+variable "devops_resource_infrasec_group_object_id" {
+  description = "Object ID of the DevOps Resource InfraSec group for Key Vault access"
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)
