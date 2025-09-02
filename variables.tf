@@ -330,3 +330,9 @@ variable "devops_resource_infrasec_group_object_id" {
   description = "Object ID of the DevOps Resource InfraSec group for Key Vault access"
   default     = null
 }
+
+variable "enable_auto_sso" {
+  type        = bool
+  description = "Enable automatic SSO redirect for unauthenticated users"
+  default     = false
+}
