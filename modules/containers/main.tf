@@ -239,12 +239,12 @@ resource "azurerm_container_app" "container_prod" {
       # Authentication non-sensitive environment variables
       env {
         name  = "AZURE_AD_CLIENT_ID"
-        value = "" # Will be set by automation
+        value = "" # Will be configured by automation
       }
 
       env {
         name  = "AZURE_AD_TENANT_ID"
-        value = "" # Will be set by automation
+        value = "" # Will be configured by automation
       }
 
       env {
@@ -268,13 +268,18 @@ resource "azurerm_container_app" "container_prod" {
       }
 
       env {
+        name  = "NEXTAUTH_URL"
+        value = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : "https://reportmate.ecuad.ca"
+      }
+
+      env {
         name  = "REPORTMATE_PASSPHRASE"
         value = var.client_passphrases
       }
 
       env {
         name  = "NEXT_PUBLIC_AUTO_SSO"
-        value = "true"
+        value = "false"
       }
 
       # Add startup and liveness probes

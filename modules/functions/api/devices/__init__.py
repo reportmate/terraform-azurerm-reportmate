@@ -134,26 +134,12 @@ def list_devices_sync():
     except Exception as e:
         logger.error(f"Error listing devices: {e}", exc_info=True)
         
-        # Return mock data
-        mock_devices = [
-            {
-                'deviceId': '0F33V9G25083HJ',
-                'serialNumber': '0F33V9G25083HJ', 
-                'name': 'Rod Christiansen (Fallback)',
-                'os': 'Windows 11',
-                'status': 'active',
-                'lastSeen': datetime.now(timezone.utc).isoformat(),
-                'totalEvents': 1,
-                'lastEventTime': datetime.now(timezone.utc).isoformat(),
-                'modules': {}
-            }
-        ]
-        
+        # NO FALLBACK DATA ALLOWED - Return proper error
         return {
-            'success': True,
-            'devices': mock_devices,
-            'count': len(mock_devices),
-            'warning': f'Using mock data: {str(e)}'
+            'success': False,
+            'error': f'Failed to list devices: {str(e)}',
+            'devices': [],
+            'count': 0
         }
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -170,11 +156,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 json.dumps(result['devices'], indent=2),
                 status_code=200,
                 mimetype="application/json",
-                headers={'X-Data-Source': 'azure-functions-simplified'}
+                headers={'X-Data-Source': 'azure-functions-database'}
             )
         else:
             return func.HttpResponse(
-                json.dumps({'error': 'Failed to get devices'}, indent=2),
+                json.dumps({'error': result.get('error', 'Failed to get devices')}, indent=2),
                 status_code=500,
                 mimetype="application/json"
             )
@@ -182,24 +168,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logger.error(f"Critical error in devices endpoint: {e}", exc_info=True)
         
-        # Emergency fallback
-        mock_response = [
-            {
-                'deviceId': '0F33V9G25083HJ',
-                'serialNumber': '0F33V9G25083HJ',
-                'name': 'Emergency Fallback Device',
-                'os': 'Windows 11',
-                'status': 'active',
-                'lastSeen': datetime.now(timezone.utc).isoformat(),
-                'totalEvents': 0,
-                'lastEventTime': datetime.now(timezone.utc).isoformat(),
-                'modules': {}
-            }
-        ]
-        
+        # NO FALLBACK DATA ALLOWED - Return proper error
         return func.HttpResponse(
-            json.dumps(mock_response, indent=2),
-            status_code=200,
-            mimetype="application/json",
-            headers={'X-Data-Source': 'emergency-fallback'}
+            json.dumps({'error': f'Critical error: {str(e)}'}, indent=2),
+            status_code=500,
+            mimetype="application/json"
         )

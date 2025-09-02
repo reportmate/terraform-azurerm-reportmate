@@ -105,6 +105,18 @@ variable "client_passphrases" {
   sensitive   = true
 }
 
+variable "enable_custom_domain" {
+  type        = bool
+  description = "Enable custom domain configuration"
+  default     = false
+}
+
+variable "custom_domain_name" {
+  type        = string
+  description = "Custom domain name"
+  default     = ""
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to resources"

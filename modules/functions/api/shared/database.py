@@ -57,10 +57,10 @@ class DatabaseManager:
         except ImportError:
             pass
         
-        # If no PostgreSQL drivers available, fall back to mock for Azure Functions
-        logger.warning("🔄 No PostgreSQL drivers available, using mock responses")
-        logger.warning("🔧 This allows the API to respond without database connectivity")
-        self.driver = "mock"
+        # If no PostgreSQL drivers available, FAIL - do not use mock responses
+        logger.error("❌ No PostgreSQL drivers available - database connection required")
+        logger.error("❌ Install psycopg2-binary or asyncpg for database connectivity")
+        raise ImportError("No PostgreSQL drivers available - database connection is required")
     
     def _parse_connection_string(self):
         """Parse connection string into components"""
@@ -81,9 +81,6 @@ class DatabaseManager:
         
         if self.driver == "sqlite":
             return sqlite3.connect(':memory:')
-        
-        elif self.driver == "mock":
-            return MockConnection()
         
         elif self.driver == "psycopg2":
             import psycopg2
