@@ -154,7 +154,7 @@ resource "null_resource" "configure_container_app_auth" {
   }
 
   provisioner "local-exec" {
-    command = "az containerapp update --name reportmate-container-prod --resource-group ${azurerm_resource_group.rg.name} --set-env-vars AZURE_AD_CLIENT_ID=${module.auth.application_id} AZURE_AD_TENANT_ID=${module.auth.tenant_id}"
+    command = "az containerapp update --name reportmate-container-prod --resource-group ${azurerm_resource_group.rg.name} --set-env-vars AZURE_AD_CLIENT_ID=${module.auth.application_id} AZURE_AD_TENANT_ID=${module.auth.tenant_id} AUTH_PROVIDERS=azure-ad DEFAULT_AUTH_PROVIDER=azure-ad ALLOWED_DOMAINS=ecuad.ca REQUIRE_EMAIL_VERIFICATION=false"
   }
 }
 
@@ -251,6 +251,10 @@ module "containers" {
 
   client_passphrases = var.client_passphrases
 
+  # Custom domain configuration
+  enable_custom_domain = var.enable_custom_domain
+  custom_domain_name   = var.custom_domain_name
+
   tags = var.tags
 }
 
@@ -270,6 +274,8 @@ module "networking" {
   # Dependencies
   frontend_fqdn         = module.containers.frontend_fqdn
   function_app_hostname = module.functions.function_app_hostname
+
+  enable_auto_sso = var.enable_auto_sso
 
   tags = var.tags
 }
