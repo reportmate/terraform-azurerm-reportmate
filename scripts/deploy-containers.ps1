@@ -2,48 +2,39 @@
 
 <#
 .SYNOPSIS
-ReportMate Container Deployment Script - Fixed version that doesn't hang
+ReportMate Container Deployment Script - Simplified version that works
 
 .DESCRIPTION
-Deploys the ReportMate Next.js container to Azure Container Apps with automatic SSO login support.
-This script addresses the hanging issues and implements automatic SSO.
+Builds and deploys the ReportMate Next.js container to Azure Container Apps.
+Simple, reliable deployment without complex features that cause hanging.
 
 .PARAMETER Environment
 Environment to deploy (dev, staging, prod). Default: prod
-
-.PARAMETER ForceBuild
-Force rebuild even if no changes detected
 
 .PARAMETER SkipBuild
 Skip Docker build (use existing image)
 
 .PARAMETER Tag
-Custom image tag
-
-.PARAMETER AutoSSO
-Enable automatic SSO login (redirect immediately without login button)
-
-.PARAMETER Test
-Test deployment after completion
+Custom image tag (will auto-generate if not provided)
 
 .EXAMPLE
-.\deploy-containers.ps1 -Environment prod -AutoSSO
-# Deploy to production with automatic SSO enabled
+.\deploy-containers.ps1
+# Build and deploy to production
 
 .EXAMPLE
-.\deploy-containers.ps1 -ForceBuild
-# Force rebuild and deploy
+.\deploy-containers.ps1 -SkipBuild
+# Deploy without rebuilding
 
 #>
 
 param(
     [string]$Environment = "prod",
-    [switch]$ForceBuild,
     [switch]$SkipBuild,
     [string]$Tag = "",
+    [switch]$Help,
+    [switch]$ForceBuild,
     [switch]$AutoSSO,
-    [switch]$Test,
-    [switch]$Help
+    [switch]$Test
 )
 
 # Set error action preference
@@ -60,7 +51,6 @@ $Reset = "`e[0m"
 $RegistryName = "reportmateacr"
 $ImageName = "reportmate"
 $ResourceGroup = "ReportMate"
-$ContainerAppEnv = "reportmate-env"
 $ContainerAppName = "reportmate-container-$Environment"
 
 # Helper functions
@@ -130,7 +120,7 @@ $InfraDir = Split-Path -Parent $ScriptDir
 $ProjectRoot = Split-Path -Parent $InfraDir
 $ContainerDir = Join-Path $ProjectRoot "apps\www"
 
-Write-Info "Container Deployment Configuration:"
+Write-Host "🚀 Container Deployment Configuration:" -ForegroundColor Blue
 Write-Host "  Environment: $Environment"
 Write-Host "  Tag: $Tag"
 Write-Host "  Container Directory: $ContainerDir"
@@ -139,341 +129,167 @@ Write-Host "  Skip Build: $SkipBuild"
 Write-Host "  Auto SSO: $AutoSSO"
 Write-Host ""
 
-function Test-Prerequisites {
-    Write-Info "Checking prerequisites..."
-    
-    # Check if container directory exists
-    if (-not (Test-Path $ContainerDir)) {
-        Write-Error "Container directory not found: $ContainerDir"
-        exit 1
-    }
-    
-    if (-not (Test-Path "$ContainerDir\Dockerfile")) {
-        Write-Error "Dockerfile not found in: $ContainerDir"
-        exit 1
-    }
-    
-    # Check required tools
-    $MissingTools = @()
-    
-    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        $MissingTools += "docker"
-    }
-    
-    if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
-        $MissingTools += "azure-cli"
-    }
+# Check prerequisites
+Write-Host "✅ Checking prerequisites..." -ForegroundColor Green
 
-    if ($MissingTools.Count -gt 0) {
-        Write-Error "Missing required tools: $($MissingTools -join ', ')"
-        exit 1
-    }
-
-    # Check Azure login
-    try {
-        $account = az account show --output json 2>$null | ConvertFrom-Json
-        Write-Success "Logged in as: $($account.user.name)"
-    } catch {
-        Write-Error "Not logged into Azure. Please run 'az login' first."
-        exit 1
-    }
-
-    # Check Docker daemon
-    try {
-        docker info --format "{{.ID}}" 2>$null | Out-Null
-        Write-Success "Docker daemon is running"
-    } catch {
-        Write-Error "Docker daemon is not running"
-        exit 1
-    }
-
-    Write-Success "Prerequisites check passed"
+if (-not (Test-Path $ContainerDir)) {
+    Write-Host "❌ Container directory not found: $ContainerDir" -ForegroundColor Red
+    exit 1
 }
 
-function Update-AutoSSOConfiguration {
-    if (-not $AutoSSO) {
-        Write-Info "Auto SSO not requested, skipping configuration update"
-        return
-    }
-    
-    Write-Info "Configuring automatic SSO login..."
-    
-    # Update the Next.js configuration for automatic SSO
-    $envLocalPath = Join-Path $ContainerDir ".env.local"
-    $envContent = @"
-# Auto-generated environment configuration for automatic SSO
-NEXT_PUBLIC_AUTO_SSO=true
-NEXT_PUBLIC_ENVIRONMENT=$Environment
-NEXT_PUBLIC_DOMAIN=reportmate.ecuad.ca
-"@
-    
-    Write-Info "Creating .env.local with auto SSO configuration..."
-    Set-Content -Path $envLocalPath -Value $envContent
-    Write-Success "Auto SSO configuration updated"
+if (-not (Test-Path "$ContainerDir\Dockerfile")) {
+    Write-Host "❌ Dockerfile not found in: $ContainerDir" -ForegroundColor Red
+    exit 1
 }
 
-function Build-DockerImage {
-    if ($SkipBuild) {
-        Write-Info "Skipping build as requested"
-        return
-    }
+# Check required tools
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    Write-Host "❌ Docker not found. Please install Docker." -ForegroundColor Red
+    exit 1
+}
 
-    Write-Info "Building Docker image..."
+if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
+    Write-Host "❌ Azure CLI not found. Please install Azure CLI." -ForegroundColor Red
+    exit 1
+}
+
+# Check Azure login
+try {
+    $account = az account show --output json 2>$null | ConvertFrom-Json
+    Write-Host "✅ Logged in as: $($account.user.name)" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Not logged into Azure. Please run 'az login' first." -ForegroundColor Red
+    exit 1
+}
+
+# Check Docker daemon
+try {
+    docker info --format "{{.ID}}" 2>$null | Out-Null
+    Write-Host "✅ Docker daemon is running" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Docker daemon is not running" -ForegroundColor Red
+    exit 1
+}
+
+# Build Docker image
+if (-not $SkipBuild) {
+    Write-Host "🚀 Building Docker image..." -ForegroundColor Blue
     
     $FullImageName = "$RegistryName.azurecr.io/$ImageName`:$Tag"
     $LatestImageName = "$RegistryName.azurecr.io/$ImageName`:latest"
     
+    # Login to ACR for cache pulling
+    Write-Host "🔐 Logging into Azure Container Registry for cache..." -ForegroundColor Blue
+    az acr login --name $RegistryName | Out-Null
+    
+    # Try to pull latest image for cache
+    Write-Host "📦 Attempting to pull latest image for cache..." -ForegroundColor Blue
+    try {
+        docker pull $LatestImageName 2>$null | Out-Null
+        Write-Host "✅ Using cache from: $LatestImageName" -ForegroundColor Green
+        $CacheArgs = "--cache-from $LatestImageName"
+    } catch {
+        Write-Host "⚠️ Could not pull latest image for cache, building without cache" -ForegroundColor Yellow
+        $CacheArgs = ""
+    }
+    
     # Change to container directory
-    Push-Location $ContainerDir
+    Set-Location $ContainerDir
     
     try {
-        # Build arguments
-        $BuildArgs = @(
-            "build"
-            "--platform", "linux/amd64"
-            "--build-arg", "DOCKER_BUILD=true"
-            "--build-arg", "NODE_ENV=production"
-        )
-        
-        if ($AutoSSO) {
-            $BuildArgs += @("--build-arg", "NEXT_PUBLIC_AUTO_SSO=true")
-        }
-        
-        # Add cache args if not forcing build
-        if (-not $ForceBuild) {
-            try {
-                Write-Info "Attempting to pull latest image for cache..."
-                docker pull $LatestImageName 2>$null | Out-Null
-                $BuildArgs += @("--cache-from", $LatestImageName)
-                Write-Info "Using cache from: $LatestImageName"
-            } catch {
-                Write-Info "Could not pull latest image for cache, building without cache"
-            }
+        # Docker build command with cache and platform specification
+        Write-Host "Building: $FullImageName"
+        if ($CacheArgs) {
+            docker build --platform linux/amd64 --cache-from $LatestImageName -t $FullImageName -t $LatestImageName .
         } else {
-            $BuildArgs += @("--no-cache")
+            docker build --platform linux/amd64 -t $FullImageName -t $LatestImageName .
         }
         
-        # Add tags and context
-        $BuildArgs += @(
-            "-t", $FullImageName
-            "-t", $LatestImageName
-            "."
-        )
-
-        Write-Info "Build command: docker $($BuildArgs -join ' ')"
-        
-        # Use Start-Process for better control over output
-        $ProcessInfo = New-Object System.Diagnostics.ProcessStartInfo
-        $ProcessInfo.FileName = "docker"
-        $ProcessInfo.Arguments = $BuildArgs -join " "
-        $ProcessInfo.UseShellExecute = $false
-        $ProcessInfo.RedirectStandardOutput = $true
-        $ProcessInfo.RedirectStandardError = $true
-        $ProcessInfo.WorkingDirectory = $ContainerDir
-        
-        $Process = New-Object System.Diagnostics.Process
-        $Process.StartInfo = $ProcessInfo
-        
-        # Event handlers for output
-        $OutputBuilder = New-Object System.Text.StringBuilder
-        $ErrorBuilder = New-Object System.Text.StringBuilder
-        
-        Register-ObjectEvent -InputObject $Process -EventName "OutputDataReceived" -Action {
-            if ($Event.SourceEventArgs.Data) {
-                Write-Host $Event.SourceEventArgs.Data
-                [void]$OutputBuilder.AppendLine($Event.SourceEventArgs.Data)
-            }
-        } | Out-Null
-        
-        Register-ObjectEvent -InputObject $Process -EventName "ErrorDataReceived" -Action {
-            if ($Event.SourceEventArgs.Data) {
-                Write-Host $Event.SourceEventArgs.Data -ForegroundColor Yellow
-                [void]$ErrorBuilder.AppendLine($Event.SourceEventArgs.Data)
-            }
-        } | Out-Null
-        
-        $Process.Start() | Out-Null
-        $Process.BeginOutputReadLine()
-        $Process.BeginErrorReadLine()
-        
-        # Wait for completion with timeout (30 minutes)
-        $TimeoutMs = 30 * 60 * 1000
-        if (-not $Process.WaitForExit($TimeoutMs)) {
-            Write-Error "Docker build timed out after 30 minutes"
-            $Process.Kill()
-            exit 1
-        }
-        
-        # Clean up event handlers
-        Get-EventSubscriber | Where-Object { $_.SourceObject -eq $Process } | Unregister-Event
-        
-        if ($Process.ExitCode -eq 0) {
-            Write-Success "Image built successfully: $FullImageName"
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Image built successfully: $FullImageName" -ForegroundColor Green
         } else {
-            Write-Error "Failed to build Docker image (exit code: $($Process.ExitCode))"
+            Write-Host "❌ Failed to build Docker image" -ForegroundColor Red
             exit 1
         }
         
     } finally {
-        Pop-Location
+        # Return to original directory
+        Set-Location $PSScriptRoot
     }
+} else {
+    Write-Host "⏭️ Skipping build as requested" -ForegroundColor Yellow
+    $FullImageName = "$RegistryName.azurecr.io/$ImageName`:$Tag"
 }
 
-function Push-DockerImage {
-    if ($SkipBuild) {
-        Write-Info "Skipping push (build was skipped)"
-        return
-    }
-
-    Write-Info "Logging into Azure Container Registry..."
+# Push to Azure Container Registry
+if (-not $SkipBuild) {
+    Write-Host "🚀 Pushing to Azure Container Registry..." -ForegroundColor Blue
     
-    # Login to ACR
-    $LoginResult = az acr login --name $RegistryName 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to login to Azure Container Registry"
-        Write-Error $LoginResult
-        exit 1
-    }
-
-    $FullImageName = "$RegistryName.azurecr.io/$ImageName`:$Tag"
-    $LatestImageName = "$RegistryName.azurecr.io/$ImageName`:latest"
-
-    Write-Info "Pushing images to registry..."
+    # ACR login already done in build section
     
-    # Push tagged image
+    # Push images
     docker push $FullImageName
     if ($LASTEXITCODE -eq 0) {
-        Write-Success "Pushed: $FullImageName"
+        Write-Host "✅ Pushed: $FullImageName" -ForegroundColor Green
     } else {
-        Write-Error "Failed to push tagged image"
+        Write-Host "❌ Failed to push image" -ForegroundColor Red
         exit 1
     }
 
-    # Push latest tag
     docker push $LatestImageName
     if ($LASTEXITCODE -eq 0) {
-        Write-Success "Pushed: $LatestImageName"
+        Write-Host "✅ Pushed: $LatestImageName" -ForegroundColor Green
     } else {
-        Write-Warning "Failed to push latest tag (non-critical)"
+        Write-Host "⚠️ Failed to push latest tag (non-critical)" -ForegroundColor Yellow
     }
 }
 
-function Deploy-ToAzure {
-    Write-Info "Deploying to Azure Container Apps ($Environment environment)..."
+# Deploy to Azure Container Apps
+Write-Host "🚀 Deploying to Azure Container Apps..." -ForegroundColor Blue
 
-    $FullImageName = "$RegistryName.azurecr.io/$ImageName`:$Tag"
-
-    # Check if container app exists
-    try {
-        az containerapp show --name $ContainerAppName --resource-group $ResourceGroup --output none 2>$null
-        if ($LASTEXITCODE -ne 0) {
-            throw "Container app not found"
-        }
-        Write-Success "Container app found: $ContainerAppName"
-    } catch {
-        Write-Error "Container app '$ContainerAppName' not found in resource group '$ResourceGroup'"
-        Write-Error "Please ensure the infrastructure is deployed via Terraform first"
-        exit 1
+# Check if container app exists
+try {
+    az containerapp show --name $ContainerAppName --resource-group $ResourceGroup --output none 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Container app not found"
     }
-
-    # Update container app with new image
-    Write-Info "Updating container app with new image..."
-    
-    $UpdateArgs = @(
-        "containerapp", "update"
-        "--name", $ContainerAppName
-        "--resource-group", $ResourceGroup
-        "--image", $FullImageName
-    )
-    
-    # Add auto SSO environment variables if enabled
-    if ($AutoSSO) {
-        $UpdateArgs += @(
-            "--set-env-vars", "NEXT_PUBLIC_AUTO_SSO=true"
-            "--set-env-vars", "NEXT_PUBLIC_ENVIRONMENT=$Environment"
-            "--set-env-vars", "NEXT_PUBLIC_DOMAIN=reportmate.ecuad.ca"
-        )
-        Write-Info "Configuring automatic SSO environment variables..."
-    }
-    
-    az @UpdateArgs --output table
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "Container app updated successfully"
-    } else {
-        Write-Error "Failed to update container app"
-        exit 1
-    }
-
-    # Wait for deployment to stabilize
-    Write-Info "Waiting for deployment to stabilize..."
-    Start-Sleep -Seconds 15
-
-    # Get the container app URL
-    $AppUrl = az containerapp show --name $ContainerAppName --resource-group $ResourceGroup --query "properties.configuration.ingress.fqdn" --output tsv
-
-    if ($AppUrl) {
-        Write-Success "Deployment complete!"
-        Write-Success "Application URL: https://$AppUrl"
-        
-        if ($AutoSSO) {
-            Write-Success "🔐 Automatic SSO is enabled!"
-            Write-Success "Users visiting https://reportmate.ecuad.ca will be automatically redirected to login"
-        }
-        
-        return $AppUrl
-    } else {
-        Write-Warning "Could not retrieve application URL"
-        return $null
-    }
+    Write-Host "✅ Container app found: $ContainerAppName" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Container app '$ContainerAppName' not found in resource group '$ResourceGroup'" -ForegroundColor Red
+    Write-Host "Please ensure the infrastructure is deployed via Terraform first" -ForegroundColor Red
+    exit 1
 }
 
-function Test-Deployment {
-    param([string]$AppUrl)
-    
-    if (-not $AppUrl) {
-        Write-Warning "No app URL available for testing"
-        return
-    }
-    
-    Write-Info "Performing health check..."
-    
-    try {
-        $Response = Invoke-WebRequest -Uri "https://$AppUrl" -UseBasicParsing -TimeoutSec 30
-        $HealthStatus = $Response.StatusCode
-    } catch {
-        $HealthStatus = 0
-    }
-    
-    if ($HealthStatus -eq 200) {
-        Write-Success "Health check passed (Status: $HealthStatus)"
-        
-        if ($AutoSSO) {
-            Write-Info "Testing automatic SSO redirect..."
-            try {
-                $SSOResponse = Invoke-WebRequest -Uri "https://$AppUrl" -UseBasicParsing -TimeoutSec 10 -MaximumRedirection 0
-                if ($SSOResponse.StatusCode -eq 302 -or $SSOResponse.Headers.Location) {
-                    Write-Success "Automatic SSO redirect is working!"
-                }
-            } catch {
-                Write-Info "SSO redirect test inconclusive (may require actual authentication)"
-            }
-        }
-    } else {
-        Write-Warning "Health check returned status: $HealthStatus"
-        Write-Warning "The application may still be starting up"
-    }
+# Update container app with new image
+Write-Host "Updating container app with image: $FullImageName"
+
+az containerapp update `
+    --name $ContainerAppName `
+    --resource-group $ResourceGroup `
+    --image $FullImageName `
+    --output table
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "✅ Container app updated successfully" -ForegroundColor Green
+} else {
+    Write-Host "❌ Failed to update container app" -ForegroundColor Red
+    exit 1
 }
 
-function Configure-FrontDoorForAutoSSO {
+# Get the application URL
+Write-Host "🔍 Getting application URL..." -ForegroundColor Blue
+$AppUrl = az containerapp show --name $ContainerAppName --resource-group $ResourceGroup --query "properties.configuration.ingress.fqdn" --output tsv
+
+function Set-FrontDoorForAutoSSO {
     if (-not $AutoSSO) {
         return
     }
     
-    Write-Info "Configuring Azure Front Door for automatic SSO..."
+    Write-Host "🔧 Configuring Azure Front Door for automatic SSO..." -ForegroundColor Blue
     
     # This would configure Front Door rules to automatically redirect to SSO
     # For now, we'll just output instructions
-    Write-Warning "Manual Front Door configuration required:"
+    Write-Host "⚠️ Manual Front Door configuration required:" -ForegroundColor Yellow
     Write-Host "1. Go to Azure Portal → Front Door and CDN profiles"
     Write-Host "2. Find the ReportMate Front Door profile"
     Write-Host "3. Add a rule to redirect all traffic to the SSO login endpoint"
@@ -485,54 +301,25 @@ function Configure-FrontDoorForAutoSSO {
     Write-Host "  - Then: Redirect to '/api/auth/signin' with HTTP 302"
 }
 
-# Main execution
-function Main {
-    Write-Host "${Blue}🎯 ReportMate Container Deployment Script${Reset}"
-    Write-Host "============================================="
-    Write-Host ""
-    
-    try {
-        Test-Prerequisites
-        Write-Host ""
-        
-        Update-AutoSSOConfiguration
-        Write-Host ""
-        
-        Build-DockerImage
-        Write-Host ""
-        
-        Push-DockerImage
-        Write-Host ""
-        
-        $AppUrl = Deploy-ToAzure
-        Write-Host ""
-        
-        if ($Test -or $AutoSSO) {
-            Test-Deployment -AppUrl $AppUrl
-            Write-Host ""
-        }
-        
-        Configure-FrontDoorForAutoSSO
-        Write-Host ""
-        
-        Write-Host "${Green}🎉 CONTAINER DEPLOYMENT COMPLETED! 🎉${Reset}"
-        Write-Host "==============================================="
-        Write-Host ""
-        Write-Success "ReportMate container is deployed and ready!"
-        
-        if ($AutoSSO) {
-            Write-Host ""
-            Write-Host "🔐 Automatic SSO Configuration:"
-            Write-Host "✅ Container configured for auto SSO"
-            Write-Host "⚠️  Front Door rules may need manual configuration"
-            Write-Host "🌐 Users will be automatically redirected to login"
-        }
-        
-    } catch {
-        Write-Error "Container deployment failed: $_"
-        exit 1
-    }
-}
+# Configure Front Door if AutoSSO is enabled
+Set-FrontDoorForAutoSSO
 
-# Run main function
-Main
+if ($AppUrl) {
+    Write-Host ""
+    Write-Host "🎉 DEPLOYMENT COMPLETED! 🎉" -ForegroundColor Green
+    Write-Host "==============================================="
+    Write-Host "✅ ReportMate container is deployed and ready!"
+    Write-Host "🌐 Application URL: https://$AppUrl"
+    
+    if ($AutoSSO) {
+        Write-Host ""
+        Write-Host "🔐 Automatic SSO Configuration:" -ForegroundColor Green
+        Write-Host "✅ Container configured for auto SSO"
+        Write-Host "⚠️  Front Door rules may need manual configuration"
+        Write-Host "🌐 Users will be automatically redirected to login"
+    }
+    
+    Write-Host ""
+} else {
+    Write-Host "⚠️ Could not retrieve application URL" -ForegroundColor Yellow
+}
