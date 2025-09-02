@@ -120,6 +120,7 @@ resource "azurerm_cdn_frontdoor_route" "main" {
   supported_protocols    = ["Http", "Https"]
 
   cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.main.id]
+  cdn_frontdoor_rule_set_ids      = []
   link_to_default_domain          = false
 }
 

@@ -40,3 +40,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_auto_sso" {
+  description = "Enable automatic SSO redirect for unauthenticated users"
+  type        = bool
+  default     = true
+}

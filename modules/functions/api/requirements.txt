@@ -1,18 +1,1 @@
-# Azure Functions runtime
-azure-functions>=1.18.0
-
-# Database drivers - PostgreSQL connectivity
-# psycopg2-binary>=2.9.0  # Commented out due to Windows ARM compilation issues
-pg8000>=1.29.0
-
-# HTTP client for external requests
-requests==2.31.0
-
-# Date/time utilities
-python-dateutil==2.8.2
-
-# Environment variables and configuration
-python-dotenv==1.0.0
-
-# Type hints support for older Python versions
-typing-extensions==4.9.0
+pg8000>=1.31.2

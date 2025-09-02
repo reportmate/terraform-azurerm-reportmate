@@ -494,13 +494,28 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                 'updatedAt': device_row['updated_at'].isoformat() if device_row.get('updated_at') and hasattr(device_row['updated_at'], 'isoformat') else str(device_row.get('updated_at')) if device_row.get('updated_at') else None
             }
             
-            # Build metadata with the latest collection time from any module
-            metadata = {
-                'deviceId': device_data['deviceId'],
-                'serialNumber': device_data['serialNumber'],
-                'collectedAt': latest_collection_time.isoformat() if hasattr(latest_collection_time, 'isoformat') else str(latest_collection_time) if latest_collection_time else device_data['lastSeen'],
-                'clientVersion': '2025.09.01.1044'  # Latest Windows client version
-            }
+            # Extract clientVersion from collected module data (look across all modules for version info)
+            client_version = None  # No fallback - if not collected, keep empty
+            
+            # Look for version information in module data
+            for module_name, module_data in modules.items():
+                if isinstance(module_data, dict):
+                    # Check for clientVersion in module metadata
+                    if 'clientVersion' in module_data:
+                        client_version = module_data['clientVersion']
+                        break
+                    # Check for version in various formats
+                    elif 'version' in module_data:
+                        client_version = module_data['version']
+                        break
+                    # Check nested metadata
+                    elif 'metadata' in module_data and isinstance(module_data['metadata'], dict):
+                        if 'clientVersion' in module_data['metadata']:
+                            client_version = module_data['metadata']['clientVersion']
+                            break
+                        elif 'version' in module_data['metadata']:
+                            client_version = module_data['metadata']['version']
+                            break
             
             # Return device data in the expected clean format for frontend (matching sample-api.json)
             response_data = {
@@ -509,7 +524,7 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                     'deviceId': device_data['deviceId'],
                     'serialNumber': device_data['serialNumber'],
                     'lastSeen': device_data['lastSeen'],
-                    'clientVersion': metadata.get('clientVersion', '1.0.0'),
+                    'clientVersion': client_version,
                     'modules': modules
                 }
             }
