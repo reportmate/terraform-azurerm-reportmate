@@ -119,7 +119,15 @@ module "auth" {
   app_owners = ["rchristiansen@ecuad.ca"]
   
   # Authorized Groups for Sign-in
-  authorized_groups = ["f4ac6007-f859-4dad-99d7-38dce9eec42d"]
+  authorized_groups = [
+    "f4ac6007-f859-4dad-99d7-38dce9eec42d", # ITS InfraSec Group
+    "0d89e0d3-54f4-4ff2-8619-c785066a5d52", # ITS - Information Security
+    "a5c27dc7-cf4a-48ee-a08b-ea4dc5d9fbc3", # ITS - Service Experience
+    "58f936dd-eabc-45e8-9a8c-9929f62de64e", # ITS - Infrastructure
+    "fbb28dce-f4da-4c3a-826c-6e7a412d859f", # ITS - Enterprise Architecture
+    "8e3719e1-7c1e-43e8-9dd1-af65fd456020", # ITS - Client Services
+    "bd5be335-9d15-4025-a4da-28a7a0e4924c"  # Animation Technicians
+  ]
   
   # Authentication Configuration
   auth_providers        = var.auth_providers

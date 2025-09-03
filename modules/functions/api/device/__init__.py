@@ -524,6 +524,7 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                     'deviceId': device_data['deviceId'],
                     'serialNumber': device_data['serialNumber'],
                     'lastSeen': device_data['lastSeen'],
+                    'createdAt': device_data['createdAt'],  # Registration date
                     'clientVersion': client_version,
                     'modules': modules
                 }
