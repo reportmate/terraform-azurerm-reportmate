@@ -26,7 +26,7 @@ def list_devices_sync():
             logger.warning("Database connection test failed, returning mock data")
             raise Exception("Database connection failed")
         
-        # Simple query to get devices
+        # Simple query to get devices - include created_at for registration date
         query = """
             SELECT 
                 device_id,
@@ -35,8 +35,11 @@ def list_devices_sync():
                 last_seen,
                 created_at
             FROM devices 
+            WHERE serial_number IS NOT NULL 
+              AND serial_number != ''
+              AND serial_number NOT LIKE 'TEST-%'
+              AND serial_number != 'localhost'
             ORDER BY last_seen DESC NULLS LAST
-            LIMIT 10
         """
         
         logger.info("Executing devices query...")
@@ -53,51 +56,62 @@ def list_devices_sync():
             serial_number = row.get('serial_number', 'Unknown Serial')
             os_version = row.get('os_version', 'Unknown OS')
             last_seen = row.get('last_seen')
+            created_at = row.get('created_at')  # Registration date
             
             logger.info(f"Processing device {device_id} ({serial_number})")
             
-            # Try to get device name from inventory
+            # Initialize modules structure and device name
             device_name = serial_number  # Default fallback
+            modules = {}
             
+            # Get all module data for this device to build proper modules structure
             try:
-                inventory_query = """
-                    SELECT module_data 
+                modules_query = """
+                    SELECT module_id, module_data 
                     FROM modules 
-                    WHERE device_id = %s AND module_id = 'inventory'
-                    ORDER BY collected_at DESC
-                    LIMIT 1
+                    WHERE device_id = %s 
+                    ORDER BY module_id, collected_at DESC
                 """
-                inventory_result = db_manager.execute_query(inventory_query, (device_id,))
+                modules_result = db_manager.execute_query(modules_query, (device_id,))
                 
-                if inventory_result:
-                    module_data = inventory_result[0].get('module_data')
-                    if module_data:
-                        if isinstance(module_data, str):
-                            parsed_data = json.loads(module_data)
-                        else:
-                            parsed_data = module_data
-                            
-                        # Look for device name in inventory data
-                        if 'inventory' in parsed_data:
-                            inventory = parsed_data['inventory']
-                            device_name = (
-                                inventory.get('deviceName') or 
-                                inventory.get('computerName') or 
-                                inventory.get('hostname') or 
-                                serial_number
-                            )
-                            logger.info(f"Found device name: {device_name}")
-                        else:
-                            # Try root level deviceName
-                            device_name = (
-                                parsed_data.get('deviceName') or
-                                parsed_data.get('computerName') or
-                                parsed_data.get('hostname') or
-                                serial_number
-                            )
+                if modules_result:
+                    # Group by module_id and take the latest data for each module
+                    modules_by_id = {}
+                    for module_row in modules_result:
+                        module_id = module_row.get('module_id')
+                        module_data = module_row.get('module_data')
+                        
+                        if module_id and module_id not in modules_by_id:
+                            try:
+                                if isinstance(module_data, str):
+                                    parsed_data = json.loads(module_data)
+                                else:
+                                    parsed_data = module_data
+                                
+                                # Store the actual module content (not wrapped in another object)
+                                if isinstance(parsed_data, dict) and module_id in parsed_data:
+                                    modules_by_id[module_id] = parsed_data[module_id]
+                                else:
+                                    modules_by_id[module_id] = parsed_data
+                                    
+                            except Exception as parse_error:
+                                logger.warning(f"Failed to parse {module_id} data for {device_id}: {parse_error}")
+                    
+                    modules = modules_by_id
+                    
+                    # Extract device name from inventory module if available
+                    if 'inventory' in modules:
+                        inventory = modules['inventory']
+                        device_name = (
+                            inventory.get('deviceName') or 
+                            inventory.get('computerName') or 
+                            inventory.get('hostname') or 
+                            serial_number
+                        )
+                        logger.info(f"Found device name from inventory: {device_name}")
                         
             except Exception as e:
-                logger.warning(f"Could not get inventory for {device_id}: {e}")
+                logger.warning(f"Could not get modules for {device_id}: {e}")
             
             # Calculate status
             status = 'active'
@@ -110,6 +124,19 @@ def list_devices_sync():
             else:
                 status = 'missing'
             
+            # Get event count for this device
+            try:
+                event_count_query = """
+                    SELECT COUNT(*) as event_count 
+                    FROM events 
+                    WHERE device_id = %s
+                """
+                event_result = db_manager.execute_query(event_count_query, (device_id,))
+                total_events = event_result[0].get('event_count', 0) if event_result else 0
+            except Exception as e:
+                logger.warning(f"Could not get event count for {device_id}: {e}")
+                total_events = 0
+            
             device = {
                 'deviceId': device_id,
                 'serialNumber': serial_number,
@@ -117,12 +144,13 @@ def list_devices_sync():
                 'os': os_version,
                 'status': status,
                 'lastSeen': last_seen.isoformat() if last_seen else None,
-                'totalEvents': 0,
+                'createdAt': created_at.isoformat() if created_at else None,  # Registration date
+                'totalEvents': total_events,
                 'lastEventTime': last_seen.isoformat() if last_seen else None,
-                'modules': {}
+                'modules': modules  # Include full modules structure
             }
             devices.append(device)
-            logger.info(f"Added device: {device['name']}")
+            logger.info(f"Added device: {device['name']} with {len(modules)} modules and {total_events} events")
         
         logger.info(f"Successfully processed {len(devices)} devices")
         return {

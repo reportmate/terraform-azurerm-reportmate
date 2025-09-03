@@ -27,9 +27,9 @@ resource "azurerm_cdn_frontdoor_origin_group" "main" {
 
   health_probe {
     interval_in_seconds = 30
-    path                = "/"
+    path                = "/api/healthz"
     protocol            = "Https"
-    request_type        = "GET"
+    request_type        = "HEAD"
   }
 }
 
@@ -47,9 +47,9 @@ resource "azurerm_cdn_frontdoor_origin_group" "api" {
 
   health_probe {
     interval_in_seconds = 30
-    path                = "/api/health"
+    path                = "/api/healthz"
     protocol            = "Https"
-    request_type        = "GET"
+    request_type        = "HEAD"
   }
 }
 

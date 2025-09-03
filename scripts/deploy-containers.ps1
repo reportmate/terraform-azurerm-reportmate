@@ -112,6 +112,18 @@ if (-not $Tag) {
         $GitHash = "unknown"
     }
     $Tag = "$(Get-Date -Format 'yyyyMMddHHmmss')-$GitHash"
+} else {
+    # Extract git hash from existing tag if possible, or get current hash
+    try {
+        if ($Tag -match '-([a-f0-9]+)$') {
+            $GitHash = $matches[1]
+        } else {
+            $GitHash = git rev-parse --short HEAD 2>$null
+            if (-not $GitHash) { $GitHash = "unknown" }
+        }
+    } catch {
+        $GitHash = "unknown"
+    }
 }
 
 # Find the project root directory
@@ -199,10 +211,17 @@ if (-not $SkipBuild) {
     try {
         # Docker build command with cache and platform specification
         Write-Host "Building: $FullImageName"
+        $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        $BuildArgs = @(
+            "--build-arg", "IMAGE_TAG=$Tag"
+            "--build-arg", "BUILD_TIME=$BuildTime"
+            "--build-arg", "BUILD_ID=$GitHash"
+        )
+        
         if ($CacheArgs) {
-            docker build --platform linux/amd64 --cache-from $LatestImageName -t $FullImageName -t $LatestImageName .
+            docker build --platform linux/amd64 $BuildArgs --cache-from $LatestImageName -t $FullImageName -t $LatestImageName .
         } else {
-            docker build --platform linux/amd64 -t $FullImageName -t $LatestImageName .
+            docker build --platform linux/amd64 $BuildArgs -t $FullImageName -t $LatestImageName .
         }
         
         if ($LASTEXITCODE -eq 0) {
