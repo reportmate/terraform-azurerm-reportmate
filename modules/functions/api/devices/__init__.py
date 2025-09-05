@@ -1,5 +1,13 @@
 """
-Devices List Endpoint for ReportMate - SIMPLIFIED VERSION
+Devices List Endpoint for ReportMate - ULTRA-FAST VERSION
+Returns basic device summaries only. For full device details (modules, events, etc.), 
+use the single device endpoint (/device/{id}).
+
+Performance optimizations:
+- Single bulk query for device names 
+- Removes per-device module counting
+- Removes per-device event counting
+- Uses PostgreSQL JSONB queries for faster name extraction
 """
 import logging
 import json
@@ -16,17 +24,17 @@ from shared.database import SyncDatabaseManager
 logger = logging.getLogger(__name__)
 
 def list_devices_sync():
-    """List devices using sync database connection with enhanced device names"""
+    """List devices using MINIMAL queries for performance"""
     try:
-        logger.info("Starting devices list query")
+        logger.info("Starting FAST devices list query")
         db_manager = SyncDatabaseManager()
         
         # Test database connection first
         if not db_manager.test_connection():
-            logger.warning("Database connection test failed, returning mock data")
+            logger.warning("Database connection test failed")
             raise Exception("Database connection failed")
         
-        # Simple query to get devices - include created_at for registration date
+        # ULTRA-FAST: Get basic device info only
         query = """
             SELECT 
                 device_id,
@@ -42,7 +50,7 @@ def list_devices_sync():
             ORDER BY last_seen DESC NULLS LAST
         """
         
-        logger.info("Executing devices query...")
+        logger.info("Executing FAST devices query...")
         devices_raw = db_manager.execute_query(query)
         logger.info(f"Got {len(devices_raw)} raw device records")
         
@@ -50,70 +58,54 @@ def list_devices_sync():
             logger.warning("No devices found in database")
             raise Exception("No devices found")
         
+        # FAST: Get all device names in ONE query using bulk lookup
+        device_ids = [row.get('device_id') for row in devices_raw]
+        device_names = {}
+        
+        try:
+            # Bulk query for device names from inventory
+            if device_ids:
+                placeholders = ','.join(['%s'] * len(device_ids))
+                bulk_inventory_query = f"""
+                    SELECT DISTINCT ON (device_id) 
+                        device_id,
+                        data->'deviceName' as device_name,
+                        data->'computerName' as computer_name,
+                        data->'hostname' as hostname
+                    FROM inventory 
+                    WHERE device_id IN ({placeholders})
+                    ORDER BY device_id, collected_at DESC
+                """
+                inventory_results = db_manager.execute_query(bulk_inventory_query, device_ids)
+                
+                for result in inventory_results:
+                    device_id = result.get('device_id')
+                    name = (
+                        result.get('device_name') or 
+                        result.get('computer_name') or 
+                        result.get('hostname') or 
+                        device_id
+                    )
+                    if name and name != 'null':
+                        device_names[device_id] = name
+                        
+                logger.info(f"Bulk loaded {len(device_names)} device names")
+        except Exception as e:
+            logger.warning(f"Bulk device name lookup failed: {e}")
+        
+        # FAST: Process devices with minimal computation
         devices = []
         for row in devices_raw:
             device_id = row.get('device_id', 'unknown')
             serial_number = row.get('serial_number', 'Unknown Serial')
             os_version = row.get('os_version', 'Unknown OS')
             last_seen = row.get('last_seen')
-            created_at = row.get('created_at')  # Registration date
+            created_at = row.get('created_at')
             
-            logger.info(f"Processing device {device_id} ({serial_number})")
+            # Use bulk-loaded name or fallback
+            device_name = device_names.get(device_id, serial_number)
             
-            # Initialize modules structure and device name
-            device_name = serial_number  # Default fallback
-            modules = {}
-            
-            # Get all module data for this device to build proper modules structure
-            try:
-                modules_query = """
-                    SELECT module_id, module_data 
-                    FROM modules 
-                    WHERE device_id = %s 
-                    ORDER BY module_id, collected_at DESC
-                """
-                modules_result = db_manager.execute_query(modules_query, (device_id,))
-                
-                if modules_result:
-                    # Group by module_id and take the latest data for each module
-                    modules_by_id = {}
-                    for module_row in modules_result:
-                        module_id = module_row.get('module_id')
-                        module_data = module_row.get('module_data')
-                        
-                        if module_id and module_id not in modules_by_id:
-                            try:
-                                if isinstance(module_data, str):
-                                    parsed_data = json.loads(module_data)
-                                else:
-                                    parsed_data = module_data
-                                
-                                # Store the actual module content (not wrapped in another object)
-                                if isinstance(parsed_data, dict) and module_id in parsed_data:
-                                    modules_by_id[module_id] = parsed_data[module_id]
-                                else:
-                                    modules_by_id[module_id] = parsed_data
-                                    
-                            except Exception as parse_error:
-                                logger.warning(f"Failed to parse {module_id} data for {device_id}: {parse_error}")
-                    
-                    modules = modules_by_id
-                    
-                    # Extract device name from inventory module if available
-                    if 'inventory' in modules:
-                        inventory = modules['inventory']
-                        device_name = (
-                            inventory.get('deviceName') or 
-                            inventory.get('computerName') or 
-                            inventory.get('hostname') or 
-                            serial_number
-                        )
-                        logger.info(f"Found device name from inventory: {device_name}")
-                        
-            except Exception as e:
-                logger.warning(f"Could not get modules for {device_id}: {e}")
-            
-            # Calculate status
+            # FAST: Simple status calculation
             status = 'active'
             if last_seen:
                 hours_ago = (datetime.now(timezone.utc) - last_seen.replace(tzinfo=timezone.utc)).total_seconds() / 3600
@@ -124,19 +116,6 @@ def list_devices_sync():
             else:
                 status = 'missing'
             
-            # Get event count for this device
-            try:
-                event_count_query = """
-                    SELECT COUNT(*) as event_count 
-                    FROM events 
-                    WHERE device_id = %s
-                """
-                event_result = db_manager.execute_query(event_count_query, (device_id,))
-                total_events = event_result[0].get('event_count', 0) if event_result else 0
-            except Exception as e:
-                logger.warning(f"Could not get event count for {device_id}: {e}")
-                total_events = 0
-            
             device = {
                 'deviceId': device_id,
                 'serialNumber': serial_number,
@@ -144,15 +123,16 @@ def list_devices_sync():
                 'os': os_version,
                 'status': status,
                 'lastSeen': last_seen.isoformat() if last_seen else None,
-                'createdAt': created_at.isoformat() if created_at else None,  # Registration date
-                'totalEvents': total_events,
-                'lastEventTime': last_seen.isoformat() if last_seen else None,
-                'modules': modules  # Include full modules structure
+                'createdAt': created_at.isoformat() if created_at else None,
+                # Removed heavy computations:
+                # - No individual module counts (use single device endpoint for details)
+                # - No event counts (use single device endpoint for details)
+                # - No module availability checks (use single device endpoint for details)
+                'hasData': True  # Simple flag indicating device has data
             }
             devices.append(device)
-            logger.info(f"Added device: {device['name']} with {len(modules)} modules and {total_events} events")
         
-        logger.info(f"Successfully processed {len(devices)} devices")
+        logger.info(f"FAST processing completed for {len(devices)} devices")
         return {
             'success': True,
             'devices': devices,
@@ -162,7 +142,6 @@ def list_devices_sync():
     except Exception as e:
         logger.error(f"Error listing devices: {e}", exc_info=True)
         
-        # NO FALLBACK DATA ALLOWED - Return proper error
         return {
             'success': False,
             'error': f'Failed to list devices: {str(e)}',

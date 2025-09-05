@@ -242,17 +242,56 @@ class DatabaseManager:
                 # 3. STORE EVENTS DATA
                 events = unified_payload.get('Events', []) or unified_payload.get('events', [])
                 
+                # DEBUG: Log what events were found in the payload
+                logger.info(f"Found {len(events)} events in payload for device {serial_number}")
+                logger.info(f"Payload Events key exists: {bool(unified_payload.get('Events'))}")
+                logger.info(f"Payload events key exists: {bool(unified_payload.get('events'))}")
+                
                 if events:
+                    logger.info(f"Processing {len(events)} events for device {serial_number}")
+                    
                     for event in events:
-                        event_type = event.get('eventType', 'info').lower()
-                        message = event.get('message', 'Event logged')
-                        details = json.dumps(event.get('details', {}))
-                        timestamp = event.get('timestamp', collected_at)
-                        module_id = event.get('moduleId', 'unknown')
+                        # DEBUG: Log the actual event structure to identify the issue
+                        logger.info(f"Processing event: {json.dumps(event, indent=2)}")
+                        
+                        # Try multiple field name variations to handle casing issues
+                        event_type = (
+                            event.get('eventType') or 
+                            event.get('EventType') or 
+                            event.get('event_type') or 
+                            'info'
+                        ).lower()
+                        
+                        message = (
+                            event.get('message') or 
+                            event.get('Message') or 
+                            'Event logged'
+                        )
+                        
+                        details = json.dumps(
+                            event.get('details') or 
+                            event.get('Details') or 
+                            {}
+                        )
+                        
+                        timestamp = (
+                            event.get('timestamp') or 
+                            event.get('Timestamp') or 
+                            collected_at
+                        )
+                        
+                        module_id = (
+                            event.get('moduleId') or 
+                            event.get('ModuleId') or 
+                            event.get('module_id') or 
+                            'unknown'
+                        )
+                        
+                        logger.info(f"Event processed - Type: '{event_type}', Module: '{module_id}', Message: '{message}'")
                         
                         # Validate event type
                         if event_type not in ['success', 'warning', 'error', 'info']:
-                            logger.warning(f"Invalid event type '{event_type}', defaulting to 'info'")
+                            logger.warning(f"Invalid event type '{event_type}' from device {serial_number}, defaulting to 'info'")
                             event_type = 'info'
                         
                         # Add moduleId to event details for filtering
@@ -274,26 +313,38 @@ class DatabaseManager:
                         
                     logger.info(f"✅ Stored {events_stored} events for device {serial_number}")
                 else:
-                    # Fallback: store a generic data collection event if no specific events
-                    event_type = 'info'
-                    message = f"Data collection completed for {len(modules_processed)} modules"
-                    details = json.dumps({
-                        'modules': modules_processed, 
-                        'collection_type': 'routine',
-                        'module_id': 'system'
-                    })
+                    # DEBUG: Explain why no events were processed
+                    logger.warning(f"No events found in payload for device {serial_number}")
+                    logger.warning(f"Events array was empty or missing. Payload keys: {list(unified_payload.keys())}")
                     
-                    if self.driver == "sqlite":
-                        cursor.execute(
-                            "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (?, ?, ?, ?, ?)",
-                            (serial_number, event_type, message, details, collected_at)
-                        )
+                    # Only create fallback event if no modules were processed either
+                    # This prevents overriding actual module events with generic info events
+                    if not modules_processed:
+                        logger.info(f"Creating fallback event for device {serial_number} - no modules or events processed")
+                        # Fallback: store a generic data collection event if no specific events
+                        event_type = 'info'
+                        message = f"Data collection completed but no modules processed"
+                        details = json.dumps({
+                            'modules': modules_processed, 
+                            'collection_type': 'fallback',
+                            'module_id': 'system',
+                            'reason': 'no_events_or_modules'
+                        })
+                        
+                        if self.driver == "sqlite":
+                            cursor.execute(
+                                "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (?, ?, ?, ?, ?)",
+                                (serial_number, event_type, message, details, collected_at)
+                            )
+                        else:
+                            cursor.execute(
+                                "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (%s, %s, %s, %s, %s)",
+                                (serial_number, event_type, message, details, collected_at)
+                            )
+                        events_stored = 1
+                        logger.info(f"✅ Stored fallback event for device {serial_number}")
                     else:
-                        cursor.execute(
-                            "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (%s, %s, %s, %s, %s)",
-                            (serial_number, event_type, message, details, collected_at)
-                        )
-                    events_stored = 1
+                        logger.info(f"Skipping fallback event for device {serial_number} - modules were processed, events should have been generated")
                     logger.info(f"✅ Stored fallback data collection event for device {serial_number}")
                 
                 return {
