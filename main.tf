@@ -112,7 +112,7 @@ module "auth" {
   
   # Security Settings
   app_role_assignment_required = var.environment == "prod" ? true : false
-  grant_admin_consent         = var.environment == "dev" ? true : false  # Auto-consent only in dev
+  grant_admin_consent         = true  # Grant admin consent for all environments
   sign_in_audience           = var.auth_sign_in_audience
   
   # App Ownership
