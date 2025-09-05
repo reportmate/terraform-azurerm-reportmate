@@ -346,10 +346,10 @@ async def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
                         """
                         result = fallback_db.execute_query(update_query, (serial_number, serial_number))
                         
-                        # Also create a basic event for tracking
+                        # Also create a basic event for tracking - but mark it clearly as a fallback
                         event_insert = """
                             INSERT INTO events (device_id, event_type, message, timestamp, created_at)
-                            VALUES (%s, 'info', 'Data transmission received (module processing failed)', NOW(), NOW())
+                            VALUES (%s, 'warning', 'Data transmission received but module processing failed', NOW(), NOW())
                         """
                         fallback_db.execute_query(event_insert, (serial_number,))
                         
