@@ -10,12 +10,24 @@ import sys
 logger = logging.getLogger(__name__)
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
-    """Debug endpoint to check database connection and environment"""
+    """Debug endpoint - SECURED - Internal use only"""
+    
+    # SECURITY: Check for debug authorization
+    auth_header = req.headers.get('X-Debug-Auth')
+    expected_auth = os.getenv('DEBUG_AUTH_TOKEN')
+    
+    if not auth_header or not expected_auth or auth_header != expected_auth:
+        logger.warning("Unauthorized debug endpoint access attempt")
+        return func.HttpResponse(
+            json.dumps({'error': 'Debug endpoint disabled for security'}),
+            status_code=403,
+            mimetype="application/json"
+        )
     
     try:
-        logger.info("Debug endpoint called")
+        logger.info("Authorized debug endpoint access")
         
-        # Check environment variables
+        # Check environment variables (WITHOUT exposing values)
         database_url = os.getenv('DATABASE_URL')
         database_connection_string = os.getenv('DATABASE_CONNECTION_STRING')
         client_passphrases = os.getenv('CLIENT_PASSPHRASES')
@@ -64,7 +76,6 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 'CLIENT_PASSPHRASES': 'SET' if client_passphrases else 'NOT SET',
                 'FUNCTIONS_WORKER_RUNTIME': functions_worker_runtime or 'NOT SET'
             },
-            'database_url_preview': database_url[:50] + '...' if database_url else 'None',
             'available_drivers': available_drivers,
             'import_errors': import_errors,
             'database_connection_test': connection_test,
