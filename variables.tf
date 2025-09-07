@@ -1,129 +1,20 @@
-# =================================================================
-# REQUIRED VARIABLES
-# =================================================================
-
-variable "resource_group_name" {
-  type        = string
-  description = "Name of the Azure resource group to create"
-}
-
-variable "location" {
-  type        = string
-  description = "Azure region where resources will be deployed"
+### PostgreSQL
+variable "db_username" {
+  type    = string
+  default = "reportmate"
 }
 
 variable "db_password" {
-  type        = string
-  description = "PostgreSQL administrator password"
-  sensitive   = true
-}
-
-# =================================================================
-# OPTIONAL VARIABLES
-# =================================================================
-
-# Subscription Configuration
-variable "subscription_id" {
-  type        = string
-  description = "Azure subscription ID"
-  default     = null
-}
-
-# Database Configuration
-variable "db_username" {
-  type        = string
-  description = "PostgreSQL administrator username"
-  default     = "reportmate"
-}
-
-variable "db_name" {
-  type        = string
-  description = "Name of the PostgreSQL database"
-  default     = "reportmate"
-}
-
-variable "db_sku_name" {
-  type        = string
-  description = "PostgreSQL SKU name"
-  default     = "B_Standard_B1ms"
-}
-
-variable "db_storage_mb" {
-  type        = number
-  description = "PostgreSQL storage size in MB"
-  default     = 32768
+  type      = string
+  sensitive = true
 }
 
 variable "allowed_ips" {
-  type        = list(string)
-  description = "List of IP addresses allowed to access the database"
-  default     = ["0.0.0.0/0"]
+  type    = list(string)
+  default = ["0.0.0.0/0"]
 }
 
-# Storage Configuration
-variable "storage_account_name" {
-  type        = string
-  description = "Name of the storage account (will be made globally unique)"
-  default     = "reportmatestorage"
-}
-
-variable "storage_tier" {
-  type        = string
-  description = "Storage account tier"
-  default     = "Standard"
-}
-
-variable "storage_replication" {
-  type        = string
-  description = "Storage account replication type"
-  default     = "LRS"
-}
-
-# Messaging Configuration
-variable "web_pubsub_name" {
-  type        = string
-  description = "Name of the Web PubSub service"
-  default     = "reportmate-signalr"
-}
-
-variable "web_pubsub_sku" {
-  type        = string
-  description = "Web PubSub SKU"
-  default     = "Standard_S1"
-}
-
-# Monitoring Configuration
-variable "app_insights_name" {
-  type        = string
-  description = "Name of the Application Insights instance"
-  default     = "reportmate-app-insights"
-}
-
-variable "log_analytics_name" {
-  type        = string
-  description = "Name of the Log Analytics workspace"
-  default     = "reportmate-logs"
-}
-
-variable "log_retention_days" {
-  type        = number
-  description = "Log retention period in days"
-  default     = 30
-}
-
-variable "app_insights_daily_cap" {
-  type        = number
-  description = "Application Insights daily data cap in GB"
-  default     = 10
-}
-
-# Identity Configuration
-variable "managed_identity_name" {
-  type        = string
-  description = "Name of the user-assigned managed identity"
-  default     = "reportmate-identity"
-}
-
+### Pipeline Permissions
 variable "enable_pipeline_permissions" {
   type        = bool
   description = "Enable RBAC permissions for Azure DevOps pipeline service principal"
@@ -136,45 +27,43 @@ variable "pipeline_service_principal_id" {
   default     = ""
 }
 
-# Functions Configuration
-variable "function_app_name" {
+### Client Authentication
+variable "client_passphrases" {
   type        = string
-  description = "Name of the Azure Function App"
-  default     = "reportmate-api"
+  description = "Comma-separated list of client passphrases for restricted access. If set, only clients with valid passphrases can report data. This is the legacy global passphrase method."
+  default     = ""
+  sensitive   = true
 }
 
-variable "service_plan_name" {
-  type        = string
-  description = "Name of the App Service Plan"
-  default     = "reportmate-functions"
-}
-
-variable "python_version" {
-  type        = string
-  description = "Python version for Azure Functions"
-  default     = "3.12"
-}
-
-# Container Configuration
-variable "container_registry_name" {
-  type        = string
-  description = "Name of the Azure Container Registry (will be made globally unique)"
-  default     = "reportmateacr"
-}
-
-variable "use_custom_registry" {
+variable "enable_machine_groups" {
   type        = bool
-  description = "Whether to use a custom container registry instead of the public GitHub registry"
+  description = "Enable per-machine-group passphrase authentication. When enabled, each machine group has its own unique passphrase stored in the database."
   default     = false
 }
 
-variable "container_image" {
-  type        = string
-  description = "Container image to deploy for the web application"
-  default     = "ghcr.io/reportmate/reportmate-app-web:latest"
+variable "enable_business_units" {
+  type        = bool
+  description = "Enable business units for organizational access control and machine group management."
+  default     = false
 }
 
-# Environment Configuration
+### remote-state backend (override in CLI or tfvars)
+variable "backend_rg_name" {
+  type    = string
+  default = "tfstate-rg"
+}
+
+variable "backend_sa_name" {
+  type    = string
+  default = "tfstatestorage"
+}
+
+variable "backend_container_name" {
+  type    = string
+  default = "tfstate"
+}
+
+### Environment Configuration
 variable "environment" {
   type        = string
   description = "Deployment environment (dev, prod, or both)"
@@ -197,142 +86,15 @@ variable "deploy_prod" {
   default     = true
 }
 
-# Networking Configuration
-variable "enable_custom_domain" {
-  type        = bool
-  description = "Enable custom domain configuration with Azure Front Door"
-  default     = false
-}
-
+### Custom Domain Configuration
 variable "custom_domain_name" {
   type        = string
-  description = "Custom domain name for the frontend (e.g., reportmate.example.com)"
+  description = "Custom domain name for the frontend (e.g., reportmate.ecuad.ca)"
   default     = ""
 }
 
-variable "frontdoor_name" {
-  type        = string
-  description = "Name of the Azure Front Door profile"
-  default     = "reportmate-frontdoor"
-}
-
-# Client Authentication Configuration
-variable "client_passphrases" {
-  type        = string
-  description = "Comma-separated list of client passphrases for restricted access"
-  default     = ""
-  sensitive   = true
-}
-
-variable "api_key" {
-  type        = string
-  description = "API key for client authentication with the ReportMate API"
-  default     = ""
-  sensitive   = true
-}
-
-variable "enable_machine_groups" {
+variable "enable_custom_domain" {
   type        = bool
-  description = "Enable per-machine-group passphrase authentication"
-  default     = false
-}
-
-variable "enable_business_units" {
-  type        = bool
-  description = "Enable business units for organizational access control"
-  default     = false
-}
-
-# Tags
-variable "tags" {
-  type        = map(string)
-  description = "A map of tags to assign to the resources"
-  default = {
-    Environment = "production"
-    Project     = "ReportMate"
-    ManagedBy   = "Terraform"
-  }
-}
-
-# =================================================================
-# AUTHENTICATION CONFIGURATION
-# =================================================================
-
-variable "auth_sign_in_audience" {
-  type        = string
-  description = "Who can sign in to the application"
-  default     = "AzureADMyOrg"
-  validation {
-    condition = contains([
-      "AzureADMyOrg",
-      "AzureADMultipleOrgs", 
-      "AzureADandPersonalMicrosoftAccount",
-      "PersonalMicrosoftAccount"
-    ], var.auth_sign_in_audience)
-    error_message = "Sign in audience must be one of: AzureADMyOrg, AzureADMultipleOrgs, AzureADandPersonalMicrosoftAccount, PersonalMicrosoftAccount."
-  }
-}
-
-variable "auth_providers" {
-  type        = list(string)
-  description = "List of enabled authentication providers"
-  default     = ["azure-ad"]
-  validation {
-    condition = alltrue([
-      for provider in var.auth_providers : contains([
-        "azure-ad",
-        "google", 
-        "credentials"
-      ], provider)
-    ])
-    error_message = "Auth providers must be one of: azure-ad, google, credentials."
-  }
-}
-
-variable "default_auth_provider" {
-  type        = string
-  description = "Default authentication provider"
-  default     = "azure-ad"
-}
-
-variable "allowed_auth_domains" {
-  type        = list(string)
-  description = "List of allowed email domains for authentication"
-  default     = ["ecuad.ca"]
-}
-
-variable "require_email_verification" {
-  type        = bool
-  description = "Whether to require email verification for certain providers"
-  default     = false
-}
-
-variable "auth_client_secret_expiry" {
-  type        = string
-  description = "Expiry date for the Azure AD client secret (RFC3339 format)"
-  default     = null
-}
-
-variable "enable_key_vault" {
-  type        = bool
-  description = "Enable Azure Key Vault for secure secret storage"
-  default     = true
-}
-
-variable "key_vault_name" {
-  type        = string
-  description = "Name of the Azure Key Vault for secret storage"
-  default     = "reportmate-kv"
-}
-
-variable "devops_resource_infrasec_group_object_id" {
-  type        = string
-  description = "Object ID of the DevOps Resource InfraSec group for Key Vault access"
-  default     = null
-}
-
-variable "enable_auto_sso" {
-  type        = bool
-  description = "Enable automatic SSO redirect for unauthenticated users"
+  description = "Enable custom domain configuration"
   default     = false
 }
