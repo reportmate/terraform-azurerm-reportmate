@@ -479,11 +479,11 @@ class DeviceDataProcessor:
         
         # Extract device information for registration
         computer_name = device_data.get('inventory', {}).get('computer_name', device_id)
-        manufacturer = device_data.get('hardware', {}).get('system_manufacturer', 'Unknown')
-        model = device_data.get('hardware', {}).get('system_model', 'Unknown')
+        manufacturer = device_data.get('hardware', {}).get('system_manufacturer')
+        model = device_data.get('hardware', {}).get('system_model')
         
         # Extract client version from metadata first, then fallback to top-level
-        client_version = '1.0.0'  # Default fallback
+        client_version = None
         try:
             # Primary: Check metadata.clientVersion (ReportMate Windows client format)
             metadata = device_data.get('metadata', {})
@@ -495,8 +495,8 @@ class DeviceDataProcessor:
                 client_version = device_data['clientVersion']
                 self.logger.debug(f"Client version extracted from top-level clientVersion: {client_version}")
         except Exception as e:
-            self.logger.debug(f"Failed to extract client version: {e}, using default")
-            client_version = '1.0.0'
+            self.logger.debug(f"Failed to extract client version: {e}, leaving empty")
+            client_version = None
         
         self.logger.info(f"🔍 REGISTER DEBUG: Device UUID: {device_uuid}, Serial: {device_id}")
         
