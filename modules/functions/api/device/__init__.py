@@ -396,7 +396,7 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
             device_query = """
                 SELECT 
                     id, device_id, name, serial_number, os, status, last_seen, 
-                    model, manufacturer, created_at, updated_at
+                    model, manufacturer, client_version, created_at, updated_at
                 FROM devices 
                 WHERE id = %s OR serial_number = %s
                 LIMIT 1
@@ -490,32 +490,10 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                 'lastSeen': last_seen_time.isoformat() if hasattr(last_seen_time, 'isoformat') else str(last_seen_time) if last_seen_time else None,
                 'model': device_row.get('model'),
                 'manufacturer': device_row.get('manufacturer'),
+                'clientVersion': device_row.get('client_version'),  # Get from database, no fallback
                 'createdAt': device_row['created_at'].isoformat() if device_row.get('created_at') and hasattr(device_row['created_at'], 'isoformat') else str(device_row.get('created_at')) if device_row.get('created_at') else None,
                 'updatedAt': device_row['updated_at'].isoformat() if device_row.get('updated_at') and hasattr(device_row['updated_at'], 'isoformat') else str(device_row.get('updated_at')) if device_row.get('updated_at') else None
             }
-            
-            # Extract clientVersion from collected module data (look across all modules for version info)
-            client_version = None  # No fallback - if not collected, keep empty
-            
-            # Look for version information in module data
-            for module_name, module_data in modules.items():
-                if isinstance(module_data, dict):
-                    # Check for clientVersion in module metadata
-                    if 'clientVersion' in module_data:
-                        client_version = module_data['clientVersion']
-                        break
-                    # Check for version in various formats
-                    elif 'version' in module_data:
-                        client_version = module_data['version']
-                        break
-                    # Check nested metadata
-                    elif 'metadata' in module_data and isinstance(module_data['metadata'], dict):
-                        if 'clientVersion' in module_data['metadata']:
-                            client_version = module_data['metadata']['clientVersion']
-                            break
-                        elif 'version' in module_data['metadata']:
-                            client_version = module_data['metadata']['version']
-                            break
             
             # Return device data in the expected clean format for frontend (matching sample-api.json)
             response_data = {
@@ -525,7 +503,7 @@ def handle_device_lookup(req: func.HttpRequest) -> func.HttpResponse:
                     'serialNumber': device_data['serialNumber'],
                     'lastSeen': device_data['lastSeen'],
                     'createdAt': device_data['createdAt'],  # Registration date
-                    'clientVersion': client_version,
+                    'clientVersion': device_data['clientVersion'],
                     'modules': modules
                 }
             }

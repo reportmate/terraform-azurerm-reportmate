@@ -150,7 +150,7 @@ class DatabaseManager:
             serial_number = metadata.get('SerialNumber', metadata.get('serialNumber', 'unknown-serial'))
             enabled_modules = metadata.get('EnabledModules', metadata.get('enabledModules', []))
             collected_at = metadata.get('CollectedAt', metadata.get('collectedAt', datetime.now(timezone.utc).isoformat()))
-            client_version = metadata.get('ClientVersion', metadata.get('clientVersion', 'unknown'))
+            client_version = metadata.get('ClientVersion', metadata.get('clientVersion'))
             platform = metadata.get('Platform', metadata.get('platform', 'Windows'))
             
             logger.info(f"Processing unified payload for device {serial_number} with {len(enabled_modules)} modules")
@@ -386,13 +386,14 @@ class DatabaseManager:
             device_uuid = device_record.get('device_id')  # UUID
             device_primary_key = device_record.get('id')  # Serial number (primary key)
             serial_number = device_record.get('serial_number')  # Serial number
-            computer_name = device_record.get('computer_name', 'Unknown')
-            manufacturer = device_record.get('manufacturer', 'Unknown')
-            model = device_record.get('model', 'Unknown')
+            computer_name = device_record.get('computer_name')
+            manufacturer = device_record.get('manufacturer')
+            model = device_record.get('model')
             machine_group_id = device_record.get('machine_group_id')
             business_unit_id = device_record.get('business_unit_id')
             last_seen = device_record.get('last_seen')
             status = device_record.get('status', 'active')
+            client_version = device_record.get('client_version')
             
             with self.get_connection() as conn:
                 cursor = conn.cursor()
@@ -400,13 +401,13 @@ class DatabaseManager:
                 if self.driver == "sqlite":
                     cursor.execute("""
                         INSERT OR REPLACE INTO devices 
-                        (id, device_id, serial_number, name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (device_primary_key, device_uuid, serial_number, computer_name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status))
+                        (id, device_id, serial_number, name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status, client_version)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (device_primary_key, device_uuid, serial_number, computer_name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status, client_version))
                 else:
                     cursor.execute("""
-                        INSERT INTO devices (id, device_id, serial_number, name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status, created_at, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        INSERT INTO devices (id, device_id, serial_number, name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status, client_version, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                         ON CONFLICT (id)
                         DO UPDATE SET
                             name = EXCLUDED.name,
@@ -416,8 +417,9 @@ class DatabaseManager:
                             business_unit_id = EXCLUDED.business_unit_id,
                             last_seen = EXCLUDED.last_seen,
                             status = EXCLUDED.status,
+                            client_version = EXCLUDED.client_version,
                             updated_at = NOW()
-                    """, (device_primary_key, device_uuid, serial_number, computer_name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status))
+                    """, (device_primary_key, device_uuid, serial_number, computer_name, manufacturer, model, machine_group_id, business_unit_id, last_seen, status, client_version))
                 
                 conn.commit()
                 logger.info(f"Device record upserted for {device_primary_key}")
@@ -570,71 +572,7 @@ class DatabaseManager:
             logger.error(f"Failed to store module data: {e}")
             return False
     
-    async def upsert_device(self, device_record: Dict[str, Any]) -> bool:
-        """
-        Insert or update device in the devices table
-        
-        Args:
-            device_record: Device data to upsert
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            if self.driver == "mock":
-                logger.info(f"Mock device upsert for device {device_record.get('id', 'unknown')}")
-                return True
-            
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # Extract values from device record
-                device_id = device_record.get('id')  # serial number (primary key)
-                device_uuid = device_record.get('device_id')  # UUID
-                serial_number = device_record.get('serial_number')
-                computer_name = device_record.get('computer_name', device_id)
-                manufacturer = device_record.get('manufacturer', 'Unknown')
-                model = device_record.get('model', 'Unknown')
-                client_version = device_record.get('client_version', '1.0.0')
-                machine_group_id = device_record.get('machine_group_id', 'default')
-                business_unit_id = device_record.get('business_unit_id', 'default')
-                status = device_record.get('status', 'active')
-                last_seen = device_record.get('last_seen')
-                
-                logger.info(f"Upserting device: id={device_id}, uuid={device_uuid}, serial={serial_number}")
-                
-                if self.driver == "sqlite":
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO devices 
-                        (id, device_id, name, serial_number, os, status, last_seen, 
-                         model, manufacturer, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-                    """, (device_id, device_uuid, computer_name, serial_number, 'Windows', 
-                          status, last_seen, model, manufacturer))
-                else:
-                    cursor.execute("""
-                        INSERT INTO devices 
-                        (id, device_id, name, serial_number, os, status, last_seen, 
-                         model, manufacturer, created_at, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
-                        ON CONFLICT (id) DO UPDATE SET
-                            device_id = EXCLUDED.device_id,
-                            name = EXCLUDED.name,
-                            os = EXCLUDED.os,
-                            model = EXCLUDED.model,
-                            manufacturer = EXCLUDED.manufacturer,
-                            last_seen = EXCLUDED.last_seen,
-                            updated_at = NOW(),
-                            status = EXCLUDED.status
-                    """, (device_id, device_uuid, computer_name, serial_number, 'Windows',
-                          status, last_seen, model, manufacturer))
-                
-                logger.info(f"✅ Successfully upserted device {device_id} in devices table")
-                return True
-                
-        except Exception as e:
-            logger.error(f"Failed to upsert device: {e}")
-            return False
+
 
     def test_connection(self) -> bool:
         """Test database connection"""
