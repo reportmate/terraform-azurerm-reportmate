@@ -29,21 +29,21 @@ class DatabaseManager:
             self.driver = "sqlite"
             return
         
-        # Try to initialize PostgreSQL drivers
+        # Try to initialize PostgreSQL drivers - pg8000 first (as per deployment guidelines)
         try:
-            # Try psycopg2 first (most common)
-            import psycopg2
-            self.driver = "psycopg2"
-            logger.info("Using psycopg2 PostgreSQL driver")
+            # Try pg8000 first (pure Python, deployment guideline requirement)
+            import pg8000
+            self.driver = "pg8000"
+            logger.info("Using pg8000 PostgreSQL driver")
             return
         except ImportError:
             pass
         
         try:
-            # Try pg8000 (pure Python)
-            import pg8000
-            self.driver = "pg8000"
-            logger.info("Using pg8000 PostgreSQL driver")
+            # Try psycopg2 as fallback (most common but not in our deployment)
+            import psycopg2
+            self.driver = "psycopg2"
+            logger.info("Using psycopg2 PostgreSQL driver")
             return
         except ImportError:
             pass

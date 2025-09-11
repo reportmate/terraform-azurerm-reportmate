@@ -34,6 +34,7 @@ resource "azurerm_linux_function_app" "func" {
     QUEUE_NAME                             = azurerm_storage_queue.ingest.name
     DATABASE_URL                           = "postgresql://${var.db_username}:${var.db_password}@${azurerm_postgresql_flexible_server.pg.fqdn}:5432/${azurerm_postgresql_flexible_server_database.db.name}?sslmode=require"
     EVENTS_CONNECTION                      = azurerm_web_pubsub.wps.primary_connection_string
+    WebPubSubConnectionString              = azurerm_web_pubsub.wps.primary_connection_string
     APPINSIGHTS_INSTRUMENTATIONKEY         = azurerm_application_insights.ai.instrumentation_key
     APPLICATIONINSIGHTS_CONNECTION_STRING  = azurerm_application_insights.ai.connection_string
     APPINSIGHTS_CONNECTION_STRING          = azurerm_application_insights.ai.connection_string
