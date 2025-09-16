@@ -25,9 +25,9 @@ try {
 
 # Run migration files in order
 $migrationFiles = @(
-    "001_initial_schema.sql",
-    "002_add_modules.sql",
-    "003_add_indexes.sql"
+    "001-initial-migration.sql",
+    "002-modules-migration.sql", 
+    "003-indexes-migration.sql"
 )
 
 foreach ($migration in $migrationFiles) {
