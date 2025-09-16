@@ -18,7 +18,7 @@ Clean, organized infrastructure management for ReportMate.
 
 **Database Migrations Only:**
 ```powershell
-.\database\migrate.ps1
+.\schemas\run-migrations.ps1
 ```
 
 **Container Updates:**
@@ -35,11 +35,14 @@ Clean, organized infrastructure management for ReportMate.
 
 ```
 infrastructure/
-├── database/           # Database migrations
-│   ├── migrate.ps1    # Run all migrations
-│   ├── 001_initial_schema.sql
-│   ├── 002_add_modules.sql
-│   └── 003_add_indexes.sql
+├── schemas/              # Database schemas and migrations
+│   ├── run-migrations.ps1          # Run all migrations
+│   ├── modular-database-schema.sql # Complete production schema
+│   ├── 001-initial-migration.sql   # Initial tables
+│   ├── 002-modules-migration.sql   # Module tables
+│   ├── 003-indexes-migration.sql   # Performance indexes
+│   ├── client-version-migration.sql # Client version fields
+│   └── prisma-migration-schema.sql # Prisma compatibility migration
 ├── modules/
 │   └── functions/     # Azure Functions
 │       ├── deploy.ps1 # Deploy functions with vendored deps
