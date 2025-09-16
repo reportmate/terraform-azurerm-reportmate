@@ -82,6 +82,11 @@ resource "azurerm_container_app" "frontend_dev" {
         value = "https://${azurerm_linux_function_app.func.default_hostname}"
       }
 
+      env {
+        name  = "API_BASE_URL"
+        value = "https://${azurerm_linux_function_app.func.default_hostname}"
+      }
+
       # Development-specific environment variables
       env {
         name  = "NEXT_PUBLIC_DEBUG"
@@ -160,6 +165,11 @@ resource "azurerm_container_app" "frontend_prod" {
 
       env {
         name  = "NEXT_PUBLIC_API_BASE_URL"
+        value = "https://${azurerm_linux_function_app.func.default_hostname}"
+      }
+
+      env {
+        name  = "API_BASE_URL"
         value = "https://${azurerm_linux_function_app.func.default_hostname}"
       }
     }
