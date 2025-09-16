@@ -5,6 +5,7 @@ Orchestrates all module processors and handles complete device data processing
 
 import logging
 import asyncio
+import json
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 import sys
@@ -219,6 +220,9 @@ class DeviceDataProcessor:
             # Store processed data in database
             storage_result = await self._store_processed_data(device_id, processing_results, device_record)
             
+            # CRITICAL FIX: Process and store events from the payload
+            events_result = await self._process_and_store_events(device_id, device_data)
+            
             # Generate summary
             summary = self._generate_processing_summary(processing_results, processing_errors)
             
@@ -234,6 +238,7 @@ class DeviceDataProcessor:
                 'processing_errors': processing_errors,
                 'summary': summary,
                 'storage_result': storage_result,
+                'events_result': events_result,  # Include events processing result
                 'timestamp': datetime.utcnow().isoformat()
             }
             
@@ -649,4 +654,127 @@ class DeviceDataProcessor:
                 'success': False,
                 'error': str(e)
             }
+    
+    async def _process_and_store_events(self, device_id: str, device_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process and store events from the unified payload
+        
+        Args:
+            device_id: Device identifier (serial number)
+            device_data: Raw device data payload containing events
+            
+        Returns:
+            Events processing result
+        """
+        try:
+            # Extract events from the payload (same logic as database.py)
+            events = device_data.get('Events', []) or device_data.get('events', [])
+            
+            self.logger.info(f"🔍 EVENTS DEBUG: Found {len(events)} events in payload for device {device_id}")
+            self.logger.info(f"🔍 EVENTS DEBUG: Payload Events key exists: {bool(device_data.get('Events'))}")
+            self.logger.info(f"🔍 EVENTS DEBUG: Payload events key exists: {bool(device_data.get('events'))}")
+            
+            if not events:
+                self.logger.warning(f"No events found in payload for device {device_id}")
+                return {
+                    'success': True,
+                    'events_processed': 0,
+                    'message': 'No events to process'
+                }
+            
+            # Process each event
+            events_stored = 0
+            processing_errors = []
+            
+            for event in events:
+                try:
+                    # DEBUG: Log the actual event structure
+                    self.logger.info(f"🔍 EVENTS DEBUG: Processing event: {json.dumps(event, indent=2)}")
+                    
+                    # Extract event fields (matching the database.py logic)
+                    event_type = (
+                        event.get('eventType') or 
+                        event.get('EventType') or 
+                        event.get('event_type') or 
+                        'info'
+                    ).lower()
+                    
+                    message = (
+                        event.get('message') or 
+                        event.get('Message') or 
+                        'Event logged'
+                    )
+                    
+                    # Validate event type
+                    if event_type not in ['success', 'warning', 'error', 'info']:
+                        self.logger.warning(f"Invalid event type '{event_type}' from device {device_id}, defaulting to 'info'")
+                        event_type = 'info'
+                    
+                    # Prepare event details
+                    details = event.get('details') or event.get('Details') or {}
+                    
+                    # Add module info if available
+                    module_id = (
+                        event.get('moduleId') or 
+                        event.get('ModuleId') or 
+                        event.get('module_id') or 
+                        'unknown'
+                    )
+                    
+                    if isinstance(details, dict):
+                        details['module_id'] = module_id
+                    else:
+                        details = {'module_id': module_id, 'original_details': details}
+                    
+                    # Get timestamp
+                    timestamp = event.get('timestamp') or event.get('Timestamp')
+                    
+                    self.logger.info(f"🔍 EVENTS DEBUG: Event processed - Type: '{event_type}', Module: '{module_id}', Message: '{message}'")
+                    
+                    # Store event in database using the sync database manager
+                    await self._store_single_event(device_id, event_type, message, details, timestamp)
+                    events_stored += 1
+                    
+                except Exception as event_error:
+                    error_msg = f"Failed to process event: {str(event_error)}"
+                    self.logger.error(error_msg)
+                    processing_errors.append(error_msg)
+            
+            self.logger.info(f"✅ EVENTS SUCCESS: Stored {events_stored} events for device {device_id}")
+            
+            return {
+                'success': True,
+                'events_processed': events_stored,
+                'events_failed': len(processing_errors),
+                'processing_errors': processing_errors
+            }
+            
+        except Exception as e:
+            self.logger.error(f"❌ EVENTS ERROR: Failed to process events for device {device_id}: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e),
+                'events_processed': 0
+            }
+    
+    async def _store_single_event(self, device_id: str, event_type: str, message: str, 
+                                details: Dict[str, Any], timestamp: str = None) -> None:
+        """
+        Store a single event in the database
+        
+        Args:
+            device_id: Device identifier
+            event_type: Event type (success, warning, error, info)
+            message: Event message
+            details: Event details dictionary
+            timestamp: Event timestamp (optional)
+        """
+        try:
+            # Use the database manager to store the event
+            # This will use the same connection as module storage
+            await self.db_manager.store_device_event(device_id, event_type, message, details, timestamp)
+            
+        except Exception as e:
+            self.logger.error(f"❌ Failed to store single event for device {device_id}: {str(e)}")
+            raise
 # Force update 08/07/2025 11:16:07

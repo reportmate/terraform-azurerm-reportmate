@@ -522,50 +522,13 @@ class DatabaseManager:
                             updated_at = NOW()
                     """, (device_id, data_json, timestamp))
                 
-                # CRITICAL FIX: Create an event after successful module data storage
-                event_type = 'info'
-                
-                # Create user-friendly messages for single and multiple modules
-                if module_id == 'installs':
-                    message = "Installs module reported data"
-                elif module_id == 'network':
-                    message = "Network module reported data"
-                elif module_id == 'management':
-                    message = "Management module reported data"
-                elif module_id == 'system':
-                    message = "System module reported data"
-                elif module_id == 'hardware':
-                    message = "Hardware module reported data"
-                elif module_id == 'security':
-                    message = "Security module reported data"
-                elif module_id == 'applications':
-                    message = "Applications module reported data"
-                elif module_id == 'inventory':
-                    message = "Inventory module reported data"
-                elif module_id == 'profiles':
-                    message = "Profiles module reported data"
-                elif module_id == 'displays':
-                    message = "Displays module reported data"
-                elif module_id == 'printers':
-                    message = "Printers module reported data"
-                else:
-                    message = f"{module_id.capitalize()} module reported data"
-                
-                event_details = json.dumps({
-                    'module_id': module_id,
-                    'collection_type': 'modular',
-                    'data_size_kb': round(len(data_json) / 1024, 1),
-                    'timestamp': timestamp
-                })
-                
-                # Store the event
-                cursor.execute("""
-                    INSERT INTO events (device_id, event_type, message, details, timestamp)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (device_id, event_type, message, event_details, timestamp))
+                # NO LONGER CREATING GENERIC EVENTS HERE
+                # Events are now handled properly by the payload event processing
+                # This prevents generic 'info' events from overriding real success/warning/error events
+                logger.info(f"Module data stored - events will be handled by payload event processing")
                 
                 conn.commit()
-                logger.info(f"✅ Stored module data for device {device_id} in {module_id} table AND created event")
+                logger.info(f"✅ Stored module data for device {device_id} in {module_id} table")
                 return True
                 
         except Exception as e:
@@ -594,6 +557,63 @@ class DatabaseManager:
                 
         except Exception as e:
             logger.error(f"Database connection test failed: {e}")
+            return False
+    
+    async def store_device_event(self, device_id: str, event_type: str, message: str, 
+                               details: Dict[str, Any], timestamp: str = None) -> bool:
+        """
+        Store a single device event in the database
+        
+        Args:
+            device_id: Device identifier (serial number)
+            event_type: Event type (success, warning, error, info)
+            message: Event message
+            details: Event details dictionary
+            timestamp: Event timestamp (optional, defaults to now)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            if self.driver == "mock":
+                logger.info(f"Mock: Would store event - Device: {device_id}, Type: {event_type}, Message: {message}")
+                return True
+            
+            # Prepare details as JSON string
+            details_json = json.dumps(details) if details else "{}"
+            
+            # Use current timestamp if not provided
+            if not timestamp:
+                from datetime import datetime, timezone
+                timestamp = datetime.now(timezone.utc)
+            elif isinstance(timestamp, str):
+                # Parse timestamp string if provided
+                from datetime import datetime
+                try:
+                    timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                except:
+                    timestamp = datetime.now(timezone.utc)
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if self.driver == "sqlite":
+                    cursor.execute(
+                        "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (?, ?, ?, ?, ?)",
+                        (device_id, event_type, message, details_json, timestamp)
+                    )
+                else:
+                    cursor.execute(
+                        "INSERT INTO events (device_id, event_type, message, details, timestamp) VALUES (%s, %s, %s, %s, %s)",
+                        (device_id, event_type, message, details_json, timestamp)
+                    )
+                conn.commit()
+            
+            logger.info(f"✅ Successfully stored {event_type} event for device {device_id}: {message}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to store event for device {device_id}: {str(e)}")
             return False
 
 # Mock classes for when no database drivers are available
