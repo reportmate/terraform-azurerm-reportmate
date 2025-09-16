@@ -151,9 +151,6 @@ def handle_get_events(req: func.HttpRequest) -> func.HttpResponse:
 async def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
     """Handle POST requests for storing unified device payloads"""
     
-    # Define allowed event types (strict validation)
-    ALLOWED_EVENT_TYPES = {'success', 'warning', 'error', 'info'}
-    
     try:
         # Parse request body
         try:
@@ -174,219 +171,57 @@ async def handle_post_event(req: func.HttpRequest) -> func.HttpResponse:
         
         logging.info(f"Received unified payload for processing")
         
-        # Extract metadata from the unified payload
-        metadata = unified_payload.get('metadata', {})
-        device_id = metadata.get('deviceId', 'unknown-device')
-        serial_number = metadata.get('serialNumber', 'unknown-serial')
-        collection_type = metadata.get('collectionType', 'Full')
-        enabled_modules = metadata.get('enabledModules', [])
-        client_version = metadata.get('clientVersion', 'unknown')
-        collected_at = metadata.get('collectedAt', datetime.now(timezone.utc).isoformat())
-        
-        # Validate required fields and ensure UUID + serial number combination
-        if device_id == 'unknown-device' or serial_number == 'unknown-serial':
-            return func.HttpResponse(
-                json.dumps({
-                    'error': 'Invalid device identification',
-                    'details': 'Both deviceId (UUID) and serialNumber are required'
-                }),
-                status_code=400,
-                headers={'Content-Type': 'application/json'}
-            )
-        
-        # CRITICAL PROTECTION: Validate UUID format for device_id
-        import re
-        uuid_pattern = r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-        if not re.match(uuid_pattern, device_id):
-            return func.HttpResponse(
-                json.dumps({
-                    'error': 'Invalid device UUID format',
-                    'details': f'deviceId must be a valid UUID format, got: {device_id}'
-                }),
-                status_code=400,
-                headers={'Content-Type': 'application/json'}
-            )
-        
-        # CRITICAL PROTECTION: Validate serial number is NOT a UUID
-        if re.match(uuid_pattern, serial_number):
-            return func.HttpResponse(
-                json.dumps({
-                    'error': 'Invalid serial number format',
-                    'details': f'serialNumber must not be a UUID format, got: {serial_number}. Expected human-readable serial like 0F33V9G25083HJ'
-                }),
-                status_code=400,
-                headers={'Content-Type': 'application/json'}
-            )
-        
-        # CRITICAL PROTECTION: Ensure deviceId and serialNumber are different
-        if device_id == serial_number:
-            return func.HttpResponse(
-                json.dumps({
-                    'error': 'Device identification mismatch',
-                    'details': 'deviceId (UUID) and serialNumber must be different values'
-                }),
-                status_code=400,
-                headers={'Content-Type': 'application/json'}
-            )
-        
-        logging.info(f"Processing unified payload for device {device_id} (serial: {serial_number})")
-        logging.info(f"Collection type: {collection_type}, Modules: {enabled_modules}")
-        
-        # Debug: Log the actual payload structure
-        payload_keys = list(unified_payload.keys())
-        logging.info(f"🔍 DEBUG: Unified payload top-level keys: {payload_keys}")
-        
-        # Check if OsQuery key exists and what's in it
-        osquery_data = unified_payload.get('OsQuery', {})
-        osquery_keys = list(osquery_data.keys()) if osquery_data else []
-        logging.info(f"🔍 DEBUG: OsQuery section keys: {osquery_keys}")
-        
-        # Also check for other common data locations
-        if 'modules' in unified_payload:
-            modules_keys = list(unified_payload['modules'].keys()) if isinstance(unified_payload['modules'], dict) else []
-            logging.info(f"🔍 DEBUG: modules section keys: {modules_keys}")
-        if 'data' in unified_payload:
-            data_keys = list(unified_payload['data'].keys()) if isinstance(unified_payload['data'], dict) else []
-            logging.info(f"🔍 DEBUG: data section keys: {data_keys}")
-        
-        # Store in database with unique serial number validation
+        # MINIMAL TEST: Just try to create database manager
         try:
-            logging.info("=== PROCESSING UNIFIED PAYLOAD WITH MODULE PROCESSORS ===")
-            
-            # Initialize the sophisticated processor that uses all module processors
-            try:
-                from shared.database import DatabaseManager
-                from shared.auth import AuthenticationManager
-                from processor import DeviceDataProcessor
-                logging.info("✅ Successfully imported processor modules")
-            except Exception as import_error:
-                logging.error(f"❌ IMPORT ERROR: Failed to import processor modules: {import_error}")
-                raise
-            
-            try:
-                db_manager = DatabaseManager()
-                auth_manager = AuthenticationManager()
-                device_processor = DeviceDataProcessor(db_manager, auth_manager)
-                logging.info("✅ Successfully initialized processor instances")
-            except Exception as init_error:
-                logging.error(f"❌ INIT ERROR: Failed to initialize processors: {init_error}")
-                raise
-            
-            # Extract the passphrase from payload or headers for authentication
-            # Priority 1: Check payload body (Windows client sends it here)
-            passphrase = unified_payload.get('metadata', {}).get('passphrase') or unified_payload.get('passphrase')
-            
-            # Priority 2: Check headers
-            if not passphrase:
-                passphrase = req.headers.get('X-API-PASSPHRASE')
-            
-            # Priority 3: Check environment for valid passphrases
-            if not passphrase:
-                client_passphrases = os.getenv('CLIENT_PASSPHRASES', '')
-                if client_passphrases:
-                    # Use the first configured passphrase as default
-                    valid_passphrases = [p.strip() for p in client_passphrases.split(',') if p.strip()]
-                    if valid_passphrases:
-                        passphrase = valid_passphrases[0]
-                        logging.info("🔍 Using first configured passphrase as default")
-                else:
-                    # Fallback to legacy default for backward compatibility
-                    passphrase = 's3cur3-p@ssphras3!'
-                    logging.warning("🔍 No passphrases configured, using legacy default")
-            
-            logging.info(f"🔍 Using passphrase: {passphrase[:10]}...")
-            
-            # Use the sophisticated processor that correctly processes all modules
-            try:
-                storage_result = await device_processor.process_device_data_with_device_id(
-                    unified_payload,  # Pass the full unified payload which contains module data as top-level properties
-                    passphrase,
-                    serial_number  # Use serial number as device_id
-                )
-                logging.info(f"✅ Processor completed with result: {storage_result}")
-            except Exception as process_error:
-                logging.error(f"❌ PROCESSING ERROR: Device processor failed: {process_error}")
-                raise
-            
-            if storage_result['success']:
-                logging.info(f"✅ Successfully stored data for device {device_id}")
-                
-                return func.HttpResponse(
-                    json.dumps({
-                        'success': True,
-                        'message': 'Unified payload processed successfully',
-                        'device_id': serial_number,  # Return serial number for frontend consistency
-                        'serial_number': serial_number,
-                        'modules_processed': storage_result.get('modules_processed', 0),
-                        'timestamp': storage_result.get('timestamp'),
-                        'storage_mode': storage_result.get('storage_mode', 'database'),
-                        'internal_uuid': device_id,  # Keep UUID for internal reference if needed
-                        'debug_info': {  # TEMPORARY DEBUG INFO
-                            'storage_result_keys': list(storage_result.keys()),
-                            'processing_results_count': len(storage_result.get('processing_results', {})),
-                            'available_modules': storage_result.get('summary', {}).get('available_modules', []),
-                            'processing_errors': storage_result.get('processing_errors', [])
-                        }
-                    }),
-                    status_code=200,
-                    headers={'Content-Type': 'application/json'}
-                )
-            else:
-                # FALLBACK: Even if module processing failed, update device last_seen for dashboard
-                logging.warning(f"Module processing failed, but updating last_seen as fallback for device {serial_number}")
-                try:
-                    # Simple database update for last_seen field
-                    fallback_db = SyncDatabaseManager()
-                    
-                    if fallback_db.test_connection():
-                        update_query = """
-                            UPDATE devices 
-                            SET last_seen = NOW(), updated_at = NOW()
-                            WHERE device_id = %s OR serial_number = %s
-                        """
-                        result = fallback_db.execute_query(update_query, (serial_number, serial_number))
-                        
-                        # Also create a basic event for tracking - but mark it clearly as a fallback
-                        event_insert = """
-                            INSERT INTO events (device_id, event_type, message, timestamp, created_at)
-                            VALUES (%s, 'warning', 'Data transmission received but module processing failed', NOW(), NOW())
-                        """
-                        fallback_db.execute_query(event_insert, (serial_number,))
-                        
-                        logging.info(f"✅ Fallback: Updated last_seen for device {serial_number}")
-                    else:
-                        logging.error("❌ Fallback database connection failed")
-                        
-                except Exception as fallback_error:
-                    logging.error(f"❌ Fallback last_seen update failed: {fallback_error}")
-                
-                logging.error(f"❌ Failed to store data: {storage_result}")
-                return func.HttpResponse(
-                    json.dumps({
-                        'success': False,
-                        'error': 'Database storage failed',
-                        'details': storage_result.get('details', 'Unknown error'),
-                        'device_id': serial_number,  # Return serial number for frontend consistency
-                        'serial_number': serial_number,
-                        'modules_processed': 0,
-                        'fallback_applied': True,
-                        'message': 'last_seen updated despite processing failure',
-                        'internal_uuid': device_id  # Keep UUID for internal reference if needed
-                    }),
-                    status_code=500,
-                    headers={'Content-Type': 'application/json'}
-                )
-                
-        except Exception as db_error:
-            logging.error(f"Database storage error: {str(db_error)}", exc_info=True)
+            db_manager = SyncDatabaseManager()
+            logging.info("✅ Successfully initialized database manager")
+        except Exception as init_error:
+            logging.error(f"❌ Database init failed: {init_error}")
             return func.HttpResponse(
                 json.dumps({
-                    'success': False,
+                    'error': 'Database initialization failed',
+                    'details': str(init_error)
+                }),
+                status_code=500,
+                headers={'Content-Type': 'application/json'}
+            )
+        
+        # Test connection
+        try:
+            connection_ok = db_manager.test_connection()
+            logging.info(f"✅ Database connection test result: {connection_ok}")
+        except Exception as conn_error:
+            logging.error(f"❌ Database connection test failed: {conn_error}")
+            return func.HttpResponse(
+                json.dumps({
+                    'error': 'Database connection test failed',
+                    'details': str(conn_error)
+                }),
+                status_code=500,
+                headers={'Content-Type': 'application/json'}
+            )
+        
+        # If we got this far, try basic event processing
+        try:
+            storage_result = db_manager.store_event_data(unified_payload)
+            logging.info(f"✅ Database storage completed with result: {storage_result}")
+            
+            return func.HttpResponse(
+                json.dumps({
+                    'success': True,
+                    'message': 'Event processing completed',
+                    'details': storage_result
+                }),
+                status_code=200,
+                headers={'Content-Type': 'application/json'}
+            )
+            
+        except Exception as storage_error:
+            logging.error(f"❌ Database storage failed: {storage_error}")
+            return func.HttpResponse(
+                json.dumps({
                     'error': 'Database storage failed',
-                    'details': str(db_error),
-                    'device_id': serial_number,  # Return serial number for frontend consistency
-                    'serial_number': serial_number,
-                    'internal_uuid': device_id  # Keep UUID for internal reference if needed
+                    'details': str(storage_error)
                 }),
                 status_code=500,
                 headers={'Content-Type': 'application/json'}
