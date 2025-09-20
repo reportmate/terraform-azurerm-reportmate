@@ -51,7 +51,7 @@ $Reset = "`e[0m"
 $RegistryName = "reportmateacr"
 $ImageName = "reportmate"
 $ResourceGroup = "ReportMate"
-$ContainerAppName = "reportmate-container-$Environment"
+$ContainerAppName = "reportmate-web-app-$Environment"
 
 # Helper functions
 function Write-Info {
