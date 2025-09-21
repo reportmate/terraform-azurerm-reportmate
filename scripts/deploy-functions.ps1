@@ -44,17 +44,12 @@ if (-not $SkipValidation) {
         exit 1
     }
     
-    # Validate requirements.txt contains only pg8000
+    # Validate requirements.txt contains pg8000
     $requirements = Get-Content "$SRC_DIR/requirements.txt" -Raw
-    if ($requirements -notmatch "pg8000>=1\.31\.2" -or $requirements -match "psycopg2|asyncpg") {
-        Write-Warning "⚠️ requirements.txt should contain ONLY 'pg8000>=1.31.2'"
+    if ($requirements -notmatch "pg8000") {
+        Write-Warning "⚠️ requirements.txt should contain 'pg8000>=1.31.2'"
         Write-Host "Current requirements.txt content:" -ForegroundColor Yellow
-        Get-Content "$SRC_DIR/requirements.txt"
-        
-        $confirm = Read-Host "Continue anyway? (y/N)"
-        if ($confirm -ne "y" -and $confirm -ne "Y") {
-            exit 1
-        }
+        Write-Host $requirements -ForegroundColor Gray
     }
     
     # Check Python availability

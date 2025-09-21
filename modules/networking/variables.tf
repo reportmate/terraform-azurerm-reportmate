@@ -19,6 +19,12 @@ variable "custom_domain_name" {
   type        = string
 }
 
+variable "enable_custom_domain" {
+  description = "Enable custom domain with SSL certificate"
+  type        = bool
+  default     = true
+}
+
 variable "environment" {
   description = "Environment name"
   type        = string

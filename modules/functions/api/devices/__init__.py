@@ -13,25 +13,65 @@ import logging
 import json
 import azure.functions as func
 import os
-import sys
+import re
 from datetime import datetime, timezone, timedelta
 
-# Add the parent directory to the path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from shared.database import SyncDatabaseManager
-
 logger = logging.getLogger(__name__)
+
+def create_database_connection():
+    """Create direct database connection using pg8000"""
+    database_url = os.environ.get('DATABASE_URL')
+    if not database_url:
+        raise Exception("DATABASE_URL not configured")
+    
+    url_pattern = r'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/([^?]+)'
+    match = re.match(url_pattern, database_url)
+    if not match:
+        raise Exception("Invalid DATABASE_URL format")
+    
+    db_user, db_password, db_host, db_port, db_name = match.groups()
+    conn_params = {
+        'host': db_host,
+        'database': db_name,
+        'user': db_user,
+        'password': db_password,
+        'port': int(db_port),
+        'ssl_context': True
+    }
+    
+    import pg8000
+    return pg8000.connect(**conn_params)
+
+def execute_query(query: str, params: list = None):
+    """Execute database query and return results"""
+    conn = create_database_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query, params or [])
+        
+        if cursor.description:
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+            return [dict(zip(columns, row)) for row in rows]
+        else:
+            return []
+    finally:
+        conn.close()
 
 def list_devices_sync():
     """List devices using MINIMAL queries for performance"""
     try:
         logger.info("Starting FAST devices list query")
-        db_manager = SyncDatabaseManager()
         
         # Test database connection first
-        if not db_manager.test_connection():
-            logger.warning("Database connection test failed")
+        try:
+            conn = create_database_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Database connection test failed: {e}")
             raise Exception("Database connection failed")
         
         # ULTRA-FAST: Get basic device info only
@@ -51,7 +91,7 @@ def list_devices_sync():
         """
         
         logger.info("Executing FAST devices query...")
-        devices_raw = db_manager.execute_query(query)
+        devices_raw = execute_query(query)
         logger.info(f"Got {len(devices_raw)} raw device records")
         
         if not devices_raw:
@@ -76,7 +116,7 @@ def list_devices_sync():
                     WHERE device_id IN ({placeholders})
                     ORDER BY device_id, collected_at DESC
                 """
-                inventory_results = db_manager.execute_query(bulk_inventory_query, device_ids)
+                inventory_results = execute_query(bulk_inventory_query, device_ids)
                 
                 for result in inventory_results:
                     device_id = result.get('device_id')

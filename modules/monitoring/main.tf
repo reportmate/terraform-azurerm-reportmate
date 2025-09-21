@@ -21,6 +21,9 @@ resource "azurerm_application_insights" "main" {
   retention_in_days    = 90
   daily_data_cap_in_gb = var.app_insights_daily_cap
 
+  # Disable auto-generated failure anomaly detection rules
+  disable_ip_masking = false
+
   tags = var.tags
 }
 

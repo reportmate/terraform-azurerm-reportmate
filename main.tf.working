@@ -1,17 +1,23 @@
 # ReportMate Infrastructure - Main Module
 # This module provisions a complete ReportMate infrastructure on Azure
 
-# Resource Group - Use existing
-data "azurerm_resource_group" "rg" {
-  name = var.resource_group_name
+# Resource Group
+resource "azurerm_resource_group" "rg" {
+  name     = var.resource_group_name
+  location = var.location
+
+  tags = merge(var.tags, {
+    ManagedBy = "Terraform"
+    Module    = "ReportMate"
+  })
 }
 
 # Database Module
 module "database" {
   source = "./modules/database"
 
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
   postgres_server_name = "reportmate-database"
   db_username   = var.db_username
@@ -28,8 +34,8 @@ module "database" {
 module "storage" {
   source = "./modules/storage"
 
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
   storage_account_name = var.storage_account_name
   use_exact_name       = true
@@ -43,8 +49,8 @@ module "storage" {
 module "messaging" {
   source = "./modules/messaging"
 
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
   web_pubsub_name = var.web_pubsub_name
   web_pubsub_sku  = var.web_pubsub_sku
@@ -56,8 +62,8 @@ module "messaging" {
 module "monitoring" {
   source = "./modules/monitoring"
 
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
   app_insights_name      = var.app_insights_name
   log_analytics_name     = var.log_analytics_name
@@ -71,8 +77,8 @@ module "monitoring" {
 module "identity" {
   source = "./modules/identity"
 
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
   managed_identity_name         = var.managed_identity_name
   enable_pipeline_permissions   = var.enable_pipeline_permissions
@@ -92,8 +98,9 @@ module "auth" {
 
   # Application Configuration
   app_display_name = "ReportMate${var.environment != "prod" ? " (${title(var.environment)})" : ""}"
-  homepage_url = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : module.containers.frontend_url
-  logout_url   = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}/auth/signout" : "${module.containers.frontend_url}/auth/signout"
+  homepage_url     = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : module.containers.frontend_url
+  logout_url       = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}/auth/signout" : "${module.containers.frontend_url}/auth/signout"
+  
   # OAuth Configuration
   redirect_uris = concat([
     # Production/Custom domain URLs
@@ -102,29 +109,29 @@ module "auth" {
     # Development URLs for non-prod environments
     "http://localhost:3000/api/auth/callback/azure-ad"
   ] : [])
-
+  
   # Security Settings
   app_role_assignment_required = var.environment == "prod" ? true : false
   grant_admin_consent         = var.environment == "dev" ? true : false  # Auto-consent only in dev
   sign_in_audience           = var.auth_sign_in_audience
-
+  
   # App Ownership
-  app_owners = var.app_owners
-
+  app_owners = ["rchristiansen@ecuad.ca"]
+  
   # Authorized Groups for Sign-in
-  authorized_groups = var.authorized_groups
-
+  authorized_groups = ["f4ac6007-f859-4dad-99d7-38dce9eec42d"]
+  
   # Authentication Configuration
   auth_providers        = var.auth_providers
   default_auth_provider = var.default_auth_provider
   allowed_domains      = var.allowed_auth_domains
   require_email_verification = var.require_email_verification
-
+  
   # Secret Management (if Key Vault is enabled)
   enable_key_vault = var.enable_key_vault
   key_vault_id = var.enable_key_vault ? module.key_vault[0].key_vault_id : null
   client_secret_expiry = var.auth_client_secret_expiry
-
+  
   # Environment and Tagging
   environment   = var.environment
   tags         = var.tags
@@ -134,7 +141,7 @@ module "auth" {
 # Automatically configure Container App with authentication environment variables (non-sensitive only)
 resource "null_resource" "configure_container_app_auth" {
   count = var.deploy_prod ? 1 : 0
-
+  
   depends_on = [
     module.auth,
     module.containers
@@ -147,7 +154,7 @@ resource "null_resource" "configure_container_app_auth" {
   }
 
   provisioner "local-exec" {
-    command = "az containerapp update --name reportmate-web-app-prod --resource-group ${data.azurerm_resource_group.rg.name} --set-env-vars AZURE_AD_CLIENT_ID=${module.auth.application_id} AZURE_AD_TENANT_ID=${module.auth.tenant_id}"
+    command = "az containerapp update --name reportmate-container-prod --resource-group ${azurerm_resource_group.rg.name} --set-env-vars AZURE_AD_CLIENT_ID=${module.auth.application_id} AZURE_AD_TENANT_ID=${module.auth.tenant_id}"
   }
 }
 
@@ -156,8 +163,8 @@ module "key_vault" {
   count  = var.enable_key_vault ? 1 : 0
   source = "./modules/key_vault"
 
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
   key_vault_name = var.key_vault_name
   environment    = var.environment
@@ -172,8 +179,8 @@ module "key_vault" {
 module "functions" {
   source = "./modules/functions"
 
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
   function_app_name = var.function_app_name
   service_plan_name = var.service_plan_name
@@ -212,13 +219,12 @@ module "functions" {
 module "containers" {
   source = "./modules/containers"
 
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
   container_registry_name = var.container_registry_name
   use_custom_registry     = var.use_custom_registry
   container_image         = var.container_image
-  api_image_tag          = var.api_image_tag
   environment             = var.environment
   deploy_dev              = var.deploy_dev
   deploy_prod             = var.deploy_prod
@@ -231,18 +237,6 @@ module "containers" {
   function_app_hostname          = module.functions.function_app_hostname
   app_insights_connection_string = module.monitoring.app_insights_connection_string
   log_analytics_workspace_id     = module.monitoring.log_analytics_id
-
-  # Database parameters (required by current module interface)
-  database_host     = module.database.postgres_fqdn
-  database_name     = var.db_name
-  database_username = var.db_username
-  database_password = var.db_password
-  
-  # Web PubSub connection
-  web_pubsub_connection = module.messaging.web_pubsub_connection_string
-  
-  # Client authentication
-  client_passphrases = var.client_passphrases
 
   # Key Vault integration for secrets
   key_vault_uri = var.enable_key_vault ? module.key_vault[0].key_vault_uri : null
@@ -260,8 +254,8 @@ module "networking" {
 
   source = "./modules/networking"
 
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
   frontdoor_name     = var.frontdoor_name
   custom_domain_name = var.custom_domain_name
