@@ -71,6 +71,10 @@ auth_client_secret_expiry   = "2026-12-31T23:59:59Z"  # 2 years from now
 enable_key_vault = true
 key_vault_name   = "reportmate-kv-prod"  # Must be globally unique
 
+# App Ownership and Authorization
+app_owners = ["your-email@yourdomain.com"]  # Replace with actual owner emails
+authorized_groups = ["your-azure-ad-group-id"]  # Replace with actual Azure AD group IDs
+
 # =================================================================
 # MULTI-ENVIRONMENT EXAMPLE
 # =================================================================

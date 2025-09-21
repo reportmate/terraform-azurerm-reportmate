@@ -19,11 +19,27 @@ output "frontend_prod_url" {
 }
 
 output "frontend_fqdn" {
-  value       = length(azurerm_container_app.container_prod) > 0 ? azurerm_container_app.container_prod[0].latest_revision_fqdn : (length(azurerm_container_app.container_dev) > 0 ? azurerm_container_app.container_dev[0].latest_revision_fqdn : null)
-  description = "Primary frontend FQDN (prod if available, otherwise dev)"
+  value       = length(azurerm_container_app.container_prod) > 0 ? azurerm_container_app.container_prod[0].ingress[0].fqdn : (length(azurerm_container_app.container_dev) > 0 ? azurerm_container_app.container_dev[0].ingress[0].fqdn : null)
+  description = "Primary frontend FQDN (prod if available, otherwise dev) - stable hostname"
 }
 
 output "frontend_url" {
-  value       = length(azurerm_container_app.container_prod) > 0 ? "https://${azurerm_container_app.container_prod[0].latest_revision_fqdn}" : (length(azurerm_container_app.container_dev) > 0 ? "https://${azurerm_container_app.container_dev[0].latest_revision_fqdn}" : "No frontend deployed")
-  description = "Primary frontend URL (prod if available, otherwise dev)"
+  value       = length(azurerm_container_app.container_prod) > 0 ? "https://${azurerm_container_app.container_prod[0].ingress[0].fqdn}" : (length(azurerm_container_app.container_dev) > 0 ? "https://${azurerm_container_app.container_dev[0].ingress[0].fqdn}" : "No frontend deployed")
+  description = "Primary frontend URL (prod if available, otherwise dev) - stable hostname"
+}
+
+# API Container App Outputs
+output "api_fqdn" {
+  value       = azurerm_container_app.api.latest_revision_fqdn
+  description = "API Container App FQDN"
+}
+
+output "api_url" {
+  value       = "https://${azurerm_container_app.api.latest_revision_fqdn}"
+  description = "API Container App URL"
+}
+
+output "api_container_app_id" {
+  value       = azurerm_container_app.api.id
+  description = "ID of the API Container App"
 }

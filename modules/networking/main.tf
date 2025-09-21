@@ -26,7 +26,7 @@ resource "azurerm_cdn_frontdoor_origin_group" "main" {
   }
 
   health_probe {
-    interval_in_seconds = 30
+    interval_in_seconds = 60
     path                = "/api/healthz"
     protocol            = "Https"
     request_type        = "HEAD"
@@ -66,13 +66,6 @@ resource "azurerm_cdn_frontdoor_origin" "main" {
   origin_host_header             = var.frontend_fqdn
   priority                       = 1
   weight                         = 1000
-
-  lifecycle {
-    ignore_changes = [
-      host_name,
-      origin_host_header
-    ]
-  }
 }
 
 # Front Door API Origin
@@ -88,13 +81,6 @@ resource "azurerm_cdn_frontdoor_origin" "api" {
   origin_host_header             = var.function_app_hostname
   priority                       = 1
   weight                         = 1000
-
-  lifecycle {
-    ignore_changes = [
-      host_name,
-      origin_host_header
-    ]
-  }
 }
 
 # Front Door Endpoint
@@ -121,7 +107,7 @@ resource "azurerm_cdn_frontdoor_route" "main" {
 
   cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.main.id]
   cdn_frontdoor_rule_set_ids      = []
-  link_to_default_domain          = false
+  link_to_default_domain          = true
 }
 
 # Front Door API Route
@@ -138,7 +124,7 @@ resource "azurerm_cdn_frontdoor_route" "api" {
   supported_protocols    = ["Http", "Https"]
 
   cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.main.id]
-  link_to_default_domain          = false
+  link_to_default_domain          = true
 }
 
 # Custom Domain

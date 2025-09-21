@@ -122,3 +122,37 @@ variable "tags" {
   description = "Tags to apply to resources"
   default     = {}
 }
+
+# API Container Configuration
+variable "api_image_tag" {
+  type        = string
+  description = "API container image tag to deploy"
+  default     = "latest"
+}
+
+variable "database_host" {
+  type        = string
+  description = "Database hostname"
+}
+
+variable "database_name" {
+  type        = string
+  description = "Database name"
+}
+
+variable "database_username" {
+  type        = string
+  description = "Database username"
+}
+
+variable "database_password" {
+  type        = string
+  description = "Database password"
+  sensitive   = true
+}
+
+variable "web_pubsub_connection" {
+  type        = string
+  description = "Web PubSub connection string"
+  sensitive   = true
+}
