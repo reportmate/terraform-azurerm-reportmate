@@ -1,11 +1,11 @@
-# Azure AD Application Information
+# Entra ID Application Information
 output "application_id" {
-  description = "The Application (Client) ID of the Azure AD app"
+  description = "The Application (Client) ID of the Entra ID app"
   value       = azuread_application.reportmate_web.client_id
 }
 
 output "application_object_id" {
-  description = "The Object ID of the Azure AD application"
+  description = "The Object ID of the Entra ID application"
   value       = azuread_application.reportmate_web.object_id
 }
 
@@ -21,7 +21,7 @@ output "service_principal_application_id" {
 
 # Tenant Information
 output "tenant_id" {
-  description = "The Azure AD Tenant ID"
+  description = "The Entra ID Tenant ID"
   value       = data.azuread_client_config.current.tenant_id
 }
 
@@ -154,7 +154,7 @@ output "setup_instructions" {
   description = "Instructions for completing the setup"
   value = <<-EOT
     
-    Azure AD App Registration Created Successfully!
+    Entra ID App Registration Created Successfully!
     
     Application Details:
     - Application ID: ${azuread_application.reportmate_web.client_id}

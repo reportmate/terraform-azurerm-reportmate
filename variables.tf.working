@@ -302,7 +302,7 @@ variable "require_email_verification" {
 
 variable "auth_client_secret_expiry" {
   type        = string
-  description = "Expiry date for the Azure AD client secret (RFC3339 format)"
+  description = "Expiry date for the Entra ID client secret (RFC3339 format)"
   default     = null
 }
 

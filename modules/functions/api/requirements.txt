@@ -1,2 +1,0 @@
-# Azure Functions Python Requirements
-pg8000>=1.31.2

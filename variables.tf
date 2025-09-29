@@ -30,6 +30,12 @@ variable "subscription_id" {
 }
 
 # Database Configuration
+variable "postgres_server_name" {
+  type        = string
+  description = "PostgreSQL server name (for recovery scenarios)"
+  default     = ""
+}
+
 variable "db_username" {
   type        = string
   description = "PostgreSQL administrator username"
@@ -134,25 +140,6 @@ variable "pipeline_service_principal_id" {
   type        = string
   description = "Object ID of the Azure DevOps pipeline service principal"
   default     = ""
-}
-
-# Functions Configuration
-variable "function_app_name" {
-  type        = string
-  description = "Name of the Azure Function App"
-  default     = "reportmate-api"
-}
-
-variable "service_plan_name" {
-  type        = string
-  description = "Name of the App Service Plan"
-  default     = "reportmate-functions"
-}
-
-variable "python_version" {
-  type        = string
-  description = "Python version for Azure Functions"
-  default     = "3.12"
 }
 
 # Container Configuration
@@ -302,8 +289,15 @@ variable "require_email_verification" {
 
 variable "auth_client_secret_expiry" {
   type        = string
-  description = "Expiry date for the Azure AD client secret (RFC3339 format)"
+  description = "Expiry date for the Entra ID client secret (RFC3339 format)"
   default     = null
+}
+
+variable "nextauth_secret" {
+  type        = string
+  description = "NextAuth session encryption secret (will be auto-generated if not provided)"
+  default     = null
+  sensitive   = true
 }
 
 variable "enable_key_vault" {
@@ -318,15 +312,15 @@ variable "key_vault_name" {
   default     = "reportmate-kv"
 }
 
-# Azure AD Configuration
+# Entra ID Configuration
 variable "azure_ad_client_id" {
   type        = string
-  description = "Azure AD application (client) ID"
+  description = "Entra ID application (client) ID"
 }
 
 variable "azure_ad_tenant_id" {
   type        = string
-  description = "Azure AD tenant (directory) ID"
+  description = "Entra ID tenant (directory) ID"
 }
 
 # DevOps Configuration
@@ -351,6 +345,6 @@ variable "app_owners" {
 
 variable "authorized_groups" {
   type        = list(string)
-  description = "List of Azure AD group IDs authorized for sign-in"
+  description = "List of Entra ID group IDs authorized for sign-in"
   default     = []
 }

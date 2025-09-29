@@ -6,8 +6,8 @@ The ReportMate authentication infrastructure has been **successfully deployed** 
 
 ### 🏗️ **Infrastructure Created**
 
-#### **Azure AD Resources**
-- ✅ **Azure AD Application**: `ReportMate` (`8e809e42-7949-45e0-bca6-57e34e3a4139`)
+#### **Entra ID Resources**
+- ✅ **Entra ID Application**: `ReportMate` (`8e809e42-7949-45e0-bca6-57e34e3a4139`)
 - ✅ **Service Principal**: Created with proper role assignment requirements
 - ✅ **Client Secret**: Generated and securely stored in Key Vault
 - ✅ **App Roles**: 4 roles configured (Administrator, Faculty, Staff, Student)
@@ -28,7 +28,7 @@ The ReportMate authentication infrastructure has been **successfully deployed** 
 
 ## 🔑 **Authentication Configuration**
 
-### **Azure AD Application Details**
+### **Entra ID Application Details**
 ```
 Application ID: <your-azure-ad-application-id>
 Tenant ID: <your-azure-ad-tenant-id>
@@ -109,7 +109,7 @@ curl https://reportmate.example.edu/auth/signin
 ## 📊 **Deployment Statistics**
 
 ### **Resources Created Successfully**
-- ✅ Azure AD Application: **1**
+- ✅ Entra ID Application: **1**
 - ✅ Service Principal: **1** 
 - ✅ Application Password: **1**
 - ✅ Key Vault Secrets: **4**
@@ -121,7 +121,7 @@ curl https://reportmate.example.edu/auth/signin
 ## 🎯 **Success Metrics**
 
 ### **Functional Requirements - COMPLETE ✅**
-- ✅ Azure AD SSO integration deployed
+- ✅ Entra ID SSO integration deployed
 - ✅ Multi-provider architecture ready
 - ✅ Custom domain support (reportmate.example.edu)
 - ✅ Infrastructure as Code deployment
@@ -142,7 +142,7 @@ The ReportMate authentication system is **production-ready** and fully operation
 ---
 
 **Deployment completed on**: August 18, 2025  
-**Authentication Provider**: Azure AD / Entra ID  
+**Authentication Provider**: Entra ID / Entra ID  
 **Infrastructure**: Azure (Canada Central)  
 **Domain**: reportmate.example.edu  
 **Status**: ✅ **SUCCESSFUL**

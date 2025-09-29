@@ -15,10 +15,10 @@ try {
     
     # Test API endpoints
     try {
-        $healthResponse = Invoke-RestMethod -Uri "https://reportmate-api.azurewebsites.net/api/health" -TimeoutSec 10
+        $healthResponse = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/health" -TimeoutSec 10
         Write-Host "   /api/health: ✅ OK" -ForegroundColor Green
         
-        $devicesResponse = Invoke-RestMethod -Uri "https://reportmate-api.azurewebsites.net/api/devices" -TimeoutSec 10
+        $devicesResponse = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/devices" -TimeoutSec 10
         $deviceCount = ($devicesResponse | Measure-Object).Count
         Write-Host "   /api/devices: ✅ OK ($deviceCount devices)" -ForegroundColor Green
     } catch {

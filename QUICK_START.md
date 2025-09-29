@@ -66,19 +66,19 @@ terraform apply tfplan
 
 ```powershell
 # Initialize database schema via API
-curl "https://reportmate-api.azurewebsites.net/api/init-db?init=true"
+curl "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/init-db?init=true"
 
 # Or manually via psql
 psql "postgresql://reportmate:PASSWORD@reportmate-database.postgres.database.azure.com:5432/reportmate?sslmode=require" -f schemas/database.sql
 ```
 
-### 4. Functions Deployment
+### 4. Container Apps Deployment
 
 ```powershell
-cd infrastructure/modules/functions
+cd infrastructure/scripts
 
-# Deploy functions
-func azure functionapp publish reportmate-api --python
+# Deploy Container Apps (API + Frontend)
+.\deploy-containers.ps1
 ```
 
 ## 🏗️ Architecture Overview

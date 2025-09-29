@@ -57,7 +57,7 @@ pipeline_service_principal_id = ""
 # AUTHENTICATION CONFIGURATION
 # =================================================================
 
-# Azure AD Authentication
+# Entra ID Authentication
 auth_sign_in_audience = "AzureADMyOrg"  # Only your organization
 auth_providers        = ["azure-ad"]
 default_auth_provider = "azure-ad"
@@ -73,7 +73,7 @@ key_vault_name   = "reportmate-kv-prod"  # Must be globally unique
 
 # App Ownership and Authorization
 app_owners = ["your-email@yourdomain.com"]  # Replace with actual owner emails
-authorized_groups = ["your-azure-ad-group-id"]  # Replace with actual Azure AD group IDs
+authorized_groups = ["your-azure-ad-group-id"]  # Replace with actual Entra ID group IDs
 
 # =================================================================
 # MULTI-ENVIRONMENT EXAMPLE
