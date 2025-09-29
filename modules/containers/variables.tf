@@ -68,11 +68,6 @@ variable "web_pubsub_hostname" {
   description = "Web PubSub hostname"
 }
 
-variable "function_app_hostname" {
-  type        = string
-  description = "Function App hostname"
-}
-
 variable "app_insights_connection_string" {
   type        = string
   description = "Application Insights connection string"
@@ -155,4 +150,17 @@ variable "web_pubsub_connection" {
   type        = string
   description = "Web PubSub connection string"
   sensitive   = true
+}
+
+# Authentication Configuration
+variable "auth_client_id" {
+  type        = string
+  description = "Azure AD Client ID"
+  default     = ""
+}
+
+variable "auth_tenant_id" {
+  type        = string
+  description = "Azure AD Tenant ID"
+  default     = ""
 }

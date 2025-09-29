@@ -42,128 +42,18 @@ resource "azurerm_container_app_environment" "main" {
   tags = var.tags
 }
 
-# Development Container App
-resource "azurerm_container_app" "container_dev" {
-  count                        = var.deploy_dev || var.environment == "dev" || var.environment == "both" ? 1 : 0
-  name                         = "reportmate-container-dev"
-  container_app_environment_id = azurerm_container_app_environment.main.id
-  resource_group_name          = var.resource_group_name
-  revision_mode                = "Single"
+# =================================================================
+# FRONTEND WEB APP CONTAINER - Next.js Application (Production)
+# NOTE: The full production container is defined below as frontend_prod_main
+# =================================================================
 
-  # Assign managed identity to Container App
-  identity {
-    type         = "UserAssigned"
-    identity_ids = [var.managed_identity_id]
-  }
+# =================================================================
+# FRONTEND WEB APP CONTAINER - Next.js Application (Production)
+# Complete production setup with authentication and Key Vault integration
+# =================================================================
 
-  lifecycle {
-    ignore_changes = [
-      container_app_environment_id  # Ignore case sensitivity changes in Azure resource IDs
-    ]
-  }
-
-  template {
-    container {
-      name   = "container"
-      image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/${local.image_name_tag}" : var.container_image
-      cpu    = 0.25
-      memory = "0.5Gi"
-
-      env {
-        name  = "NODE_ENV"
-        value = "development"
-      }
-
-      env {
-        name  = "DATABASE_URL"
-        value = var.database_url
-      }
-
-      env {
-        name  = "NEXT_PUBLIC_WPS_URL"
-        value = "wss://${var.web_pubsub_hostname}/client/hubs/fleet"
-      }
-
-      env {
-        name  = "NEXT_PUBLIC_ENABLE_SIGNALR"
-        value = "true"
-      }
-
-      env {
-        name  = "API_BASE_URL"
-        value = "https://${var.function_app_hostname}"
-      }
-
-      env {
-        name  = "NEXT_PUBLIC_DEBUG"
-        value = "true"
-      }
-
-      env {
-        name  = "PORT"
-        value = "3000"
-      }
-
-      env {
-        name  = "REPORTMATE_PASSPHRASE"
-        value = var.client_passphrases
-      }
-
-      # Add startup and liveness probes for dev too
-      startup_probe {
-        transport = "HTTP"
-        port      = 3000
-        path      = "/"
-        
-        failure_count_threshold = 3
-        initial_delay           = 10
-        interval_seconds        = 10
-        timeout                 = 5
-      }
-
-      liveness_probe {
-        transport = "HTTP"
-        port      = 3000
-        path      = "/"
-        
-        failure_count_threshold = 3
-        initial_delay           = 30
-        interval_seconds        = 30
-        timeout                 = 5
-      }
-    }
-
-    min_replicas = 0 # Allow scaling to zero for dev
-    max_replicas = 2 # Lower max replicas for dev
-  }
-
-  ingress {
-    allow_insecure_connections = false
-    external_enabled           = true
-    target_port                = 3000
-
-    traffic_weight {
-      percentage      = 100
-      latest_revision = true
-    }
-  }
-
-  # Use managed identity for ACR authentication (only if using custom registry)
-  dynamic "registry" {
-    for_each = var.use_custom_registry ? [1] : []
-    content {
-      server   = azurerm_container_registry.acr[0].login_server
-      identity = var.managed_identity_id
-    }
-  }
-
-  tags = merge(var.tags, {
-    Environment = "development"
-  })
-}
-
-# Production Container App
-resource "azurerm_container_app" "container_prod" {
+# Production Frontend Container App for ReportMate Next.js Web Dashboard
+resource "azurerm_container_app" "frontend_prod_main" {
   count                        = var.deploy_prod || var.environment == "prod" || var.environment == "both" ? 1 : 0
   name                         = "reportmate-web-app-prod"
   container_app_environment_id = azurerm_container_app_environment.main.id
@@ -211,7 +101,7 @@ resource "azurerm_container_app" "container_prod" {
 
       env {
         name  = "API_BASE_URL"
-        value = "https://${var.function_app_hostname}"
+        value = "https://${azurerm_container_app.api_functions.ingress[0].fqdn}"
       }
 
       env {
@@ -225,7 +115,17 @@ resource "azurerm_container_app" "container_prod" {
       }
 
       env {
+        name  = "HOST"
+        value = var.enable_custom_domain && var.custom_domain_name != "" ? var.custom_domain_name : "reportmate.ecuad.ca"
+      }
+
+      env {
         name  = "NEXT_PUBLIC_SITE_URL"
+        value = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : "https://reportmate.ecuad.ca"
+      }
+
+      env {
+        name  = "NEXT_PUBLIC_URL"
         value = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : "https://reportmate.ecuad.ca"
       }
 
@@ -249,12 +149,12 @@ resource "azurerm_container_app" "container_prod" {
       # Authentication non-sensitive environment variables
       env {
         name  = "AZURE_AD_CLIENT_ID"
-        value = "" # Will be configured by automation
+        value = var.auth_client_id
       }
 
       env {
         name  = "AZURE_AD_TENANT_ID"
-        value = "" # Will be configured by automation
+        value = var.auth_tenant_id
       }
 
       env {
@@ -441,11 +341,11 @@ resource "azurerm_role_assignment" "container_acr_push" {
 }
 
 # =================================================================
-# API CONTAINER APP - FastAPI Application
+# API FUNCTIONS CONTAINER - FastAPI Application
 # =================================================================
 
-# API Container App for ReportMate FastAPI backend
-resource "azurerm_container_app" "api" {
+# API Functions Container App for ReportMate FastAPI Backend
+resource "azurerm_container_app" "api_functions" {
   name                         = "reportmate-functions-api"
   resource_group_name          = var.resource_group_name
   container_app_environment_id = azurerm_container_app_environment.main.id
@@ -478,7 +378,7 @@ resource "azurerm_container_app" "api" {
   # Database connection as secure secret
   secret {
     name  = "db-url"
-    value = "postgresql://${var.database_username}:${var.database_password}@${var.database_host}:5432/${var.database_name}?sslmode=require"
+    value = "postgresql://${var.database_username}:${urlencode(var.database_password)}@${var.database_host}:5432/${var.database_name}?sslmode=require"
   }
 
   template {

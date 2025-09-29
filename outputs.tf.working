@@ -60,12 +60,12 @@ output "resource_group_location" {
 # =================================================================
 
 output "auth_application_id" {
-  description = "Azure AD Application (Client) ID"
+  description = "Entra ID Application (Client) ID"
   value       = module.auth.application_id
 }
 
 output "auth_tenant_id" {
-  description = "Azure AD Tenant ID"
+  description = "Entra ID Tenant ID"
   value       = module.auth.tenant_id
 }
 

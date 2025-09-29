@@ -84,7 +84,7 @@ module "reportmate_auth_prod" {
   sign_in_audience           = "AzureADMyOrg"  # Only your organization tenant
   
   # Authentication Configuration
-  auth_providers        = ["azure-ad"]  # Only Azure AD in production
+  auth_providers        = ["azure-ad"]  # Only Entra ID in production
   default_auth_provider = "azure-ad"
   allowed_domains      = ["example.com"]  # Strict domain restriction
   require_email_verification = false

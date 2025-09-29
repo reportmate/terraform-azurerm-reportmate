@@ -1,4 +1,4 @@
-# Azure AD App Registration for ReportMate Authentication
+# Entra ID App Registration for ReportMate Authentication
 terraform {
   required_providers {
     azuread = {
@@ -20,7 +20,7 @@ terraform {
   }
 }
 
-# Get current Azure AD configuration
+# Get current Entra ID configuration
 data "azuread_client_config" "current" {}
 
 # Get Microsoft Graph service principal for API permissions
@@ -40,7 +40,7 @@ resource "random_password" "app_secret" {
   special = true
 }
 
-# Create the Azure AD Application
+# Create the Entra ID Application
 resource "azuread_application" "reportmate_web" {
   display_name     = var.app_display_name
   identifier_uris  = [] # Will be set after creation using application_id

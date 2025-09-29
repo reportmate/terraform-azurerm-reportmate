@@ -1,10 +1,10 @@
 # Authentication Module
 
-This Terraform module creates the Azure AD App Registration and authentication infrastructure for web applications.
+This Terraform module creates the Entra ID App Registration and authentication infrastructure for web applications.
 
 ## Features
 
-- ✅ Azure AD App Registration with proper OAuth configuration
+- ✅ Entra ID App Registration with proper OAuth configuration
 - ✅ Service Principal creation and management
 - ✅ Client secret generation and rotation
 - ✅ Role-based access control with predefined roles
@@ -105,8 +105,8 @@ app_roles = [
 
 | Name | Description | Sensitive |
 |------|-------------|-----------|
-| `application_id` | Azure AD Application (Client) ID | No |
-| `tenant_id` | Azure AD Tenant ID | No |
+| `application_id` | Entra ID Application (Client) ID | No |
+| `tenant_id` | Entra ID Tenant ID | No |
 | `client_secret_value` | Client secret for authentication | Yes |
 | `nextauth_secret` | Generated NextAuth secret | Yes |
 | `environment_variables` | All environment variables for the web app | Yes |

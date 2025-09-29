@@ -36,8 +36,8 @@ variable "frontend_fqdn" {
   type        = string
 }
 
-variable "function_app_hostname" {
-  description = "Hostname of the Function App"
+variable "api_app_hostname" {
+  description = "Hostname of the Container App API"
   type        = string
 }
 

@@ -1,5 +1,5 @@
 variable "app_display_name" {
-  description = "Display name for the Azure AD application"
+  description = "Display name for the Entra ID application"
   type        = string
   default     = "ReportMate"
 }
@@ -60,7 +60,7 @@ variable "grant_admin_consent" {
 }
 
 variable "app_owners" {
-  description = "List of additional owner email addresses for the Azure AD application"
+  description = "List of additional owner email addresses for the Entra ID application"
   type        = list(string)
   default     = []
 }
@@ -90,7 +90,7 @@ variable "tags" {
 }
 
 variable "azuread_tags" {
-  description = "Tags for Azure AD resources (as list of strings)"
+  description = "Tags for Entra ID resources (as list of strings)"
   type        = list(string)
   default     = ["ReportMate", "Authentication"]
 }
@@ -184,7 +184,7 @@ variable "default_auth_provider" {
 }
 
 variable "authorized_groups" {
-  description = "List of Azure AD group IDs that are authorized to sign in to the application"
+  description = "List of Entra ID group IDs that are authorized to sign in to the application"
   type        = list(string)
   default     = []
 }

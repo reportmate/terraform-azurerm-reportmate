@@ -1,4 +1,4 @@
-# ReportMate Infrastructure - Main Module
+# ReportMate - Main Module
 # This module provisions a complete ReportMate infrastructure on Azure
 
 # Resource Group - Use existing
@@ -13,7 +13,7 @@ module "database" {
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
 
-  postgres_server_name = "reportmate-database"
+  postgres_server_name = var.postgres_server_name
   db_username   = var.db_username
   db_password   = var.db_password
   db_name       = var.db_name
@@ -131,25 +131,8 @@ module "auth" {
   azuread_tags = ["ReportMate", "Authentication", "Environment:${var.environment}"]
 }
 
-# Automatically configure Container App with authentication environment variables (non-sensitive only)
-resource "null_resource" "configure_container_app_auth" {
-  count = var.deploy_prod ? 1 : 0
-
-  depends_on = [
-    module.auth,
-    module.containers
-  ]
-
-  triggers = {
-    # Trigger update when authentication configuration changes
-    auth_app_id = module.auth.application_id
-    auth_tenant_id = module.auth.tenant_id
-  }
-
-  provisioner "local-exec" {
-    command = "az containerapp update --name reportmate-web-app-prod --resource-group ${data.azurerm_resource_group.rg.name} --set-env-vars AZURE_AD_CLIENT_ID=${module.auth.application_id} AZURE_AD_TENANT_ID=${module.auth.tenant_id}"
-  }
-}
+# Authentication configuration is now handled directly in the container app resource
+# This eliminates the need for az CLI commands which violate the Terraform-only policy
 
 # Optional Key Vault Module for secure secret storage
 module "key_vault" {
@@ -165,45 +148,19 @@ module "key_vault" {
   # Grant access to managed identity
   managed_identity_principal_id = module.identity.managed_identity_principal_id
 
-  tags = var.tags
-}
+  # Grant access to DevOps Resource InfraSec group
+  devops_resource_infrasec_group_object_id = var.devops_resource_infrasec_group_object_id
 
-# Functions Module (Azure Functions API)
-module "functions" {
-  source = "./modules/functions"
-
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
-
-  function_app_name = var.function_app_name
-  service_plan_name = var.service_plan_name
-  python_version    = var.python_version
-
-  # Dependencies
-  storage_account_name       = module.storage.storage_account_name
-  storage_account_access_key = module.storage.storage_account_access_key
-  storage_connection_string  = module.storage.storage_connection_string
-  queue_name                 = module.storage.queue_name
-  managed_identity_id        = module.identity.managed_identity_id
-  managed_identity_client_id = module.identity.managed_identity_client_id
-
-  # Database connection
-  database_url = "postgresql://${var.db_username}:${var.db_password}@${module.database.postgres_fqdn}:5432/${var.db_name}?sslmode=require"
-
-  # Messaging
-  web_pubsub_connection_string = module.messaging.web_pubsub_connection_string
-
-  # Monitoring
-  app_insights_connection_string = module.monitoring.app_insights_connection_string
-  app_insights_key               = module.monitoring.app_insights_key
-  log_analytics_workspace_id     = module.monitoring.log_analytics_workspace_id
-  log_analytics_workspace_key    = module.monitoring.log_analytics_workspace_key
-
-  # Configuration
-  client_passphrases    = var.client_passphrases
-  enable_machine_groups = var.enable_machine_groups
-  enable_business_units = var.enable_business_units
-  enable_code_deployment = true  # Enable automatic code deployment
+  # Sensitive secrets to store in Key Vault
+  db_password          = var.db_password
+  postgres_server_name = var.postgres_server_name
+  db_username          = var.db_username
+  db_name              = var.db_name
+  azure_ad_client_id   = var.azure_ad_client_id
+  azure_ad_tenant_id   = var.azure_ad_tenant_id
+  client_passphrases   = var.client_passphrases
+  custom_domain_name   = var.custom_domain_name
+  nextauth_secret      = var.nextauth_secret
 
   tags = var.tags
 }
@@ -226,9 +183,8 @@ module "containers" {
   # Dependencies
   managed_identity_id            = module.identity.managed_identity_id
   managed_identity_principal_id  = module.identity.managed_identity_principal_id
-  database_url                   = "postgresql://${var.db_username}:${var.db_password}@${module.database.postgres_fqdn}:5432/${var.db_name}?sslmode=require"
+  database_url                   = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${module.database.postgres_fqdn}:5432/${var.db_name}?sslmode=require"
   web_pubsub_hostname            = module.messaging.web_pubsub_hostname
-  function_app_hostname          = module.functions.function_app_hostname
   app_insights_connection_string = module.monitoring.app_insights_connection_string
   log_analytics_workspace_id     = module.monitoring.log_analytics_id
 
@@ -251,6 +207,10 @@ module "containers" {
     client_secret_name   = "reportmate-auth-client-secret"
   } : null
 
+  # Authentication Configuration 
+  auth_client_id = var.azure_ad_client_id
+  auth_tenant_id = var.azure_ad_tenant_id
+
   tags = var.tags
 }
 
@@ -268,8 +228,8 @@ module "networking" {
   environment        = var.environment
 
   # Dependencies
-  frontend_fqdn         = module.containers.frontend_fqdn
-  function_app_hostname = module.functions.function_app_hostname
+  frontend_fqdn      = module.containers.frontend_fqdn
+  api_app_hostname   = module.containers.api_fqdn
 
   tags = var.tags
 }

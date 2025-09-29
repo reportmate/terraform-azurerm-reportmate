@@ -9,7 +9,6 @@ resource "azurerm_postgresql_flexible_server" "pg" {
 
   version                       = "16"
   storage_mb                    = var.db_storage_mb
-  zone                          = "1"
   sku_name                      = var.db_sku_name
   public_network_access_enabled = true
 
@@ -18,6 +17,11 @@ resource "azurerm_postgresql_flexible_server" "pg" {
   }
 
   tags = var.tags
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes = [zone]
+  }
 }
 
 # Random suffix to ensure unique database server name
@@ -57,6 +61,11 @@ resource "azurerm_postgresql_flexible_server_database" "db" {
   server_id = azurerm_postgresql_flexible_server.pg.id
   collation = "en_US.utf8"
   charset   = "utf8"
+
+  # 🚨🚨🚨 CRITICAL: Prevent accidental database destruction 🚨🚨🚨
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Database schema initialization via API endpoint (after functions deployment)
@@ -84,7 +93,7 @@ resource "null_resource" "database_init_api" {
       echo ""
       echo "📋 Next Steps:"
       echo "1. Deploy Azure Functions: terraform apply (functions module)"
-      echo "2. Initialize Schema: curl 'https://reportmate-api.azurewebsites.net/api/init-db?init=true'"
+      echo "2. Initialize Schema: curl 'https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/init-db?init=true'"
       echo "3. Validate Setup: pwsh infrastructure/scripts/check.ps1"
       echo ""
       echo "🚀 For complete bootstrap, run: pwsh infrastructure/scripts/bootstrap.ps1"

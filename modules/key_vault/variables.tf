@@ -66,3 +66,58 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# =================================================================
+# SECRET VARIABLES - Sensitive Values for Key Vault Storage
+# =================================================================
+
+variable "db_password" {
+  description = "PostgreSQL database password to store in Key Vault"
+  type        = string
+  sensitive   = true
+}
+
+variable "postgres_server_name" {
+  description = "PostgreSQL server name to store in Key Vault"
+  type        = string
+}
+
+variable "db_username" {
+  description = "PostgreSQL database username to store in Key Vault"
+  type        = string
+}
+
+variable "db_name" {
+  description = "PostgreSQL database name to store in Key Vault"
+  type        = string
+}
+
+variable "azure_ad_client_id" {
+  description = "Azure AD application client ID to store in Key Vault"
+  type        = string
+  sensitive   = true
+}
+
+variable "azure_ad_tenant_id" {
+  description = "Azure AD tenant ID to store in Key Vault"
+  type        = string
+  sensitive   = true
+}
+
+variable "client_passphrases" {
+  description = "Client authentication passphrase to store in Key Vault"
+  type        = string
+  sensitive   = true
+}
+
+variable "custom_domain_name" {
+  description = "Custom domain name to store in Key Vault"
+  type        = string
+}
+
+variable "nextauth_secret" {
+  description = "NextAuth session encryption secret (optional - will be generated if not provided)"
+  type        = string
+  default     = null
+  sensitive   = true
+}

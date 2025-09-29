@@ -75,13 +75,22 @@ resource "azurerm_cdn_frontdoor_origin" "api" {
   enabled                       = true
 
   certificate_name_check_enabled = true
-  host_name                      = var.function_app_hostname
+  host_name                      = var.api_app_hostname
   http_port                      = 80
   https_port                     = 443
-  origin_host_header             = var.function_app_hostname
+  origin_host_header             = var.api_app_hostname
   priority                       = 1
   weight                         = 1000
 }
+
+# Front Door Rule Set for Header Forwarding
+resource "azurerm_cdn_frontdoor_rule_set" "main" {
+  name                     = "HeaderForwardingRules"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
+}
+
+# Note: Header forwarding rule removed due to Azure Front Door restrictions
+# on modifying X-Forwarded-Host and X-Forwarded-Proto headers
 
 # Front Door Endpoint
 resource "azurerm_cdn_frontdoor_endpoint" "main" {
@@ -106,7 +115,7 @@ resource "azurerm_cdn_frontdoor_route" "main" {
   supported_protocols    = ["Http", "Https"]
 
   cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.main.id]
-  cdn_frontdoor_rule_set_ids      = []
+  cdn_frontdoor_rule_set_ids      = [azurerm_cdn_frontdoor_rule_set.main.id]
   link_to_default_domain          = true
 }
 
