@@ -1,11 +1,18 @@
-#!/usr/bin/env pwsh
+# This file has been renamed to deploy-containers.ps1#!/usr/bin/env pwsh
+
+# Redirecting to the correct script...
 
 <#
-.SYNOPSIS
-ReportMate Frontend Container Deployment Script
 
-.DESCRIPTION
-Builds and deploys the ReportMate Next.js frontend container to Azure Container Apps.
+Write-Host "deploy-frontend.ps1 has been renamed to deploy-containers.ps1" -ForegroundColor Yellow.SYNOPSIS
+
+Write-Host "Please use: .\deploy-containers.ps1 $args" -ForegroundColor GreenReportMate Frontend Container Deployment Script
+
+
+
+# Execute the correct script with all arguments.DESCRIPTION
+
+& ".\deploy-containers.ps1" @argsBuilds and deploys the ReportMate Next.js frontend container to Azure Container Apps.
 This deploys the web application user interface.
 
 .PARAMETER Environment

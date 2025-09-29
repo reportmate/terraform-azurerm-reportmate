@@ -22,7 +22,10 @@ Custom image tag (will auto-generate if not provided)
 # Build and deploy frontend to production
 
 .EXAMPLE
-.\deploy-frontend.ps1 -SkipBuild
+.\deploy-containers.ps1
+
+# Deploy without rebuilding (using latest image)
+.\deploy-containers.ps1 -SkipBuild
 # Deploy frontend without rebuilding
 
 #>
@@ -78,7 +81,7 @@ function Show-Help {
     @"
 ReportMate Frontend Container Deployment Script
 
-Usage: .\deploy-frontend.ps1 [OPTIONS]
+Usage: .\deploy-containers.ps1 [OPTIONS]
 
 Options:
   -Environment ENV     Environment to deploy (dev, staging, prod) [default: prod]
@@ -90,10 +93,10 @@ Options:
   -Help               Show this help message
 
 Examples:
-  .\deploy-frontend.ps1                                    # Deploy frontend to production
-  .\deploy-frontend.ps1 -Environment dev                   # Deploy to development
-  .\deploy-frontend.ps1 -ForceBuild -AutoSSO              # Force rebuild with auto SSO
-  .\deploy-frontend.ps1 -SkipBuild                        # Deploy without rebuilding
+  .\deploy-containers.ps1                                    # Deploy frontend to production
+  .\deploy-containers.ps1 -Environment dev                   # Deploy to development
+  .\deploy-containers.ps1 -ForceBuild -AutoSSO              # Force rebuild with auto SSO
+  .\deploy-containers.ps1 -SkipBuild                        # Deploy without rebuilding
 
 "@
 }
