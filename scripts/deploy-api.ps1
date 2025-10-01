@@ -111,15 +111,18 @@ try {
         # Build the Docker image
         $buildArgs = @(
             "build",
-            "--platform", "linux/amd64",
+            "--platform", "linux/amd64"
+        )
+        
+        if ($ForceBuild) {
+            $buildArgs += "--no-cache"
+        }
+        
+        $buildArgs += @(
             "-t", $FullImageName,
             "-f", "modules/api/Dockerfile",
             "modules/api"
         )
-        
-        if ($ForceBuild) {
-            $buildArgs = @("--no-cache") + $buildArgs
-        }
         
         & docker @buildArgs
         
