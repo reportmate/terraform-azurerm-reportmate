@@ -75,7 +75,7 @@ resource "azurerm_container_app" "frontend_prod_main" {
   template {
     container {
       name   = "container"
-      image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/${local.image_name_tag}" : var.container_image
+      image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/reportmate:${var.frontend_image_tag}" : "reportmateacr.azurecr.io/reportmate:${var.frontend_image_tag}"
       cpu    = 0.5   # More CPU for production
       memory = "1Gi" # More memory for production
 
@@ -219,6 +219,22 @@ resource "azurerm_container_app" "frontend_prod_main" {
       env {
         name  = "NEXT_PUBLIC_AUTO_SSO"
         value = "false"
+      }
+
+      # Version tracking environment variables
+      env {
+        name  = "CONTAINER_IMAGE_TAG"
+        value = var.frontend_image_tag
+      }
+
+      env {
+        name  = "BUILD_TIME"
+        value = formatdate("YYYY-MM-DD'T'hh:mm:ss'Z'", timestamp())
+      }
+
+      env {
+        name  = "BUILD_ID"
+        value = substr(var.frontend_image_tag, length(var.frontend_image_tag) - 7, 7)
       }
 
       # Add startup and liveness probes

@@ -30,12 +30,12 @@ output "frontend_url" {
 
 # API Functions Container App Outputs
 output "api_fqdn" {
-  value       = azurerm_container_app.api_functions.latest_revision_fqdn
+  value       = azurerm_container_app.api_functions.ingress[0].fqdn
   description = "API Functions Container App FQDN"
 }
 
 output "api_url" {
-  value       = "https://${azurerm_container_app.api_functions.latest_revision_fqdn}"
+  value       = "https://${azurerm_container_app.api_functions.ingress[0].fqdn}"
   description = "API Functions Container App URL"
 }
 
