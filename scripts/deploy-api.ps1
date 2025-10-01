@@ -99,39 +99,81 @@ if (-not (Test-Path "modules\api\main.py")) {
 }
 
 Write-Success "✅ API source found at correct location: modules\api\main.py"
-Write-Host "Environment: $Environment" -ForegroundColor Yellow
 
 try {
     # Set working directory to infrastructure root
     Push-Location (Join-Path $PSScriptRoot "..")
     
-    # Run terraform apply focused on API container
-    Write-Host "📦 Deploying API infrastructure..." -ForegroundColor Blue
-    terraform apply -target="azurerm_container_app.reportmate_functions_api" -auto-approve
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ API deployment completed successfully!" -ForegroundColor Green
+    if (-not $SkipBuild) {
+        Write-Host "`n� Building Docker image..." -ForegroundColor Blue
+        Write-Status "  Image: $FullImageName"
         
-        # Get the API URL
-        $apiUrl = terraform output -raw api_url 2>$null
-        if ($apiUrl) {
-            Write-Host "🌐 API URL: $apiUrl" -ForegroundColor Cyan
-            
-            # Test API health
-            Write-Host "🔍 Testing API health..." -ForegroundColor Blue
-            try {
-                $response = Invoke-RestMethod -Uri "$apiUrl/api/health" -TimeoutSec 10
-                Write-Host "✅ API health check passed" -ForegroundColor Green
-            } catch {
-                Write-Host "⚠️ API health check failed, but deployment completed" -ForegroundColor Yellow
-            }
+        # Build the Docker image
+        $buildArgs = @(
+            "build",
+            "--platform", "linux/amd64",
+            "-t", $FullImageName,
+            "-f", "modules/api/Dockerfile",
+            "modules/api"
+        )
+        
+        if ($ForceBuild) {
+            $buildArgs = @("--no-cache") + $buildArgs
         }
+        
+        & docker @buildArgs
+        
+        if ($LASTEXITCODE -ne 0) {
+            throw "Docker build failed with exit code $LASTEXITCODE"
+        }
+        
+        Write-Success "✅ Docker image built successfully"
+        
+        # Push to Azure Container Registry
+        Write-Host "`n📤 Pushing image to ACR..." -ForegroundColor Blue
+        docker push $FullImageName
+        
+        if ($LASTEXITCODE -ne 0) {
+            throw "Docker push failed with exit code $LASTEXITCODE"
+        }
+        
+        Write-Success "✅ Image pushed to ACR"
+        
+        # Update container app with new image
+        Write-Host "`n🔄 Updating container app..." -ForegroundColor Blue
+        $revision = az containerapp update `
+            --name $ContainerAppName `
+            --resource-group $ResourceGroup `
+            --image $FullImageName `
+            --query "properties.latestRevisionName" `
+            -o tsv
+        
+        if ($LASTEXITCODE -ne 0) {
+            throw "Container app update failed with exit code $LASTEXITCODE"
+        }
+        
+        Write-Success "✅ Container app updated to revision: $revision"
     } else {
-        throw "Terraform apply failed with exit code $LASTEXITCODE"
+        Write-Warning "⏭️  Skipping Docker build (using existing image: $FullImageName)"
+    }
+    
+    # Test API health
+    Write-Host "`n🔍 Testing API health..." -ForegroundColor Blue
+    $apiUrl = "https://$ContainerAppName.blackdune-79551938.canadacentral.azurecontainerapps.io"
+    
+    Start-Sleep -Seconds 10  # Give container time to start
+    
+    try {
+        $response = Invoke-RestMethod -Uri "$apiUrl/api/health" -TimeoutSec 30
+        Write-Success "✅ API health check passed"
+        Write-Host "🌐 API URL: $apiUrl" -ForegroundColor Cyan
+    } catch {
+        Write-Warning "⚠️ API health check failed, but deployment completed"
+        Write-Host "   Try: curl $apiUrl/api/health" -ForegroundColor Yellow
     }
     
 } catch {
-    Write-Host "❌ API deployment failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "`n❌ API deployment failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 } finally {
     Pop-Location
