@@ -175,6 +175,7 @@ module "containers" {
   container_registry_name = var.container_registry_name
   use_custom_registry     = var.use_custom_registry
   container_image         = var.container_image
+  frontend_image_tag      = var.frontend_image_tag
   api_image_tag          = var.api_image_tag
   environment             = var.environment
   deploy_dev              = var.deploy_dev

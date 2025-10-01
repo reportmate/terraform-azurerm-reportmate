@@ -118,6 +118,13 @@ variable "tags" {
   default     = {}
 }
 
+# Container Image Configuration
+variable "frontend_image_tag" {
+  type        = string
+  description = "Frontend container image tag to deploy"
+  default     = "latest"
+}
+
 # API Container Configuration
 variable "api_image_tag" {
   type        = string

@@ -330,6 +330,12 @@ variable "devops_resource_infrasec_group_object_id" {
 }
 
 # API Image Configuration
+variable "frontend_image_tag" {
+  type        = string
+  description = "Tag for the frontend container image"
+  default     = "latest"
+}
+
 variable "api_image_tag" {
   type        = string
   description = "Tag for the API container image"
