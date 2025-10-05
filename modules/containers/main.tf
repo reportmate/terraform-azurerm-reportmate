@@ -105,6 +105,11 @@ resource "azurerm_container_app" "frontend_prod_main" {
       }
 
       env {
+        name  = "NEXT_PUBLIC_API_BASE_URL"
+        value = "https://${azurerm_container_app.api_functions.ingress[0].fqdn}"
+      }
+
+      env {
         name  = "PORT"
         value = "3000"
       }
