@@ -105,6 +105,14 @@ try {
     Push-Location (Join-Path $PSScriptRoot "..")
     
     if (-not $SkipBuild) {
+        # Authenticate to ACR first
+        Write-Host "`n🔐 Authenticating to Azure Container Registry..." -ForegroundColor Blue
+        az acr login --name $RegistryName
+        if ($LASTEXITCODE -ne 0) {
+            throw "ACR authentication failed. Run 'az login' first if needed."
+        }
+        Write-Success "✅ ACR authentication successful"
+        
         Write-Host "`n� Building Docker image..." -ForegroundColor Blue
         Write-Status "  Image: $FullImageName"
         
