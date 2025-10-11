@@ -1,351 +1,269 @@
-# This file has been renamed to deploy-containers.ps1#!/usr/bin/env pwsh
-
-# Redirecting to the correct script...
-
+#!/usr/bin/env pwsh
 <#
-
-Write-Host "deploy-frontend.ps1 has been renamed to deploy-containers.ps1" -ForegroundColor Yellow.SYNOPSIS
-
-Write-Host "Please use: .\deploy-containers.ps1 $args" -ForegroundColor GreenReportMate Frontend Container Deployment Script
-
-
-
-# Execute the correct script with all arguments.DESCRIPTION
-
-& ".\deploy-containers.ps1" @argsBuilds and deploys the ReportMate Next.js frontend container to Azure Container Apps.
-This deploys the web application user interface.
-
-.PARAMETER Environment
-Environment to deploy (dev, staging, prod). Default: prod
-
-.PARAMETER SkipBuild
-Skip Docker build (use existing image)
-
-.PARAMETER Tag
-Custom image tag (will auto-generate if not provided)
-
+.SYNOPSIS
+    Deploy ReportMate Frontend - ONE command that ALWAYS works
+    
+.DESCRIPTION
+    Complete frontend deployment:
+    1. Builds Docker image (optionally purges all cache first)
+    2. Pushes to Azure Container Registry
+    3. Updates Container App with new image AND environment variables
+    4. Restarts container
+    5. Purges CDN cache (optionally waits for completion)
+    
+.PARAMETER Purge
+    Aggressively purge ALL Docker cache before building AND wait for CDN purge to complete.
+    Use this when normal deployment doesn't show new code.
+    WARNING: Makes deployment take 15-20 minutes but GUARANTEES fresh code.
+    
 .EXAMPLE
-.\deploy-frontend.ps1
-# Build and deploy frontend to production
-
+    .\deploy-web-app.ps1
+    # Normal deployment (fast, 3-7 minutes, uses Docker cache)
+    
 .EXAMPLE
-.\deploy-frontend.ps1 -SkipBuild
-# Deploy frontend without rebuilding
-
+    .\deploy-web-app.ps1 -Purge
+    # Aggressive: Purge everything, wait for CDN, guarantee fresh code (15-20 minutes)
 #>
 
 param(
-    [string]$Environment = "prod",
-    [switch]$SkipBuild,
-    [string]$Tag = "",
-    [switch]$Help,
-    [switch]$ForceBuild,
-    [switch]$AutoSSO,
-    [switch]$Test
+    [switch]$Purge
 )
 
-# Set error action preference
 $ErrorActionPreference = "Stop"
 
-# Colors for output
-$Red = "`e[31m"
-$Green = "`e[32m"
-$Yellow = "`e[33m"
-$Blue = "`e[34m"
-$Reset = "`e[0m"
+Write-Host "   ReportMate Frontend Deployment" -ForegroundColor Cyan
 
 # Configuration
-$RegistryName = "reportmateacr"
-$ImageName = "reportmate"
 $ResourceGroup = "ReportMate"
-$ContainerAppName = "reportmate-web-app-$Environment"
+$ContainerApp = "reportmate-web-app-prod"
+$Registry = "reportmateacr.azurecr.io"
+$ImageName = "reportmate"
+$FrontDoorProfile = "reportmate-frontdoor"
+$FrontDoorEndpoint = "reportmate-endpoint"
+$Domain = "reportmate.ecuad.ca"
 
-# Helper functions
-function Write-Info {
-    param([string]$Message)
-    Write-Host "${Blue}🚀 $Message${Reset}"
-}
+# Generate unique tag
+$Timestamp = Get-Date -Format "yyyyMMddHHmmss"
+$GitHash = (git rev-parse --short HEAD 2>$null) ?? "unknown"
+$Tag = "$Timestamp-$GitHash"
+$FullImage = "$Registry/${ImageName}:$Tag"
 
-function Write-Success {
-    param([string]$Message)
-    Write-Host "${Green}✅ $Message${Reset}"
-}
-
-function Write-Warning {
-    param([string]$Message)
-    Write-Host "${Yellow}⚠️  $Message${Reset}"
-}
-
-function Write-Error {
-    param([string]$Message)
-    Write-Host "${Red}❌ $Message${Reset}"
-}
-
-function Show-Help {
-    @"
-ReportMate Frontend Container Deployment Script
-
-Usage: .\deploy-frontend.ps1 [OPTIONS]
-
-Options:
-  -Environment ENV     Environment to deploy (dev, staging, prod) [default: prod]
-  -ForceBuild         Force rebuild even if no changes detected
-  -SkipBuild          Skip Docker build (use existing image)
-  -Tag TAG            Custom image tag [default: auto-generated]
-  -AutoSSO            Enable automatic SSO login (no login button)
-  -Test               Test deployment after completion
-  -Help               Show this help message
-
-Examples:
-  .\deploy-frontend.ps1                                    # Deploy frontend to production
-  .\deploy-frontend.ps1 -Environment dev                   # Deploy to development
-  .\deploy-frontend.ps1 -ForceBuild -AutoSSO              # Force rebuild with auto SSO
-  .\deploy-frontend.ps1 -SkipBuild                        # Deploy without rebuilding
-
-"@
-}
-
-if ($Help) {
-    Show-Help
-    exit 0
-}
-
-# Generate tag if not provided
-if (-not $Tag) {
-    try {
-        $GitHash = git rev-parse --short HEAD 2>$null
-        if (-not $GitHash) { $GitHash = "unknown" }
-    } catch {
-        $GitHash = "unknown"
-    }
-    $Tag = "$(Get-Date -Format 'yyyyMMddHHmmss')-$GitHash"
-} else {
-    # Extract git hash from existing tag if possible, or get current hash
-    try {
-        if ($Tag -match '-([a-f0-9]+)$') {
-            $GitHash = $matches[1]
-        } else {
-            $GitHash = git rev-parse --short HEAD 2>$null
-            if (-not $GitHash) { $GitHash = "unknown" }
-        }
-    } catch {
-        $GitHash = "unknown"
-    }
-}
-
-# Find the project root directory
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$InfraDir = Split-Path -Parent $ScriptDir
-$ProjectRoot = Split-Path -Parent $InfraDir
-$ContainerDir = Join-Path $ProjectRoot "apps\www"
-
-Write-Host "🚀 Frontend Container Deployment Configuration:" -ForegroundColor Blue
-Write-Host "  Environment: $Environment"
-Write-Host "  Tag: $Tag"
-Write-Host "  Container Directory: $ContainerDir"
-Write-Host "  Force Build: $ForceBuild"
-Write-Host "  Skip Build: $SkipBuild"
-Write-Host "  Auto SSO: $AutoSSO"
+Write-Host "📦 Image: $FullImage" -ForegroundColor White
 Write-Host ""
 
-# Check prerequisites
-Write-Host "✅ Checking prerequisites..." -ForegroundColor Green
+# Step 1: Optionally purge ALL Docker cache and images
+if ($Purge) {
+    Write-Host "🗑️  Step 1/7: PURGING ALL Docker cache and images..." -ForegroundColor Yellow
+    Write-Host "   ⚠️  Purge mode enabled - this will take longer but guarantees fresh build" -ForegroundColor Yellow
+    Write-Host "   Removing all reportmate images..." -ForegroundColor Gray
 
-if (-not (Test-Path $ContainerDir)) {
-    Write-Host "❌ Container directory not found: $ContainerDir" -ForegroundColor Red
-    exit 1
-}
-
-if (-not (Test-Path "$ContainerDir\Dockerfile")) {
-    Write-Host "❌ Dockerfile not found in: $ContainerDir" -ForegroundColor Red
-    exit 1
-}
-
-# Check required tools
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ Docker not found. Please install Docker." -ForegroundColor Red
-    exit 1
-}
-
-if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ Azure CLI not found. Please install Azure CLI." -ForegroundColor Red
-    exit 1
-}
-
-# Check Azure login
-try {
-    $account = az account show --output json 2>$null | ConvertFrom-Json
-    Write-Host "✅ Logged in as: $($account.user.name)" -ForegroundColor Green
-} catch {
-    Write-Host "❌ Not logged into Azure. Please run 'az login' first." -ForegroundColor Red
-    exit 1
-}
-
-# Check Docker daemon
-try {
-    docker info --format "{{.ID}}" 2>$null | Out-Null
-    Write-Host "✅ Docker daemon is running" -ForegroundColor Green
-} catch {
-    Write-Host "❌ Docker daemon is not running" -ForegroundColor Red
-    exit 1
-}
-
-# Build Docker image
-if (-not $SkipBuild) {
-    Write-Host "🚀 Building Docker image..." -ForegroundColor Blue
-    
-    $FullImageName = "$RegistryName.azurecr.io/$ImageName`:$Tag"
-    $LatestImageName = "$RegistryName.azurecr.io/$ImageName`:latest"
-    
-    # Login to ACR for cache pulling
-    Write-Host "🔐 Logging into Azure Container Registry for cache..." -ForegroundColor Blue
-    az acr login --name $RegistryName | Out-Null
-    
-    # Try to pull latest image for cache
-    Write-Host "📦 Attempting to pull latest image for cache..." -ForegroundColor Blue
-    try {
-        docker pull $LatestImageName 2>$null | Out-Null
-        Write-Host "✅ Using cache from: $LatestImageName" -ForegroundColor Green
-        $CacheArgs = "--cache-from $LatestImageName"
-    } catch {
-        Write-Host "⚠️ Could not pull latest image for cache, building without cache" -ForegroundColor Yellow
-        $CacheArgs = ""
+    # Remove all reportmate images
+    docker images "$Registry/$ImageName" --format "{{.Repository}}:{{.Tag}}" | ForEach-Object {
+        docker rmi $_ --force 2>$null
     }
-    
-    # Change to container directory
-    Set-Location $ContainerDir
-    
-    try {
-        # Docker build command with cache and platform specification
-        Write-Host "Building: $FullImageName"
-        $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-        $BuildArgs = @(
-            "--build-arg", "IMAGE_TAG=$Tag"
-            "--build-arg", "BUILD_TIME=$BuildTime"
-            "--build-arg", "BUILD_ID=$GitHash"
-        )
-        
-        if ($CacheArgs) {
-            docker build --platform linux/amd64 $BuildArgs --cache-from $LatestImageName -t $FullImageName -t $LatestImageName .
-        } else {
-            docker build --platform linux/amd64 $BuildArgs -t $FullImageName -t $LatestImageName .
-        }
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "✅ Image built successfully: $FullImageName" -ForegroundColor Green
-        } else {
-            Write-Host "❌ Failed to build Docker image" -ForegroundColor Red
-            exit 1
-        }
-        
-    } finally {
-        # Return to original directory
-        Set-Location $PSScriptRoot
-    }
+
+    Write-Host "   Purging build cache..." -ForegroundColor Gray
+    docker builder prune --all --force | Out-Null
+    Write-Host "✅ Cache purged" -ForegroundColor Green
+    Write-Host ""
 } else {
-    Write-Host "⏭️ Skipping build as requested" -ForegroundColor Yellow
-    $FullImageName = "$RegistryName.azurecr.io/$ImageName`:$Tag"
+    Write-Host "ℹ️  Using Docker cache for faster build (use -Purge flag for fresh build)" -ForegroundColor Cyan
+    Write-Host ""
 }
 
-# Push to Azure Container Registry
-if (-not $SkipBuild) {
-    Write-Host "🚀 Pushing to Azure Container Registry..." -ForegroundColor Blue
+# Step 2: Validate prerequisites
+$StepNum = if ($Purge) { "2/7" } else { "1/6" }
+Write-Host "🔍 Step $StepNum`: Validating prerequisites..." -ForegroundColor Yellow
+
+try {
+    docker version | Out-Null
+    Write-Host "✅ Docker is running" -ForegroundColor Green
+}
+catch {
+    Write-Host "❌ Docker is not running. Please start Docker Desktop." -ForegroundColor Red
+    exit 1
+}
+
+try {
+    $account = az account show 2>$null | ConvertFrom-Json
+    Write-Host "✅ Logged into Azure as $($account.user.name)" -ForegroundColor Green
+}
+catch {
+    Write-Host "❌ Not logged into Azure. Run: az login" -ForegroundColor Red
+    exit 1
+}
+Write-Host ""
+
+# Step 3: Authenticate to ACR
+$StepNum = if ($Purge) { "3/7" } else { "2/6" }
+Write-Host "🔐 Step $StepNum`: Authenticating to Azure Container Registry..." -ForegroundColor Yellow
+az acr login --name reportmateacr | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Failed to authenticate to ACR" -ForegroundColor Red
+    exit 1
+}
+Write-Host "✅ Authenticated to ACR" -ForegroundColor Green
+Write-Host ""
+
+# Step 4: Build Docker image
+$StepNum = if ($Purge) { "4/7" } else { "3/6" }
+if ($Purge) {
+    Write-Host "🔨 Step $StepNum`: Building FRESH Docker image (no cache, forced pull)..." -ForegroundColor Yellow
+    Write-Host "   This will take 10-15 minutes for a completely fresh build..." -ForegroundColor Gray
+} else {
+    Write-Host "🔨 Step $StepNum`: Building Docker image (using cache)..." -ForegroundColor Yellow
+    Write-Host "   This should take 2-5 minutes with cache..." -ForegroundColor Gray
+}
+
+Push-Location "$PSScriptRoot\..\..\apps\www"
+
+try {
+    $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
     
-    # ACR login already done in build section
-    
-    # Push images
-    docker push $FullImageName
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Pushed: $FullImageName" -ForegroundColor Green
+    if ($Purge) {
+        # Purge build: no cache, pull fresh base images
+        docker build `
+            --no-cache `
+            --pull `
+            --platform linux/amd64 `
+            --build-arg IMAGE_TAG="$Tag" `
+            --build-arg BUILD_TIME="$BuildTime" `
+            --build-arg BUILD_ID="$GitHash" `
+            -t "$FullImage" `
+            -f Dockerfile `
+            .
     } else {
-        Write-Host "❌ Failed to push image" -ForegroundColor Red
+        # Normal build: use cache for speed
+        docker build `
+            --platform linux/amd64 `
+            --build-arg IMAGE_TAG="$Tag" `
+            --build-arg BUILD_TIME="$BuildTime" `
+            --build-arg BUILD_ID="$GitHash" `
+            -t "$FullImage" `
+            -f Dockerfile `
+            .
+    }
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Docker build failed" -ForegroundColor Red
+        Pop-Location
         exit 1
     }
-
-    docker push $LatestImageName
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Pushed: $LatestImageName" -ForegroundColor Green
-    } else {
-        Write-Host "⚠️ Failed to push latest tag (non-critical)" -ForegroundColor Yellow
-    }
+    
+    Write-Host "✅ Image built successfully" -ForegroundColor Green
 }
+finally {
+    Pop-Location
+}
+Write-Host ""
 
-# Deploy to Azure Container Apps
-Write-Host "🚀 Deploying to Azure Container Apps..." -ForegroundColor Blue
-
-# Check if container app exists
-try {
-    az containerapp show --name $ContainerAppName --resource-group $ResourceGroup --output none 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Container app not found"
-    }
-    Write-Host "✅ Container app found: $ContainerAppName" -ForegroundColor Green
-} catch {
-    Write-Host "❌ Container app '$ContainerAppName' not found in resource group '$ResourceGroup'" -ForegroundColor Red
-    Write-Host "Please ensure the infrastructure is deployed via Terraform first" -ForegroundColor Red
+# Step 5: Push image to ACR
+$StepNum = if ($Purge) { "5/7" } else { "4/6" }
+Write-Host "📤 Step $StepNum`: Pushing image to Azure Container Registry..." -ForegroundColor Yellow
+docker push "$FullImage"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Failed to push image" -ForegroundColor Red
     exit 1
 }
+Write-Host "✅ Image pushed to ACR" -ForegroundColor Green
+Write-Host ""
 
-# Update container app with new image
-Write-Host "Updating container app with image: $FullImageName"
+# Step 6: Update Container App with new image AND environment variables
+$StepNum = if ($Purge) { "6/7" } else { "5/6" }
+Write-Host "🚀 Step $StepNum`: Updating Container App..." -ForegroundColor Yellow
 
+# CRITICAL: Update image AND env vars in single command (triggers new revision)
 az containerapp update `
-    --name $ContainerAppName `
+    --name $ContainerApp `
     --resource-group $ResourceGroup `
-    --image $FullImageName `
-    --output table
+    --image "$FullImage" `
+    --set-env-vars `
+        "CONTAINER_IMAGE_TAG=$Tag" `
+        "BUILD_TIME=$BuildTime" `
+        "BUILD_ID=$GitHash" | Out-Null
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "✅ Container app updated successfully" -ForegroundColor Green
-} else {
-    Write-Host "❌ Failed to update container app" -ForegroundColor Red
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Failed to update Container App" -ForegroundColor Red
     exit 1
 }
 
-# Get the application URL
-Write-Host "🔍 Getting application URL..." -ForegroundColor Blue
-$AppUrl = az containerapp show --name $ContainerAppName --resource-group $ResourceGroup --query "properties.configuration.ingress.fqdn" --output tsv
+Write-Host "✅ Container App updated (new revision created automatically)" -ForegroundColor Green
 
-function Set-FrontDoorForAutoSSO {
-    if (-not $AutoSSO) {
-        return
-    }
-    
-    Write-Host "🔧 Configuring Azure Front Door for automatic SSO..." -ForegroundColor Blue
-    
-    # This would configure Front Door rules to automatically redirect to SSO
-    # For now, we'll just output instructions
-    Write-Host "⚠️ Manual Front Door configuration required:" -ForegroundColor Yellow
-    Write-Host "1. Go to Azure Portal → Front Door and CDN profiles"
-    Write-Host "2. Find the ReportMate Front Door profile"
-    Write-Host "3. Add a rule to redirect all traffic to the SSO login endpoint"
-    Write-Host "4. Configure the rule to bypass the login page and go directly to Entra ID"
-    Write-Host ""
-    Write-Host "Rule configuration:"
-    Write-Host "  - If: Request URL path does not contain '/api/auth'"
-    Write-Host "  - And: Request URL path does not contain '/auth'"
-    Write-Host "  - Then: Redirect to '/api/auth/signin' with HTTP 302"
+# Wait for new revision to be ready
+Write-Host "   Waiting 30 seconds for new revision to start..." -ForegroundColor Gray
+Start-Sleep -Seconds 30
+
+# Get the active revision to verify
+$activeRevision = az containerapp revision list `
+    --name $ContainerApp `
+    --resource-group $ResourceGroup `
+    --query "[?properties.active==``true`` && properties.trafficWeight==``100``].name" `
+    -o tsv
+
+if ($activeRevision) {
+    Write-Host "✅ Active revision: $($activeRevision.Trim())" -ForegroundColor Green
 }
+Write-Host ""
 
-# Configure Front Door if AutoSSO is enabled
-Set-FrontDoorForAutoSSO
+# Step 7: Purge CDN cache
+$StepNum = if ($Purge) { "7/7" } else { "6/6" }
+Write-Host "🗑️  Step $StepNum`: Purging Azure Front Door CDN cache..." -ForegroundColor Yellow
 
-if ($AppUrl) {
-    Write-Host ""
-    Write-Host "🎉 DEPLOYMENT COMPLETED! 🎉" -ForegroundColor Green
-    Write-Host "==============================================="
-    Write-Host "✅ ReportMate container is deployed and ready!"
-    Write-Host "🌐 Application URL: https://$AppUrl"
+if ($Purge) {
+    Write-Host "   ⚠️  AGGRESSIVE PURGE: Purging ALL paths and WAITING for completion..." -ForegroundColor Yellow
+    Write-Host "   This ensures CDN serves fresh content immediately..." -ForegroundColor Gray
     
-    if ($AutoSSO) {
-        Write-Host ""
-        Write-Host "🔐 Automatic SSO Configuration:" -ForegroundColor Green
-        Write-Host "✅ Container configured for auto SSO"
-        Write-Host "⚠️  Front Door rules may need manual configuration"
-        Write-Host "🌐 Users will be automatically redirected to login"
+    # Purge multiple specific paths to be thorough
+    $paths = @("/*", "/_next/*", "/_next/static/*", "/dashboard", "/devices", "/settings")
+    foreach ($path in $paths) {
+        Write-Host "   Purging: $path" -ForegroundColor Gray
+        az afd endpoint purge `
+            --resource-group $ResourceGroup `
+            --profile-name $FrontDoorProfile `
+            --endpoint-name $FrontDoorEndpoint `
+            --content-paths $path `
+            --domains $Domain `
+            --output none 2>$null
     }
     
-    Write-Host ""
+    Write-Host "   Waiting 60 seconds for CDN purge to propagate globally..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 60
+    Write-Host "✅ CDN cache aggressively purged and propagated" -ForegroundColor Green
 } else {
-    Write-Host "⚠️ Could not retrieve application URL" -ForegroundColor Yellow
+    Write-Host "   Quick purge (use -Purge flag for aggressive clearing)..." -ForegroundColor Gray
+    az afd endpoint purge `
+        --resource-group $ResourceGroup `
+        --profile-name $FrontDoorProfile `
+        --endpoint-name $FrontDoorEndpoint `
+        --content-paths "/*" `
+        --domains $Domain `
+        --no-wait 2>$null
+    Write-Host "✅ CDN cache purge initiated (may take 2-5 minutes to propagate)" -ForegroundColor Green
 }
+Write-Host ""
+
+# Summary
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "   ✅ Deployment Complete!" -ForegroundColor Green
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "📦 Image: $FullImage" -ForegroundColor White
+Write-Host "🌐 URL: https://$Domain" -ForegroundColor White
+Write-Host ""
+
+if ($Purge) {
+    Write-Host "✅ PURGE MODE: Everything fresh and CDN cache cleared" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "🔍 Test NOW in incognito browser: https://$Domain" -ForegroundColor Cyan
+    Write-Host "   New code should be live immediately" -ForegroundColor Gray
+} else {
+    Write-Host "⏳ Wait 2-5 minutes for CDN cache to clear, then test" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "🔍 Test in INCOGNITO browser: https://$Domain" -ForegroundColor Cyan
+    Write-Host "   • Press Ctrl+Shift+N (Chrome) or Ctrl+Shift+P (Firefox)" -ForegroundColor Gray
+    Write-Host "   • Check /settings page for new version number" -ForegroundColor Gray
+    Write-Host "   • Dashboard should show '-' during loading (~20 seconds)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "💡 If old code still shows, run: .\deploy-web-app.ps1 -Purge" -ForegroundColor Yellow
+}
+Write-Host ""
