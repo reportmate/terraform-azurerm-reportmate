@@ -427,6 +427,12 @@ resource "azurerm_container_app" "api_functions" {
         value = var.web_pubsub_connection
       }
 
+      # Client passphrase for Windows client authentication
+      env {
+        name  = "REPORTMATE_PASSPHRASE"
+        value = var.client_passphrases
+      }
+
       # Environment indicator
       env {
         name  = "ENVIRONMENT"
