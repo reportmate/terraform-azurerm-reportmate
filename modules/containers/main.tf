@@ -364,6 +364,14 @@ resource "azurerm_role_assignment" "container_acr_push" {
 # =================================================================
 # API FUNCTIONS CONTAINER - FastAPI Application
 # =================================================================
+# ⚠️  CRITICAL CONFIGURATION WARNING ⚠️
+# external_enabled MUST be TRUE for Windows/Mac clients to check in!
+# If set to false:
+#   - Windows/Mac devices get 404 errors and cannot check in
+#   - Frontend continues working (internal network), masking the issue
+#   - Devices stop reporting for days/weeks before anyone notices
+# See: infrastructure/modules/containers/TERRAFORM_DRIFT_EXTERNAL_ACCESS.md
+# =================================================================
 
 # API Functions Container App for ReportMate FastAPI Backend
 resource "azurerm_container_app" "api_functions" {
@@ -379,8 +387,9 @@ resource "azurerm_container_app" "api_functions" {
   }
 
   # External ingress for API endpoints
+  # ⚠️ CRITICAL: external_enabled MUST be true - do not change!
   ingress {
-    external_enabled = true
+    external_enabled = true  # MUST be true for Windows/Mac client check-ins
     target_port      = 8000
     transport        = "auto"
     
