@@ -5,11 +5,18 @@ param(
     [string]$Server = "reportmate-database",
     [string]$Database = "reportmate", 
     [string]$Username = "reportmate",
-    [string]$Password = "2sSWbVxyqjXp9WUpeMmzRaC",
+    [string]$Password = $env:DB_PASSWORD,
     [string]$ResourceGroup = "ReportMate"
 )
 
 $ErrorActionPreference = "Stop"
+
+# Validate required environment variable
+if (-not $Password) {
+    Write-Error "❌ DB_PASSWORD environment variable is not set. Please set it before running migrations."
+    Write-Host "Example: `$env:DB_PASSWORD = 'your-password-here'; .\run-migrations.ps1" -ForegroundColor Yellow
+    exit 1
+}
 
 Write-Host "🗄️  Running database migrations..." -ForegroundColor Green
 
@@ -27,7 +34,8 @@ try {
 $migrationFiles = @(
     "001-initial-migration.sql",
     "002-modules-migration.sql", 
-    "003-indexes-migration.sql"
+    "003-indexes-migration.sql",
+    "004-usage-history-migration.sql"
 )
 
 foreach ($migration in $migrationFiles) {

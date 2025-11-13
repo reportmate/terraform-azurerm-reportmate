@@ -1,269 +1,360 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Deploy ReportMate Frontend - ONE command that ALWAYS works
-    
+    Deploy the ReportMate Next.js frontend container with full cache busting and metadata sync.
+
 .DESCRIPTION
-    Complete frontend deployment:
-    1. Builds Docker image (optionally purges all cache first)
-    2. Pushes to Azure Container Registry
-    3. Updates Container App with new image AND environment variables
-    4. Restarts container
-    5. Purges CDN cache (optionally waits for completion)
-    
-.PARAMETER Purge
-    Aggressively purge ALL Docker cache before building AND wait for CDN purge to complete.
-    Use this when normal deployment doesn't show new code.
-    WARNING: Makes deployment take 15-20 minutes but GUARANTEES fresh code.
-    
+    Builds (optionally forced) and deploys the ReportMate frontend container, updates environment
+    variables to keep build metadata accurate, and purges Azure Front Door so users always see the
+    latest UI.
+
+.PARAMETER Environment
+    Target environment to deploy. Currently `prod` is supported.
+
+.PARAMETER ForceBuild
+    Rebuild the Docker image without using cache and force base image pulls.
+
+.PARAMETER SkipBuild
+    Skip Docker build/push and only update the container and metadata. When used without `-Tag`
+    the script reuses the currently deployed tag.
+
+.PARAMETER Tag
+    Custom image tag. When omitted the script generates `<timestamp>-<git-hash>` from the apps/www
+    submodule.
+
+.PARAMETER AutoSSO
+    Reserved for future use. Currently only surfaced in the summary output for completeness.
+
 .EXAMPLE
-    .\deploy-web-app.ps1
-    # Normal deployment (fast, 3-7 minutes, uses Docker cache)
-    
+    .\deploy-app.ps1
+    # Standard deployment using Docker layer cache
+
 .EXAMPLE
-    .\deploy-web-app.ps1 -Purge
-    # Aggressive: Purge everything, wait for CDN, guarantee fresh code (15-20 minutes)
+    .\deploy-app.ps1 -ForceBuild
+    # Rebuild from scratch (no Docker cache) and deploy
+
+.EXAMPLE
+    .\deploy-app.ps1 -SkipBuild
+    # Re-use the existing image but resync environment variables and purge CDN
 #>
 
+[CmdletBinding()]
 param(
-    [switch]$Purge
+    [ValidateSet("prod")]
+    [string]$Environment = "prod",
+    [switch]$ForceBuild,
+    [switch]$SkipBuild,
+    [string]$Tag,
+    [switch]$AutoSSO
 )
 
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 
-Write-Host "   ReportMate Frontend Deployment" -ForegroundColor Cyan
-
-# Configuration
-$ResourceGroup = "ReportMate"
-$ContainerApp = "reportmate-web-app-prod"
-$Registry = "reportmateacr.azurecr.io"
-$ImageName = "reportmate"
-$FrontDoorProfile = "reportmate-frontdoor"
-$FrontDoorEndpoint = "reportmate-endpoint"
-$Domain = "reportmate.ecuad.ca"
-
-# Generate unique tag
-$Timestamp = Get-Date -Format "yyyyMMddHHmmss"
-$GitHash = (git rev-parse --short HEAD 2>$null) ?? "unknown"
-$Tag = "$Timestamp-$GitHash"
-$FullImage = "$Registry/${ImageName}:$Tag"
-
-Write-Host "📦 Image: $FullImage" -ForegroundColor White
-Write-Host ""
-
-# Step 1: Optionally purge ALL Docker cache and images
-if ($Purge) {
-    Write-Host "🗑️  Step 1/7: PURGING ALL Docker cache and images..." -ForegroundColor Yellow
-    Write-Host "   ⚠️  Purge mode enabled - this will take longer but guarantees fresh build" -ForegroundColor Yellow
-    Write-Host "   Removing all reportmate images..." -ForegroundColor Gray
-
-    # Remove all reportmate images
-    docker images "$Registry/$ImageName" --format "{{.Repository}}:{{.Tag}}" | ForEach-Object {
-        docker rmi $_ --force 2>$null
-    }
-
-    Write-Host "   Purging build cache..." -ForegroundColor Gray
-    docker builder prune --all --force | Out-Null
-    Write-Host "✅ Cache purged" -ForegroundColor Green
-    Write-Host ""
-} else {
-    Write-Host "ℹ️  Using Docker cache for faster build (use -Purge flag for fresh build)" -ForegroundColor Cyan
-    Write-Host ""
+function Write-Section {
+    param(
+        [string]$Message,
+        [ConsoleColor]$Color = [ConsoleColor]::Cyan
+    )
+    Write-Host "`n$Message" -ForegroundColor $Color
 }
 
-# Step 2: Validate prerequisites
-$StepNum = if ($Purge) { "2/7" } else { "1/6" }
-Write-Host "🔍 Step $StepNum`: Validating prerequisites..." -ForegroundColor Yellow
+function Write-Info {
+    param([string]$Message)
+    Write-Host "   $Message" -ForegroundColor Cyan
+}
+
+function Write-Success {
+    param([string]$Message)
+    Write-Host "   $Message" -ForegroundColor Green
+}
+
+function Write-WarningLine {
+    param([string]$Message)
+    Write-Host "   $Message" -ForegroundColor Yellow
+}
+
+function Write-ErrorLine {
+    param([string]$Message)
+    Write-Host "   $Message" -ForegroundColor Red
+}
+
+# Resolve directory structure (script -> infrastructure -> repo root -> apps/www)
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$InfraDir = Split-Path -Parent $ScriptDir
+$RepoRoot = Split-Path -Parent $InfraDir
+$FrontendDir = Join-Path $RepoRoot "apps\www"
+
+if (-not (Test-Path $FrontendDir)) {
+    throw "Unable to locate frontend directory at '$FrontendDir'."
+}
+
+$Environments = @{
+    prod = @{
+        ResourceGroup    = "ReportMate"
+        ContainerApp     = "reportmate-web-app-prod"
+        RegistryHost     = "reportmateacr.azurecr.io"
+        ImageName        = "reportmate"
+        Domain           = "reportmate.ecuad.ca"
+        ApiBaseUrl       = "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io"
+        FrontDoorProfile = "reportmate-frontdoor"
+        FrontDoorEndpoint= "reportmate-endpoint"
+    }
+}
+
+if (-not $Environments.ContainsKey($Environment)) {
+    throw "Unsupported environment '$Environment'."
+}
+
+$Config = $Environments[$Environment]
+$RegistryHost = $Config.RegistryHost
+$RegistryName = $RegistryHost.Split('.')[0]
+$ImageName = $Config.ImageName
+
+# Capture git hash from submodule first (before generating tag)
+Push-Location $FrontendDir
+try {
+    $GitHash = git rev-parse --short HEAD 2>$null
+} catch {
+    $GitHash = $null
+} finally {
+    Pop-Location
+}
+if (-not $GitHash) { $GitHash = "unknown" }
+
+if (-not $Tag) {
+    $Timestamp = Get-Date -Format "yyyyMMddHHmmss"
+    $Tag = "$Timestamp-$GitHash"
+}
+
+$BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+
+Write-Section "🚀 Frontend Container Deployment Configuration:"
+Write-Info "Environment: $Environment"
+Write-Info "Target Container: $($Config.ContainerApp)"
+Write-Info "Registry: $RegistryHost"
+Write-Info "Image Name: $ImageName"
+Write-Info "Tag: $Tag"
+Write-Info "Force Build: $ForceBuild"
+Write-Info "Skip Build: $SkipBuild"
+Write-Info "Auto SSO: $AutoSSO"
+Write-Info "Build Directory: $FrontendDir"
+
+# === Prerequisite validation ===
+Write-Section "🔍 Validating prerequisites..." 'Yellow'
 
 try {
     docker version | Out-Null
-    Write-Host "✅ Docker is running" -ForegroundColor Green
-}
-catch {
-    Write-Host "❌ Docker is not running. Please start Docker Desktop." -ForegroundColor Red
-    exit 1
-}
-
-try {
-    $account = az account show 2>$null | ConvertFrom-Json
-    Write-Host "✅ Logged into Azure as $($account.user.name)" -ForegroundColor Green
-}
-catch {
-    Write-Host "❌ Not logged into Azure. Run: az login" -ForegroundColor Red
-    exit 1
-}
-Write-Host ""
-
-# Step 3: Authenticate to ACR
-$StepNum = if ($Purge) { "3/7" } else { "2/6" }
-Write-Host "🔐 Step $StepNum`: Authenticating to Azure Container Registry..." -ForegroundColor Yellow
-az acr login --name reportmateacr | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Failed to authenticate to ACR" -ForegroundColor Red
-    exit 1
-}
-Write-Host "✅ Authenticated to ACR" -ForegroundColor Green
-Write-Host ""
-
-# Step 4: Build Docker image
-$StepNum = if ($Purge) { "4/7" } else { "3/6" }
-if ($Purge) {
-    Write-Host "🔨 Step $StepNum`: Building FRESH Docker image (no cache, forced pull)..." -ForegroundColor Yellow
-    Write-Host "   This will take 10-15 minutes for a completely fresh build..." -ForegroundColor Gray
-} else {
-    Write-Host "🔨 Step $StepNum`: Building Docker image (using cache)..." -ForegroundColor Yellow
-    Write-Host "   This should take 2-5 minutes with cache..." -ForegroundColor Gray
-}
-
-Push-Location "$PSScriptRoot\..\..\apps\www"
-
-try {
-    $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-    
-    if ($Purge) {
-        # Purge build: no cache, pull fresh base images
-        docker build `
-            --no-cache `
-            --pull `
-            --platform linux/amd64 `
-            --build-arg IMAGE_TAG="$Tag" `
-            --build-arg BUILD_TIME="$BuildTime" `
-            --build-arg BUILD_ID="$GitHash" `
-            -t "$FullImage" `
-            -f Dockerfile `
-            .
-    } else {
-        # Normal build: use cache for speed
-        docker build `
-            --platform linux/amd64 `
-            --build-arg IMAGE_TAG="$Tag" `
-            --build-arg BUILD_TIME="$BuildTime" `
-            --build-arg BUILD_ID="$GitHash" `
-            -t "$FullImage" `
-            -f Dockerfile `
-            .
-    }
-    
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ Docker build failed" -ForegroundColor Red
-        Pop-Location
-        exit 1
+        throw "Docker CLI returned exit code $LASTEXITCODE"
     }
-    
-    Write-Host "✅ Image built successfully" -ForegroundColor Green
+    Write-Success "Docker daemon available"
+} catch {
+    throw "Docker isn't running or not installed. Start Docker Desktop and retry."
 }
-finally {
-    Pop-Location
+
+try {
+    $AccountInfo = az account show --output json | ConvertFrom-Json
+    Write-Success "Azure CLI authenticated as $($AccountInfo.user.name)"
+} catch {
+    throw "Not logged into Azure CLI. Run 'az login' before deploying."
 }
-Write-Host ""
 
-# Step 5: Push image to ACR
-$StepNum = if ($Purge) { "5/7" } else { "4/6" }
-Write-Host "📤 Step $StepNum`: Pushing image to Azure Container Registry..." -ForegroundColor Yellow
-docker push "$FullImage"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Failed to push image" -ForegroundColor Red
-    exit 1
-}
-Write-Host "✅ Image pushed to ACR" -ForegroundColor Green
-Write-Host ""
-
-# Step 6: Update Container App with new image AND environment variables
-$StepNum = if ($Purge) { "6/7" } else { "5/6" }
-Write-Host "🚀 Step $StepNum`: Updating Container App..." -ForegroundColor Yellow
-
-# CRITICAL: Update image AND env vars in single command (triggers new revision)
-az containerapp update `
-    --name $ContainerApp `
-    --resource-group $ResourceGroup `
-    --image "$FullImage" `
-    --set-env-vars `
-        "CONTAINER_IMAGE_TAG=$Tag" `
-        "BUILD_TIME=$BuildTime" `
-        "BUILD_ID=$GitHash" | Out-Null
+# Load current container metadata (used for env preservation and skip-build handling)
+$ContainerJson = az containerapp show `
+    --name $Config.ContainerApp `
+    --resource-group $Config.ResourceGroup `
+    --output json
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Failed to update Container App" -ForegroundColor Red
-    exit 1
+    throw "Failed to fetch container app '$($Config.ContainerApp)'. Ensure it exists and you have permissions."
 }
 
-Write-Host "✅ Container App updated (new revision created automatically)" -ForegroundColor Green
+$ContainerInfo = $ContainerJson | ConvertFrom-Json
+$CurrentImage = $ContainerInfo.properties.template.containers[0].image
+$ExistingEnv = $ContainerInfo.properties.template.containers[0].env
 
-# Wait for new revision to be ready
-Write-Host "   Waiting 30 seconds for new revision to start..." -ForegroundColor Gray
+if ($SkipBuild -and -not $Tag) {
+    if ($CurrentImage -match ":(?<tag>[^:]+)$") {
+        $Tag = $Matches['tag']
+        Write-WarningLine "SkipBuild requested without tag - reusing deployed tag '$Tag'."
+    } else {
+        throw "Unable to infer currently deployed image tag; specify -Tag when using -SkipBuild."
+    }
+}
+
+$FullImage = "$RegistryHost/$ImageName`:$Tag"
+Write-Info "Resolved image reference: $FullImage"
+
+# === Docker build & push ===
+if (-not $SkipBuild) {
+    Write-Section "🔐 Authenticating and building image..." 'Yellow'
+    az acr login --name $RegistryName | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "ACR authentication failed for '$RegistryName'."
+    }
+    Write-Success "Authenticated to Azure Container Registry"
+
+    Push-Location $FrontendDir
+    try {
+        $BuildArgs = @("build", "--platform", "linux/amd64",
+            "--build-arg", "IMAGE_TAG=$Tag",
+            "--build-arg", "BUILD_TIME=$BuildTime",
+            "--build-arg", "BUILD_ID=$GitHash"
+        )
+
+        if ($ForceBuild) {
+            $BuildArgs = @("build", "--no-cache", "--pull", "--platform", "linux/amd64",
+                "--build-arg", "IMAGE_TAG=$Tag",
+                "--build-arg", "BUILD_TIME=$BuildTime",
+                "--build-arg", "BUILD_ID=$GitHash"
+            )
+        }
+
+        if ($ApiBaseUrl) {
+            $BuildArgs += @("--build-arg", "API_BASE_URL=$ApiBaseUrl")
+        }
+
+    $BuildArgs += @("-t", $FullImage, "-f", "Dockerfile", ".")
+
+        Write-Info "Building Docker image (force build: $ForceBuild)..."
+        docker @BuildArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Docker build failed."
+        }
+        Write-Success "Image built successfully"
+
+        Write-Info "Pushing image to $RegistryHost..."
+        docker push $FullImage | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Docker push failed."
+        }
+        Write-Success "Image pushed to registry"
+    } finally {
+        Pop-Location
+    }
+} else {
+    Write-Section "⏭️  Skipping Docker build/push per request" 'Yellow'
+}
+
+# === Environment variable reconciliation ===
+Write-Section "⚙️  Updating container configuration..." 'Yellow'
+
+$EnvPairs = @()
+$KeysToReplace = @(
+    "CONTAINER_IMAGE_TAG",
+    "BUILD_TIME",
+    "BUILD_ID",
+    "API_BASE_URL",
+    "NEXT_PUBLIC_API_BASE_URL",
+    "NEXT_PUBLIC_VERSION",
+    "NEXT_PUBLIC_BUILD_ID",
+    "NEXT_PUBLIC_BUILD_TIME"
+)
+
+if ($ExistingEnv) {
+    $envSeen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($env in $ExistingEnv) {
+        if (-not $env.name) { continue }
+        if ($env.name -in $KeysToReplace) { continue }
+        if (-not $envSeen.Add($env.name)) { continue }
+        if ($env.secretRef) {
+            $EnvPairs += "$($env.name)=secretref:$($env.secretRef)"
+        } elseif ($null -ne $env.value) {
+            $EnvPairs += "$($env.name)=$($env.value)"
+        }
+    }
+}
+
+$EnvPairs += "CONTAINER_IMAGE_TAG=$Tag"
+$EnvPairs += "BUILD_TIME=$BuildTime"
+$EnvPairs += "BUILD_ID=$GitHash"
+$EnvPairs += "NEXT_PUBLIC_VERSION=$Tag"
+$EnvPairs += "NEXT_PUBLIC_BUILD_ID=$GitHash"
+$EnvPairs += "NEXT_PUBLIC_BUILD_TIME=$BuildTime"
+
+$ApiBaseUrl = $Config.ApiBaseUrl
+if (-not $ApiBaseUrl -and $ExistingEnv) {
+    $ApiBaseUrl = ($ExistingEnv | Where-Object { $_.name -eq "API_BASE_URL" } | Select-Object -First 1).value
+}
+
+if ($ApiBaseUrl) {
+    $EnvPairs += "API_BASE_URL=$ApiBaseUrl"
+    $EnvPairs += "NEXT_PUBLIC_API_BASE_URL=$ApiBaseUrl"
+}
+
+$UpdateArgs = @(
+    "containerapp", "update",
+    "--name", $Config.ContainerApp,
+    "--resource-group", $Config.ResourceGroup,
+    "--image", $FullImage
+)
+
+if ($EnvPairs.Count -gt 0) {
+    $UpdateArgs += "--set-env-vars"
+    $UpdateArgs += $EnvPairs
+}
+
+az @UpdateArgs | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "Container app update failed."
+}
+Write-Success "Container app updated with new image and metadata"
+
+Write-Info "Waiting 30 seconds for the new revision to warm up..."
 Start-Sleep -Seconds 30
 
-# Get the active revision to verify
-$activeRevision = az containerapp revision list `
-    --name $ContainerApp `
-    --resource-group $ResourceGroup `
-    --query "[?properties.active==``true`` && properties.trafficWeight==``100``].name" `
-    -o tsv
+try {
+    $revisionJson = az containerapp revision list `
+        --name $Config.ContainerApp `
+        --resource-group $Config.ResourceGroup `
+        -o json
 
-if ($activeRevision) {
-    Write-Host "✅ Active revision: $($activeRevision.Trim())" -ForegroundColor Green
-}
-Write-Host ""
-
-# Step 7: Purge CDN cache
-$StepNum = if ($Purge) { "7/7" } else { "6/6" }
-Write-Host "🗑️  Step $StepNum`: Purging Azure Front Door CDN cache..." -ForegroundColor Yellow
-
-if ($Purge) {
-    Write-Host "   ⚠️  AGGRESSIVE PURGE: Purging ALL paths and WAITING for completion..." -ForegroundColor Yellow
-    Write-Host "   This ensures CDN serves fresh content immediately..." -ForegroundColor Gray
-    
-    # Purge multiple specific paths to be thorough
-    $paths = @("/*", "/_next/*", "/_next/static/*", "/dashboard", "/devices", "/settings")
-    foreach ($path in $paths) {
-        Write-Host "   Purging: $path" -ForegroundColor Gray
-        az afd endpoint purge `
-            --resource-group $ResourceGroup `
-            --profile-name $FrontDoorProfile `
-            --endpoint-name $FrontDoorEndpoint `
-            --content-paths $path `
-            --domains $Domain `
-            --output none 2>$null
+    if ($LASTEXITCODE -eq 0 -and $revisionJson) {
+        $revisions = $revisionJson | ConvertFrom-Json
+        $ActiveRevision = $revisions |
+            Where-Object { $_.properties.active -and $_.properties.trafficWeight -eq 100 } |
+            Select-Object -First 1 -ExpandProperty name
+        if ($ActiveRevision) {
+            Write-Success "Active revision: $ActiveRevision"
+        }
+    } else {
+        Write-WarningLine "Unable to determine active revision (exit code $LASTEXITCODE)."
     }
-    
-    Write-Host "   Waiting 60 seconds for CDN purge to propagate globally..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 60
-    Write-Host "✅ CDN cache aggressively purged and propagated" -ForegroundColor Green
-} else {
-    Write-Host "   Quick purge (use -Purge flag for aggressive clearing)..." -ForegroundColor Gray
+} catch {
+    Write-WarningLine "Failed to read active revision: $($_.Exception.Message)"
+}
+
+# === CDN purge ===
+Write-Section "🗑️  Purging Azure Front Door cache..." 'Yellow'
+
+try {
     az afd endpoint purge `
-        --resource-group $ResourceGroup `
-        --profile-name $FrontDoorProfile `
-        --endpoint-name $FrontDoorEndpoint `
+        --resource-group $Config.ResourceGroup `
+        --profile-name $Config.FrontDoorProfile `
+        --endpoint-name $Config.FrontDoorEndpoint `
         --content-paths "/*" `
-        --domains $Domain `
-        --no-wait 2>$null
-    Write-Host "✅ CDN cache purge initiated (may take 2-5 minutes to propagate)" -ForegroundColor Green
-}
-Write-Host ""
+        --domains $Config.Domain `
+        --output none | Out-Null
 
-# Summary
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "   ✅ Deployment Complete!" -ForegroundColor Green
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "📦 Image: $FullImage" -ForegroundColor White
-Write-Host "🌐 URL: https://$Domain" -ForegroundColor White
-Write-Host ""
-
-if ($Purge) {
-    Write-Host "✅ PURGE MODE: Everything fresh and CDN cache cleared" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "🔍 Test NOW in incognito browser: https://$Domain" -ForegroundColor Cyan
-    Write-Host "   New code should be live immediately" -ForegroundColor Gray
-} else {
-    Write-Host "⏳ Wait 2-5 minutes for CDN cache to clear, then test" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "🔍 Test in INCOGNITO browser: https://$Domain" -ForegroundColor Cyan
-    Write-Host "   • Press Ctrl+Shift+N (Chrome) or Ctrl+Shift+P (Firefox)" -ForegroundColor Gray
-    Write-Host "   • Check /settings page for new version number" -ForegroundColor Gray
-    Write-Host "   • Dashboard should show '-' during loading (~20 seconds)" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "💡 If old code still shows, run: .\deploy-web-app.ps1 -Purge" -ForegroundColor Yellow
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "Front Door cache purge triggered"
+    } else {
+        Write-WarningLine "Front Door purge command returned exit code $LASTEXITCODE"
+    }
+} catch {
+    Write-WarningLine "Front Door purge failed: $($_.Exception.Message)"
 }
-Write-Host ""
+
+# === Summary ===
+Write-Section "════════════════ DEPLOYMENT SUMMARY ════════════════" 'Cyan'
+Write-Success "Image: $FullImage"
+Write-Success "Build Time (UTC): $BuildTime"
+Write-Success "Build ID (git): $GitHash"
+Write-Success "Container: $($Config.ContainerApp)"
+Write-Success "Domain: https://$($Config.Domain)"
+Write-Section "Next steps:" 'Green'
+Write-Info "• Open https://$($Config.Domain) in an incognito window to verify"
+Write-Info "• Visit /settings → check CONTAINER_IMAGE_TAG matches $Tag"
+Write-Info "• If browser shows cached content, hard refresh (Ctrl+F5)"
+Write-Section "Done." 'Green'
