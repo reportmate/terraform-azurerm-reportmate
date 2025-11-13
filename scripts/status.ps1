@@ -36,7 +36,7 @@ try {
     
     # Test database connection
     try {
-        $deviceCount = az postgres flexible-server execute --name reportmate-database --admin-user reportmate --admin-password "2sSWbVxyqjXp9WUpeMmzRaC" --database-name reportmate --querytext "SELECT COUNT(*) as count FROM devices;" --output json | ConvertFrom-Json
+        $deviceCount = az postgres flexible-server execute --name reportmate-database --admin-user reportmate --admin-password "XXX" --database-name reportmate --querytext "SELECT COUNT(*) as count FROM devices;" --output json | ConvertFrom-Json
         Write-Host "   Connection: ✅ OK ($($deviceCount[0].count) devices)" -ForegroundColor Green
     } catch {
         Write-Host "   Connection: ❌ Failed" -ForegroundColor Red
