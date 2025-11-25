@@ -488,6 +488,29 @@ def cleanup_old_devices(cursor, conn, days=180, dry_run=False, auto_confirm=Fals
     
     print_success(f"Deleted {deleted_count} old devices")
 
+def apply_sql_file(cursor, conn, sql_file):
+    """Apply a SQL file to the database"""
+    print_header(f"Applying SQL: {sql_file}")
+    
+    path = Path(sql_file)
+    if not path.exists():
+        print_error(f"File not found: {sql_file}")
+        sys.exit(1)
+        
+    try:
+        with open(path, 'r') as f:
+            sql = f.read()
+            
+        print_info(f"Executing SQL from {path.name}...")
+        cursor.execute(sql)
+        conn.commit()
+        print_success(f"Successfully applied {path.name}")
+        
+    except Exception as e:
+        print_error(f"Failed to apply SQL: {e}")
+        conn.rollback()
+        sys.exit(1)
+
 def show_stats(cursor):
     """Show database statistics"""
     print_header("Database Statistics")
@@ -565,6 +588,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Apply SQL file
+  python manage-db.py --apply schemas/004-performance-indexes.sql
+
   # Show database statistics
   python manage-db.py --stats
 
@@ -605,6 +631,10 @@ Environment Variables:
         """
     )
     
+    # SQL Application
+    parser.add_argument('--apply', type=str,
+                       help='Apply a SQL file to the database')
+
     # Cleanup options
     parser.add_argument('--hostnames', action='store_true',
                        help='Remove devices with hostname patterns (FIRSTNAME-LASTNAME, DESKTOP-, etc.)')
@@ -645,6 +675,11 @@ Environment Variables:
     conn, cursor = connect_db(creds)
     
     try:
+        # Apply SQL file
+        if args.apply:
+            apply_sql_file(cursor, conn, args.apply)
+            return
+
         # Show stats
         if args.stats:
             show_stats(cursor)
