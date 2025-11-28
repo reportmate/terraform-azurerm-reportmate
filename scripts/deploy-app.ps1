@@ -25,6 +25,9 @@
 .PARAMETER AutoSSO
     Reserved for future use. Currently only surfaced in the summary output for completeness.
 
+.PARAMETER PurgeOnly
+    Only purge the Azure Front Door cache without building or deploying. Skips all other operations.
+
 .EXAMPLE
     .\deploy-app.ps1
     # Standard deployment using Docker layer cache
@@ -36,6 +39,10 @@
 .EXAMPLE
     .\deploy-app.ps1 -SkipBuild
     # Re-use the existing image but resync environment variables and purge CDN
+
+.EXAMPLE
+    .\deploy-app.ps1 -PurgeOnly
+    # Only purge the Front Door cache, no build or deploy
 #>
 
 [CmdletBinding()]
@@ -45,7 +52,8 @@ param(
     [switch]$ForceBuild,
     [switch]$SkipBuild,
     [string]$Tag,
-    [switch]$AutoSSO
+    [switch]$AutoSSO,
+    [switch]$PurgeOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -110,6 +118,28 @@ $Config = $Environments[$Environment]
 $RegistryHost = $Config.RegistryHost
 $RegistryName = $RegistryHost.Split('.')[0]
 $ImageName = $Config.ImageName
+
+# === PurgeOnly fast path ===
+if ($PurgeOnly) {
+    Write-Section "🗑️  Purging Azure Front Door cache (purge-only mode)..." 'Yellow'
+    
+    az afd endpoint purge `
+        --resource-group $Config.ResourceGroup `
+        --profile-name $Config.FrontDoorProfile `
+        --endpoint-name $Config.FrontDoorEndpoint `
+        --content-paths "/*" `
+        --domains $Config.Domain `
+        --no-wait `
+        --output none 2>&1 | Out-Null
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "Front Door cache purge triggered (async)"
+        Write-Info "Domain: https://$($Config.Domain)"
+    } else {
+        Write-ErrorLine "Front Door purge command returned exit code $LASTEXITCODE"
+    }
+    exit $LASTEXITCODE
+}
 
 # Capture git hash from submodule first (before generating tag)
 Push-Location $FrontendDir
@@ -335,10 +365,11 @@ try {
         --endpoint-name $Config.FrontDoorEndpoint `
         --content-paths "/*" `
         --domains $Config.Domain `
-        --output none | Out-Null
+        --no-wait `
+        --output none 2>&1 | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Success "Front Door cache purge triggered"
+        Write-Success "Front Door cache purge triggered (async)"
     } else {
         Write-WarningLine "Front Door purge command returned exit code $LASTEXITCODE"
     }
