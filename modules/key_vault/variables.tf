@@ -121,3 +121,41 @@ variable "nextauth_secret" {
   default     = null
   sensitive   = true
 }
+
+# =================================================================
+# AZURE SERVICE CONNECTION STRINGS (Optional)
+# These can be passed from parent module to store in Key Vault
+# =================================================================
+
+variable "storage_connection_string" {
+  description = "Azure Storage Account connection string (optional)"
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "web_pubsub_connection_string" {
+  description = "Azure Web PubSub connection string (optional)"
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "app_insights_connection_string" {
+  description = "Application Insights connection string (optional)"
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "api_base_url" {
+  description = "FastAPI container base URL (optional)"
+  type        = string
+  default     = null
+}
+
+variable "frontend_url" {
+  description = "Frontend container URL (optional)"
+  type        = string
+  default     = null
+}

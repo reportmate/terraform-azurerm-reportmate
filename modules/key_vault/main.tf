@@ -222,3 +222,89 @@ resource "random_password" "nextauth_secret" {
   length  = 32
   special = true
 }
+
+# =================================================================
+# AZURE SERVICE CONNECTION STRINGS
+# These are dynamically retrieved from Azure services and stored
+# in Key Vault for backup/portability when moving to new machines
+# =================================================================
+
+# Storage Account Connection String
+resource "azurerm_key_vault_secret" "storage_connection_string" {
+  count        = var.storage_connection_string != null ? 1 : 0
+  name         = "reportmate-storage-connection-string"
+  value        = var.storage_connection_string
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "Azure Storage Account connection string"
+
+  tags = merge(var.tags, {
+    Purpose = "Azure Storage"
+    Type    = "ConnectionString"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+# Web PubSub Connection String
+resource "azurerm_key_vault_secret" "web_pubsub_connection_string" {
+  count        = var.web_pubsub_connection_string != null ? 1 : 0
+  name         = "reportmate-webpubsub-connection-string"
+  value        = var.web_pubsub_connection_string
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "Azure Web PubSub connection string for real-time events"
+
+  tags = merge(var.tags, {
+    Purpose = "Real-time Messaging"
+    Type    = "ConnectionString"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+# Application Insights Connection String
+resource "azurerm_key_vault_secret" "app_insights_connection_string" {
+  count        = var.app_insights_connection_string != null ? 1 : 0
+  name         = "reportmate-appinsights-connection-string"
+  value        = var.app_insights_connection_string
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "Application Insights connection string for monitoring"
+
+  tags = merge(var.tags, {
+    Purpose = "Monitoring"
+    Type    = "ConnectionString"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+# API Base URL (for reference)
+resource "azurerm_key_vault_secret" "api_base_url" {
+  count        = var.api_base_url != null ? 1 : 0
+  name         = "reportmate-api-base-url"
+  value        = var.api_base_url
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "FastAPI container base URL"
+
+  tags = merge(var.tags, {
+    Purpose = "API Configuration"
+    Type    = "URL"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+# Frontend URL (for reference)
+resource "azurerm_key_vault_secret" "frontend_url" {
+  count        = var.frontend_url != null ? 1 : 0
+  name         = "reportmate-frontend-url"
+  value        = var.frontend_url
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "Frontend container URL"
+
+  tags = merge(var.tags, {
+    Purpose = "Frontend Configuration"
+    Type    = "URL"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
