@@ -1,0 +1,278 @@
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+    Restores local environment files from Azure Key Vault secrets.
+    Use this script when setting up ReportMate on a new machine.
+
+.DESCRIPTION
+    This script retrieves all secrets from the ReportMate Key Vault and generates:
+    - apps/www/.env.local (for local Next.js development)
+    - infrastructure/terraform.tfvars (for Terraform deployments)
+    
+.PARAMETER VaultName
+    The name of the Azure Key Vault. Default: reportmate-kv
+
+.PARAMETER GenerateTfvars
+    Also generate terraform.tfvars file. Default: $true
+
+.PARAMETER GenerateEnvLocal
+    Also generate .env.local file. Default: $true
+
+.EXAMPLE
+    .\restore-env-from-keyvault.ps1
+    
+.EXAMPLE
+    .\restore-env-from-keyvault.ps1 -VaultName "reportmate-kv-dev"
+#>
+
+param(
+    [string]$VaultName = "reportmate-kv",
+    [switch]$GenerateTfvars = $true,
+    [switch]$GenerateEnvLocal = $true,
+    [switch]$ShowSecrets = $false
+)
+
+$ErrorActionPreference = "Stop"
+
+# Colors for output
+function Write-Success { param($msg) Write-Host "[OK] $msg" -ForegroundColor Green }
+function Write-Info { param($msg) Write-Host "[INFO] $msg" -ForegroundColor Cyan }
+function Write-Warn { param($msg) Write-Host "[WARN] $msg" -ForegroundColor Yellow }
+function Write-Err { param($msg) Write-Host "[ERROR] $msg" -ForegroundColor Red }
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Magenta
+Write-Host " ReportMate Environment Restore Script" -ForegroundColor Magenta
+Write-Host "========================================" -ForegroundColor Magenta
+Write-Host ""
+
+# Check Azure CLI login
+Write-Info "Checking Azure CLI authentication..."
+$account = az account show 2>$null | ConvertFrom-Json
+if (-not $account) {
+    Write-Err "Not logged into Azure CLI. Please run 'az login' first."
+    exit 1
+}
+Write-Success "Logged in as: $($account.user.name) (Subscription: $($account.name))"
+
+# Get script directory and repo root
+$ScriptDir = $PSScriptRoot
+$RepoRoot = Split-Path (Split-Path $ScriptDir -Parent) -Parent
+
+Write-Info "Repository root: $RepoRoot"
+Write-Info "Key Vault: $VaultName"
+Write-Host ""
+
+# Retrieve all secrets from Key Vault
+Write-Info "Retrieving secrets from Key Vault..."
+
+$secrets = @{}
+$secretNames = @(
+    "reportmate-db-password",
+    "reportmate-postgres-server-name",
+    "reportmate-db-username",
+    "reportmate-db-name",
+    "reportmate-azure-ad-client-id",
+    "reportmate-azure-ad-tenant-id",
+    "reportmate-client-passphrase",
+    "reportmate-custom-domain-name",
+    "reportmate-nextauth-secret",
+    "reportmate-devops-group-object-id",
+    "reportmate-storage-connection-string",
+    "reportmate-webpubsub-connection-string",
+    "reportmate-appinsights-connection-string",
+    "reportmate-api-base-url",
+    "reportmate-frontend-url"
+)
+
+foreach ($name in $secretNames) {
+    try {
+        $value = az keyvault secret show --vault-name $VaultName --name $name --query value -o tsv 2>$null
+        if ($value) {
+            $secrets[$name] = $value
+            if ($ShowSecrets) {
+                Write-Success "Retrieved: $name = $value"
+            } else {
+                Write-Success "Retrieved: $name"
+            }
+        }
+    } catch {
+        Write-Warn "Secret not found: $name"
+    }
+}
+
+Write-Host ""
+Write-Info "Retrieved $($secrets.Count) secrets from Key Vault"
+Write-Host ""
+
+# Build DATABASE_URL
+$dbPassword = $secrets["reportmate-db-password"]
+$dbServer = $secrets["reportmate-postgres-server-name"]
+$dbUser = $secrets["reportmate-db-username"]
+$dbName = $secrets["reportmate-db-name"]
+
+# URL encode the password for DATABASE_URL
+$encodedPassword = [System.Uri]::EscapeDataString($dbPassword)
+$databaseUrl = "postgresql://${dbUser}:${encodedPassword}@${dbServer}.postgres.database.azure.com:5432/${dbName}?sslmode=require"
+
+# Get API URL (from Key Vault or default)
+$apiBaseUrl = if ($secrets["reportmate-api-base-url"]) { 
+    $secrets["reportmate-api-base-url"] 
+} else { 
+    "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io" 
+}
+
+# Generate .env.local for Next.js
+if ($GenerateEnvLocal) {
+    Write-Info "Generating apps/www/.env.local..."
+    
+    $envLocalPath = Join-Path $RepoRoot "apps\www\.env.local"
+    $envLocalContent = @"
+# =================================================================
+# ReportMate Local Development Environment
+# Auto-generated from Azure Key Vault on $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+# Key Vault: $VaultName
+# =================================================================
+
+# Environment Settings
+NEXT_PUBLIC_AUTO_SSO=false
+NEXT_PUBLIC_ENVIRONMENT=development
+NEXT_PUBLIC_DOMAIN=localhost:3000
+
+# Backend API Configuration (FastAPI container)
+API_BASE_URL=$apiBaseUrl
+NEXT_PUBLIC_API_BASE_URL=$apiBaseUrl
+
+# SignalR/WebPubSub Configuration
+NEXT_PUBLIC_ENABLE_SIGNALR=true
+NEXT_PUBLIC_WPS_URL=wss://reportmate-signalr.webpubsub.azure.com/client/hubs/fleet
+
+# Database Configuration
+DATABASE_URL=$databaseUrl
+
+# API Authentication (for localhost testing against production FastAPI)
+REPORTMATE_PASSPHRASE=$($secrets["reportmate-client-passphrase"])
+
+# NextAuth Configuration
+NEXTAUTH_SECRET=$($secrets["reportmate-nextauth-secret"])
+NEXTAUTH_URL=http://localhost:3000
+
+# Azure AD Authentication
+AZURE_AD_CLIENT_ID=$($secrets["reportmate-azure-ad-client-id"])
+AZURE_AD_TENANT_ID=$($secrets["reportmate-azure-ad-tenant-id"])
+"@
+
+    $envLocalContent | Out-File -FilePath $envLocalPath -Encoding utf8 -Force
+    Write-Success "Created: $envLocalPath"
+}
+
+# Generate terraform.tfvars
+if ($GenerateTfvars) {
+    Write-Info "Generating infrastructure/terraform.tfvars..."
+    
+    $tfvarsPath = Join-Path $RepoRoot "infrastructure\terraform.tfvars"
+    $tfvarsContent = @"
+# =================================================================
+# ReportMate Infrastructure Configuration - Production Ready
+# Auto-generated from Azure Key Vault on $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+# Key Vault: $VaultName
+# =================================================================
+
+# =================================================================
+# REQUIRED VARIABLES
+# =================================================================
+
+# Azure Configuration
+resource_group_name = "ReportMate"
+location           = "Canada Central"
+
+# Database Configuration
+db_password          = "$dbPassword"
+postgres_server_name = "$dbServer"
+db_username          = "$dbUser"
+db_name              = "$dbName"
+
+# =================================================================
+# OPTIONAL VARIABLES - Production Settings
+# =================================================================
+
+# Environment Configuration
+environment = "prod"
+deploy_dev  = false
+deploy_prod = true
+
+# API Container Configuration
+frontend_image_tag = "latest"
+api_image_tag      = "latest"
+
+# Custom Domain Configuration
+enable_custom_domain = true
+custom_domain_name   = "$($secrets["reportmate-custom-domain-name"])"
+
+# Container Configuration
+container_image = "reportmateacr.azurecr.io/reportmate:latest"
+
+# Client Authentication
+client_passphrases    = "$($secrets["reportmate-client-passphrase"])"
+enable_machine_groups = true
+enable_business_units = true
+
+# Pipeline Configuration
+enable_pipeline_permissions   = false
+pipeline_service_principal_id = ""
+
+# =================================================================
+# AUTHENTICATION CONFIGURATION
+# =================================================================
+
+# Azure AD Authentication
+azure_ad_client_id    = "$($secrets["reportmate-azure-ad-client-id"])"
+azure_ad_tenant_id    = "$($secrets["reportmate-azure-ad-tenant-id"])"
+auth_sign_in_audience = "AzureADMyOrg"
+auth_providers        = ["azure-ad"]
+default_auth_provider = "azure-ad"
+
+# Security Settings
+allowed_auth_domains        = ["ecuad.ca"]
+require_email_verification  = false
+auth_client_secret_expiry   = "2026-12-31T23:59:59Z"
+
+# Secret Storage
+enable_key_vault = true
+key_vault_name   = "$VaultName"
+
+# DevOps Group Access
+devops_resource_infrasec_group_object_id = "$($secrets["reportmate-devops-group-object-id"])"
+
+# Tags
+tags = {
+  Environment = "production"
+  Project     = "ReportMate"
+  ManagedBy   = "Terraform"
+  Owner       = "ECUAD-IT"
+  LastUpdated = "$(Get-Date -Format "yyyy-MM-dd")"
+}
+"@
+
+    $tfvarsContent | Out-File -FilePath $tfvarsPath -Encoding utf8 -Force
+    Write-Success "Created: $tfvarsPath"
+}
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Green
+Write-Host " Environment Restoration Complete!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host ""
+Write-Info "Files generated:"
+if ($GenerateEnvLocal) {
+    Write-Host "  - apps/www/.env.local" -ForegroundColor White
+}
+if ($GenerateTfvars) {
+    Write-Host "  - infrastructure/terraform.tfvars" -ForegroundColor White
+}
+Write-Host ""
+Write-Info "Next steps:"
+Write-Host "  1. Review the generated files" -ForegroundColor White
+Write-Host "  2. Update frontend_image_tag in terraform.tfvars to latest deployed tag" -ForegroundColor White
+Write-Host "  3. Run 'cd apps/www && pnpm install && pnpm dev' to start development" -ForegroundColor White
+Write-Host ""
