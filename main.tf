@@ -162,7 +162,18 @@ module "key_vault" {
   custom_domain_name   = var.custom_domain_name
   nextauth_secret      = var.nextauth_secret
 
+  # Azure Service Connection Strings (for backup/portability)
+  # Note: These are from modules that key_vault doesn't depend on
+  storage_connection_string      = module.storage.storage_connection_string
+  web_pubsub_connection_string   = module.messaging.web_pubsub_connection_string
+  app_insights_connection_string = module.monitoring.app_insights_connection_string
+  
+  # URLs are NOT stored here to avoid circular dependencies
+  # The restore script will get these from the current Azure resources
+
   tags = var.tags
+
+  depends_on = [module.storage, module.messaging, module.monitoring]
 }
 
 # Containers Module
