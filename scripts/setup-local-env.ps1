@@ -6,7 +6,8 @@
 
 .DESCRIPTION
     This script retrieves all secrets from the ReportMate Key Vault and generates:
-    - apps/www/.env.local (for local Next.js development)
+    - apps/www/.env.local (for local Next.js development - highest priority)
+    - apps/www/.env.development (for Next.js development mode)
     - infrastructure/terraform.tfvars (for Terraform deployments)
     
 .PARAMETER VaultName
@@ -18,18 +19,41 @@
 .PARAMETER GenerateEnvLocal
     Also generate .env.local file. Default: $true
 
+.PARAMETER GenerateEnvDevelopment
+    Also generate .env.development file. Default: $true
+
+.PARAMETER Backup
+    Create .bak backups of existing files before overwriting. Default: $false
+
 .EXAMPLE
-    .\restore-env-from-keyvault.ps1
+    .\setup-local-env.ps1
     
 .EXAMPLE
-    .\restore-env-from-keyvault.ps1 -VaultName "reportmate-kv-dev"
+    .\setup-local-env.ps1 -VaultName "reportmate-kv-dev"
+
+.PARAMETER NoBackup
+    Skip creating .bak backups of existing files. Default: backups are created automatically.
+
+.EXAMPLE
+    .\setup-local-env.ps1
+    
+.EXAMPLE
+    .\setup-local-env.ps1 -VaultName "reportmate-kv-dev"
+
+.EXAMPLE
+    .\setup-local-env.ps1 -GenerateTfvars:$false
+
+.EXAMPLE
+    .\setup-local-env.ps1 -NoBackup
 #>
 
 param(
     [string]$VaultName = "reportmate-kv",
-    [switch]$GenerateTfvars = $true,
-    [switch]$GenerateEnvLocal = $true,
-    [switch]$ShowSecrets = $false
+    [bool]$GenerateTfvars = $true,
+    [bool]$GenerateEnvLocal = $true,
+    [bool]$GenerateEnvDevelopment = $true,
+    [switch]$NoBackup,
+    [switch]$ShowSecrets
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,6 +63,18 @@ function Write-Success { param($msg) Write-Host "[OK] $msg" -ForegroundColor Gre
 function Write-Info { param($msg) Write-Host "[INFO] $msg" -ForegroundColor Cyan }
 function Write-Warn { param($msg) Write-Host "[WARN] $msg" -ForegroundColor Yellow }
 function Write-Err { param($msg) Write-Host "[ERROR] $msg" -ForegroundColor Red }
+
+# Backup helper function - automatically backs up existing files before overwriting
+function Backup-FileIfExists {
+    param([string]$FilePath)
+    if (Test-Path $FilePath) {
+        $backupPath = "$FilePath.bak"
+        Copy-Item -Path $FilePath -Destination $backupPath -Force
+        Write-Warn "Backed up existing file to: $backupPath"
+        return $true
+    }
+    return $false
+}
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Magenta
@@ -127,6 +163,7 @@ if ($GenerateEnvLocal) {
     Write-Info "Generating apps/www/.env.local..."
     
     $envLocalPath = Join-Path $RepoRoot "apps\www\.env.local"
+    if (-not $NoBackup) { Backup-FileIfExists -FilePath $envLocalPath }
     $envLocalContent = @"
 # =================================================================
 # ReportMate Local Development Environment
@@ -166,11 +203,61 @@ AZURE_AD_TENANT_ID=$($secrets["reportmate-azure-ad-tenant-id"])
     Write-Success "Created: $envLocalPath"
 }
 
+# Generate .env.development for Next.js development mode
+if ($GenerateEnvDevelopment) {
+    Write-Info "Generating apps/www/.env.development..."
+    
+    $envDevPath = Join-Path $RepoRoot "apps\www\.env.development"
+    if (-not $NoBackup) { Backup-FileIfExists -FilePath $envDevPath }
+    $envDevContent = @"
+# =================================================================
+# ReportMate Development Environment
+# Auto-generated from Azure Key Vault on $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+# Key Vault: $VaultName
+# 
+# This file is loaded when NODE_ENV=development (pnpm dev)
+# .env.local takes priority over this file if both exist
+# =================================================================
+
+# Environment Settings
+NODE_ENV=development
+NEXT_PUBLIC_AUTO_SSO=false
+NEXT_PUBLIC_ENVIRONMENT=development
+NEXT_PUBLIC_DOMAIN=localhost:3000
+
+# Backend API Configuration (FastAPI container)
+API_BASE_URL=$apiBaseUrl
+NEXT_PUBLIC_API_BASE_URL=$apiBaseUrl
+
+# SignalR/WebPubSub Configuration
+NEXT_PUBLIC_ENABLE_SIGNALR=true
+NEXT_PUBLIC_WPS_URL=wss://reportmate-signalr.webpubsub.azure.com/client/hubs/fleet
+
+# Database Configuration
+DATABASE_URL=$databaseUrl
+
+# API Authentication (for localhost testing against production FastAPI)
+REPORTMATE_PASSPHRASE=$($secrets["reportmate-client-passphrase"])
+
+# NextAuth Configuration
+NEXTAUTH_SECRET=$($secrets["reportmate-nextauth-secret"])
+NEXTAUTH_URL=http://localhost:3000
+
+# Azure AD Authentication
+AZURE_AD_CLIENT_ID=$($secrets["reportmate-azure-ad-client-id"])
+AZURE_AD_TENANT_ID=$($secrets["reportmate-azure-ad-tenant-id"])
+"@
+
+    $envDevContent | Out-File -FilePath $envDevPath -Encoding utf8 -Force
+    Write-Success "Created: $envDevPath"
+}
+
 # Generate terraform.tfvars
 if ($GenerateTfvars) {
     Write-Info "Generating infrastructure/terraform.tfvars..."
     
     $tfvarsPath = Join-Path $RepoRoot "infrastructure\terraform.tfvars"
+    if (-not $NoBackup) { Backup-FileIfExists -FilePath $tfvarsPath }
     $tfvarsContent = @"
 # =================================================================
 # ReportMate Infrastructure Configuration - Production Ready
@@ -260,16 +347,24 @@ tags = {
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host " Environment Restoration Complete!" -ForegroundColor Green
+Write-Host " Environment Setup Complete!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Info "Files generated:"
 if ($GenerateEnvLocal) {
-    Write-Host "  - apps/www/.env.local" -ForegroundColor White
+    Write-Host "  - apps/www/.env.local (highest priority)" -ForegroundColor White
+}
+if ($GenerateEnvDevelopment) {
+    Write-Host "  - apps/www/.env.development (development mode)" -ForegroundColor White
 }
 if ($GenerateTfvars) {
     Write-Host "  - infrastructure/terraform.tfvars" -ForegroundColor White
 }
+Write-Host ""
+Write-Info "Next.js env file priority (highest to lowest):"
+Write-Host "  1. .env.local" -ForegroundColor Yellow
+Write-Host "  2. .env.development (when NODE_ENV=development)" -ForegroundColor Yellow
+Write-Host "  3. .env" -ForegroundColor Yellow
 Write-Host ""
 Write-Info "Next steps:"
 Write-Host "  1. Review the generated files" -ForegroundColor White
