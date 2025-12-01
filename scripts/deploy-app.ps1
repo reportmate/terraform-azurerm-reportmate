@@ -159,6 +159,12 @@ if (-not $Tag) {
 
 $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
 
+# Extract API base URL from config - for Next.js build-time embedding
+$ApiBaseUrl = $Config.ApiBaseUrl
+if (-not $ApiBaseUrl) {
+    throw "ApiBaseUrl is not configured for environment '$Environment'"
+}
+
 Write-Section "🚀 Frontend Container Deployment Configuration:"
 Write-Info "Environment: $Environment"
 Write-Info "Target Container: $($Config.ContainerApp)"
@@ -169,6 +175,8 @@ Write-Info "Force Build: $ForceBuild"
 Write-Info "Skip Build: $SkipBuild"
 Write-Info "Auto SSO: $AutoSSO"
 Write-Info "Build Directory: $FrontendDir"
+Write-Info "API Base URL: $ApiBaseUrl"
+Write-Info "SignalR Enabled: true (build-time)"
 
 # === Prerequisite validation ===
 Write-Section "🔍 Validating prerequisites..." 'Yellow'
@@ -230,19 +238,19 @@ if (-not $SkipBuild) {
         $BuildArgs = @("build", "--platform", "linux/amd64",
             "--build-arg", "IMAGE_TAG=$Tag",
             "--build-arg", "BUILD_TIME=$BuildTime",
-            "--build-arg", "BUILD_ID=$GitHash"
+            "--build-arg", "BUILD_ID=$GitHash",
+            "--build-arg", "ENABLE_SIGNALR=true",
+            "--build-arg", "API_BASE_URL=$ApiBaseUrl"
         )
 
         if ($ForceBuild) {
             $BuildArgs = @("build", "--no-cache", "--pull", "--platform", "linux/amd64",
                 "--build-arg", "IMAGE_TAG=$Tag",
                 "--build-arg", "BUILD_TIME=$BuildTime",
-                "--build-arg", "BUILD_ID=$GitHash"
+                "--build-arg", "BUILD_ID=$GitHash",
+                "--build-arg", "ENABLE_SIGNALR=true",
+                "--build-arg", "API_BASE_URL=$ApiBaseUrl"
             )
-        }
-
-        if ($ApiBaseUrl) {
-            $BuildArgs += @("--build-arg", "API_BASE_URL=$ApiBaseUrl")
         }
 
     $BuildArgs += @("-t", $FullImage, "-f", "Dockerfile", ".")
