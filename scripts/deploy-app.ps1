@@ -181,14 +181,86 @@ Write-Info "SignalR Enabled: true (build-time)"
 # === Prerequisite validation ===
 Write-Section "🔍 Validating prerequisites..." 'Yellow'
 
-try {
-    docker version | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Docker CLI returned exit code $LASTEXITCODE"
+# Ensure Docker is in PATH (common issue with fresh terminals)
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    $dockerBinPaths = @(
+        "$env:ProgramFiles\Docker\Docker\resources\bin",
+        "${env:ProgramFiles(x86)}\Docker\Docker\resources\bin",
+        "$env:LOCALAPPDATA\Docker\Docker\resources\bin"
+    )
+    $foundDockerPath = $dockerBinPaths | Where-Object { Test-Path "$_\docker.exe" } | Select-Object -First 1
+    if ($foundDockerPath) {
+        Write-Info "Adding Docker to PATH: $foundDockerPath"
+        $env:PATH = "$foundDockerPath;$env:PATH"
     }
-    Write-Success "Docker daemon available"
+}
+
+# Check if Docker CLI is installed
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    throw "Docker CLI is not installed. Install Docker Desktop and retry."
+}
+
+# Check if Docker daemon is running, start it if not
+$dockerRunning = $false
+try {
+    docker info 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        $dockerRunning = $true
+    }
 } catch {
-    throw "Docker isn't running or not installed. Start Docker Desktop and retry."
+    $dockerRunning = $false
+}
+
+if (-not $dockerRunning) {
+    Write-WarningLine "Docker daemon not running. Attempting to start Docker Desktop..."
+    
+    # Try to find and start Docker Desktop
+    $dockerDesktopPaths = @(
+        "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
+        "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe",
+        "$env:LOCALAPPDATA\Docker\Docker Desktop.exe"
+    )
+    
+    $dockerPath = $dockerDesktopPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+    
+    if ($dockerPath) {
+        Write-Info "Starting Docker Desktop from: $dockerPath"
+        Start-Process -FilePath $dockerPath -WindowStyle Minimized
+        
+        # Wait for Docker to start (up to 60 seconds)
+        $maxWait = 60
+        $waited = 0
+        $interval = 3
+        
+        Write-Info "Waiting for Docker daemon to start (up to ${maxWait}s)..."
+        while ($waited -lt $maxWait) {
+            Start-Sleep -Seconds $interval
+            $waited += $interval
+            
+            try {
+                docker info 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0) {
+                    $dockerRunning = $true
+                    break
+                }
+            } catch {
+                # Still waiting...
+            }
+            
+            Write-Host "." -NoNewline
+        }
+        Write-Host ""
+        
+        if (-not $dockerRunning) {
+            throw "Docker Desktop started but daemon didn't become available within ${maxWait}s. Please wait and retry."
+        }
+        
+        Write-Success "Docker daemon started successfully"
+    } else {
+        throw "Docker Desktop not found. Install Docker Desktop and retry."
+    }
+} else {
+    Write-Success "Docker daemon available"
 }
 
 try {
