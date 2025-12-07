@@ -387,7 +387,7 @@ resource "azurerm_container_app" "api_functions" {
   }
 
   # External ingress for API endpoints
-  # ⚠️ CRITICAL: external_enabled MUST be true - do not change!
+  # external_enabled MUST be true - do not change!
   ingress {
     external_enabled = true  # MUST be true for Windows/Mac client check-ins
     target_port      = 8000

@@ -62,7 +62,7 @@ resource "azurerm_postgresql_flexible_server_database" "db" {
   collation = "en_US.utf8"
   charset   = "utf8"
 
-  # 🚨🚨🚨 CRITICAL: Prevent accidental database destruction 🚨🚨🚨
+  # Prevent accidental database destruction
   lifecycle {
     prevent_destroy = true
   }
