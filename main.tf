@@ -183,14 +183,22 @@ module "containers" {
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
 
-  container_registry_name = var.container_registry_name
-  use_custom_registry     = var.use_custom_registry
-  container_image         = var.container_image
-  frontend_image_tag      = var.frontend_image_tag
-  api_image_tag          = var.api_image_tag
-  environment             = var.environment
-  deploy_dev              = var.deploy_dev
-  deploy_prod             = var.deploy_prod
+  container_registry_name    = var.container_registry_name
+  use_custom_registry        = var.use_custom_registry
+  existing_registry_server   = var.existing_registry_server
+  container_environment_name = var.container_environment_name
+  container_image            = var.container_image
+  frontend_image_tag         = var.frontend_image_tag
+  api_image_tag              = var.api_image_tag
+  environment                = var.environment
+  deploy_dev                 = var.deploy_dev
+  deploy_prod                = var.deploy_prod
+
+  # Container naming
+  frontend_container_name = var.frontend_container_name
+  api_container_name      = var.api_container_name
+  frontend_image_name     = var.frontend_image_name
+  api_image_name          = var.api_image_name
 
   # Dependencies
   managed_identity_id            = module.identity.managed_identity_id
@@ -212,6 +220,7 @@ module "containers" {
   
   # Client authentication
   client_passphrases = var.client_passphrases
+  allowed_domains    = var.allowed_domains
 
   # Key Vault integration for secrets
   key_vault_uri = var.enable_key_vault ? module.key_vault[0].key_vault_uri : null
@@ -223,6 +232,10 @@ module "containers" {
   # Authentication Configuration 
   auth_client_id = var.azure_ad_client_id
   auth_tenant_id = var.azure_ad_tenant_id
+
+  # Custom domain configuration (for CORS)
+  enable_custom_domain = var.enable_custom_domain
+  custom_domain_name   = var.custom_domain_name
 
   tags = var.tags
 }
