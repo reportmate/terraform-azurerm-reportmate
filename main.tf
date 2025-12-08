@@ -195,6 +195,7 @@ module "containers" {
   # Dependencies
   managed_identity_id            = module.identity.managed_identity_id
   managed_identity_principal_id  = module.identity.managed_identity_principal_id
+  managed_identity_client_id     = module.identity.managed_identity_client_id
   database_url                   = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${module.database.postgres_fqdn}:5432/${var.db_name}?sslmode=require"
   web_pubsub_hostname            = module.messaging.web_pubsub_hostname
   app_insights_connection_string = module.monitoring.app_insights_connection_string
@@ -215,8 +216,8 @@ module "containers" {
   # Key Vault integration for secrets
   key_vault_uri = var.enable_key_vault ? module.key_vault[0].key_vault_uri : null
   auth_secrets = var.enable_key_vault ? {
-    nextauth_secret_name = "reportmate-nextauth-secret"
-    client_secret_name   = "reportmate-auth-client-secret"
+    nextauth_secret_name = "nextauth-secret"
+    client_secret_name   = "auth-client-secret"
   } : null
 
   # Authentication Configuration 

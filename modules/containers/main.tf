@@ -242,6 +242,28 @@ resource "azurerm_container_app" "frontend_prod_main" {
         value = substr(var.frontend_image_tag, length(var.frontend_image_tag) - 7, 7)
       }
 
+      # NEXT_PUBLIC version tracking (exposed to client)
+      env {
+        name  = "NEXT_PUBLIC_VERSION"
+        value = var.frontend_image_tag
+      }
+
+      env {
+        name  = "NEXT_PUBLIC_BUILD_ID"
+        value = substr(var.frontend_image_tag, length(var.frontend_image_tag) - 7, 7)
+      }
+
+      env {
+        name  = "NEXT_PUBLIC_BUILD_TIME"
+        value = formatdate("YYYY-MM-DD'T'hh:mm:ss'Z'", timestamp())
+      }
+
+      # Azure Managed Identity Client ID (for Key Vault access)
+      env {
+        name  = "AZURE_CLIENT_ID"
+        value = var.managed_identity_client_id
+      }
+
       # Add startup and liveness probes
       startup_probe {
         transport = "HTTP"
@@ -446,6 +468,12 @@ resource "azurerm_container_app" "api_functions" {
       env {
         name  = "ENVIRONMENT"
         value = "production"
+      }
+
+      # Disable authentication for API (passphrase-only auth for Windows clients)
+      env {
+        name  = "DISABLE_AUTH"
+        value = "true"
       }
     }
 
