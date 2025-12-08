@@ -176,3 +176,58 @@ variable "auth_tenant_id" {
   description = "Azure AD Tenant ID"
   default     = ""
 }
+
+# Container Environment Configuration
+variable "container_environment_name" {
+  type        = string
+  description = "Name of the Container Apps Environment"
+  default     = "reportmate-env"
+}
+
+# Existing Registry Configuration (for non-custom registry deployments)
+variable "existing_registry_server" {
+  type        = string
+  description = "Existing container registry server URL (used when use_custom_registry is false)"
+  default     = "reportmateacr.azurecr.io"
+}
+
+# Container App Names
+variable "frontend_container_name" {
+  type        = string
+  description = "Name of the frontend container app"
+  default     = "reportmate-web-app-prod"
+}
+
+variable "api_container_name" {
+  type        = string
+  description = "Name of the API container app"
+  default     = "reportmate-functions-api"
+}
+
+# Container Image Names (without registry prefix)
+variable "frontend_image_name" {
+  type        = string
+  description = "Name of the frontend container image (without registry prefix)"
+  default     = "reportmate"
+}
+
+variable "api_image_name" {
+  type        = string
+  description = "Name of the API container image (without registry prefix)"
+  default     = "reportmate-api"
+}
+
+# Allowed domains for authentication
+variable "allowed_domains" {
+  type        = string
+  description = "Comma-separated list of allowed email domains for authentication"
+  default     = "ecuad.ca"
+}
+
+# Default site URL (used when custom domain is not enabled)
+# This should be set to the Container App's expected FQDN pattern or a fallback URL
+variable "default_site_url" {
+  type        = string
+  description = "Default site URL when custom domain is not enabled (derived from container environment)"
+  default     = ""  # Will be computed from container environment if empty
+}

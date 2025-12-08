@@ -155,10 +155,52 @@ variable "use_custom_registry" {
   default     = false
 }
 
+variable "existing_registry_server" {
+  type        = string
+  description = "Existing container registry server URL (used when use_custom_registry is false)"
+  default     = "reportmateacr.azurecr.io"
+}
+
+variable "container_environment_name" {
+  type        = string
+  description = "Name of the Container Apps Environment"
+  default     = "reportmate-env"
+}
+
+variable "frontend_container_name" {
+  type        = string
+  description = "Name of the frontend container app"
+  default     = "reportmate-web-app-prod"
+}
+
+variable "api_container_name" {
+  type        = string
+  description = "Name of the API container app"
+  default     = "reportmate-functions-api"
+}
+
+variable "frontend_image_name" {
+  type        = string
+  description = "Name of the frontend container image (without registry prefix)"
+  default     = "reportmate"
+}
+
+variable "api_image_name" {
+  type        = string
+  description = "Name of the API container image (without registry prefix)"
+  default     = "reportmate-api"
+}
+
 variable "container_image" {
   type        = string
   description = "Container image to deploy for the web application"
   default     = "ghcr.io/reportmate/reportmate-app-web:latest"
+}
+
+variable "allowed_domains" {
+  type        = string
+  description = "Comma-separated list of allowed email domains for authentication"
+  default     = "ecuad.ca"
 }
 
 # Environment Configuration

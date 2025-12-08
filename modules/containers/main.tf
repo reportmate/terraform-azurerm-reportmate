@@ -12,6 +12,15 @@ locals {
     split("/", var.container_image)[length(split("/", var.container_image)) - 1] : 
     var.container_image
   ) : var.container_image
+
+  # Compute site URL values - use custom domain if enabled, otherwise derive from container environment
+  # Note: We can't use the container app's own FQDN here (self-reference), so we use the environment pattern
+  
+  # Site URL: custom domain takes priority, then compute from environment default domain
+  site_hostname = var.enable_custom_domain && var.custom_domain_name != "" ? var.custom_domain_name : (
+    var.default_site_url != "" ? var.default_site_url : "${var.frontend_container_name}.${azurerm_container_app_environment.main.default_domain}"
+  )
+  site_url = "https://${local.site_hostname}"
 }
 
 # Container Registry (optional - only if using custom registry)
@@ -28,7 +37,7 @@ resource "azurerm_container_registry" "acr" {
 
 # Container Apps Environment
 resource "azurerm_container_app_environment" "main" {
-  name                       = "reportmate-env"
+  name                       = var.container_environment_name
   resource_group_name        = var.resource_group_name
   location                   = var.location
   log_analytics_workspace_id = var.log_analytics_workspace_id
@@ -55,7 +64,7 @@ resource "azurerm_container_app_environment" "main" {
 # Production Frontend Container App for ReportMate Next.js Web Dashboard
 resource "azurerm_container_app" "frontend_prod_main" {
   count                        = var.deploy_prod || var.environment == "prod" || var.environment == "both" ? 1 : 0
-  name                         = "reportmate-web-app-prod"
+  name                         = var.frontend_container_name
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
@@ -75,7 +84,7 @@ resource "azurerm_container_app" "frontend_prod_main" {
   template {
     container {
       name   = "container"
-      image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/reportmate:${var.frontend_image_tag}" : "reportmateacr.azurecr.io/reportmate:${var.frontend_image_tag}"
+      image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/${var.frontend_image_name}:${var.frontend_image_tag}" : "${var.existing_registry_server}/${var.frontend_image_name}:${var.frontend_image_tag}"
       cpu    = 0.5   # More CPU for production
       memory = "1Gi" # More memory for production
 
@@ -121,17 +130,17 @@ resource "azurerm_container_app" "frontend_prod_main" {
 
       env {
         name  = "HOST"
-        value = var.enable_custom_domain && var.custom_domain_name != "" ? var.custom_domain_name : "reportmate.ecuad.ca"
+        value = local.site_hostname
       }
 
       env {
         name  = "NEXT_PUBLIC_SITE_URL"
-        value = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : "https://reportmate.ecuad.ca"
+        value = local.site_url
       }
 
       env {
         name  = "NEXT_PUBLIC_URL"
-        value = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : "https://reportmate.ecuad.ca"
+        value = local.site_url
       }
 
       # Authentication secrets from Key Vault (if available)
@@ -174,7 +183,7 @@ resource "azurerm_container_app" "frontend_prod_main" {
 
       env {
         name  = "ALLOWED_DOMAINS"
-        value = "ecuad.ca"
+        value = var.allowed_domains
       }
 
       env {
@@ -184,12 +193,12 @@ resource "azurerm_container_app" "frontend_prod_main" {
 
       env {
         name  = "NEXTAUTH_URL"
-        value = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : "https://reportmate.ecuad.ca"
+        value = local.site_url
       }
 
       env {
         name  = "NEXTAUTH_URL_INTERNAL"
-        value = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : "https://reportmate.ecuad.ca"
+        value = local.site_url
       }
 
       env {
@@ -208,12 +217,12 @@ resource "azurerm_container_app" "frontend_prod_main" {
 
       env {
         name  = "VERCEL_URL"
-        value = var.enable_custom_domain && var.custom_domain_name != "" ? var.custom_domain_name : "reportmate.ecuad.ca"
+        value = local.site_hostname
       }
 
       env {
         name  = "NEXT_PUBLIC_VERCEL_URL"
-        value = var.enable_custom_domain && var.custom_domain_name != "" ? var.custom_domain_name : "reportmate.ecuad.ca"
+        value = local.site_hostname
       }
 
       env {
@@ -345,9 +354,9 @@ resource "azurerm_container_app" "frontend_prod_main" {
     }
   }
 
-  # Registry for existing reportmateacr (always include since we're using those images)
+  # Registry for existing ACR (always include since we're using those images)
   registry {
-    server   = "reportmateacr.azurecr.io"
+    server   = var.existing_registry_server
     identity = var.managed_identity_id
   }
 
@@ -386,7 +395,7 @@ resource "azurerm_role_assignment" "container_acr_push" {
 # =================================================================
 # API FUNCTIONS CONTAINER - FastAPI Application
 # =================================================================
-# ⚠️  CRITICAL CONFIGURATION WARNING ⚠️
+# CRITICAL CONFIGURATION WARNING
 # external_enabled MUST be TRUE for Windows/Mac clients to check in!
 # If set to false:
 #   - Windows/Mac devices get 404 errors and cannot check in
@@ -397,7 +406,7 @@ resource "azurerm_role_assignment" "container_acr_push" {
 
 # API Functions Container App for ReportMate FastAPI Backend
 resource "azurerm_container_app" "api_functions" {
-  name                         = "reportmate-functions-api"
+  name                         = var.api_container_name
   resource_group_name          = var.resource_group_name
   container_app_environment_id = azurerm_container_app_environment.main.id
   revision_mode                = "Single"
@@ -419,11 +428,28 @@ resource "azurerm_container_app" "api_functions" {
       latest_revision = true
       percentage      = 100
     }
+
+    # CORS configuration for browser-side API calls (SignalR negotiate, etc.)
+    # Required for frontend to make direct browser requests to API
+    # Note: Frontend URL constructed from environment default domain to avoid circular dependency
+    cors {
+      allow_credentials_enabled = true
+      allowed_headers           = ["*"]
+      allowed_methods           = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+      allowed_origins = compact([
+        # Frontend container app URL (uses environment default domain pattern)
+        "https://${var.frontend_container_name}.${azurerm_container_app_environment.main.default_domain}",
+        # Custom domain (if enabled)
+        var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : null,
+      ])
+      exposed_headers    = []
+      max_age_in_seconds = 3600
+    }
   }
 
   # Use managed identity for ACR authentication
   registry {
-    server   = var.use_custom_registry ? azurerm_container_registry.acr[0].login_server : "reportmateacr.azurecr.io"
+    server   = var.use_custom_registry ? azurerm_container_registry.acr[0].login_server : var.existing_registry_server
     identity = var.managed_identity_id
   }
 
@@ -436,7 +462,7 @@ resource "azurerm_container_app" "api_functions" {
   template {
     container {
       name   = "api"
-      image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/reportmate-api:${var.api_image_tag}" : "reportmateacr.azurecr.io/reportmate-api:${var.api_image_tag}"
+      image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/${var.api_image_name}:${var.api_image_tag}" : "${var.existing_registry_server}/${var.api_image_name}:${var.api_image_tag}"
       cpu    = 0.5
       memory = "1Gi"
 

@@ -84,20 +84,20 @@ resource "null_resource" "database_init_api" {
 
   provisioner "local-exec" {
     command = <<-EOF
-      echo "🗄️  Database Infrastructure Ready"
-      echo "════════════════════════════════════════════════════════════════"
-      echo "✅ PostgreSQL Server: ${azurerm_postgresql_flexible_server.pg.fqdn}"
-      echo "✅ Database: ${var.db_name}"
-      echo "✅ Username: ${var.db_username}"
-      echo "✅ Firewall Rules: Configured"
+      echo "Database Infrastructure Ready"
+      echo "================================================================"
+      echo "[OK] PostgreSQL Server: ${azurerm_postgresql_flexible_server.pg.fqdn}"
+      echo "[OK] Database: ${var.db_name}"
+      echo "[OK] Username: ${var.db_username}"
+      echo "[OK] Firewall Rules: Configured"
       echo ""
-      echo "📋 Next Steps:"
-      echo "1. Deploy Azure Functions: terraform apply (functions module)"
-      echo "2. Initialize Schema: curl 'https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/init-db?init=true'"
+      echo "Next Steps:"
+      echo "1. Deploy Containers: terraform apply (containers module)"
+      echo "2. Initialize Schema: curl '<API_URL>/api/init-db?init=true'"
       echo "3. Validate Setup: pwsh infrastructure/scripts/check.ps1"
       echo ""
-      echo "🚀 For complete bootstrap, run: pwsh infrastructure/scripts/bootstrap.ps1"
-      echo "════════════════════════════════════════════════════════════════"
+      echo "For complete bootstrap, run: pwsh infrastructure/scripts/bootstrap.ps1"
+      echo "================================================================"
     EOF
   }
 }
