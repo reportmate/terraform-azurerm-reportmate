@@ -57,6 +57,11 @@ variable "managed_identity_principal_id" {
   description = "Principal ID of the managed identity for role assignments"
 }
 
+variable "managed_identity_client_id" {
+  type        = string
+  description = "Client ID of the managed identity for Azure SDK authentication"
+}
+
 variable "database_url" {
   type        = string
   description = "Database connection URL"

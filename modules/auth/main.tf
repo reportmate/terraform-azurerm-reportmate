@@ -165,7 +165,7 @@ resource "azuread_service_principal_delegated_permission_grant" "reportmate_web"
 resource "azurerm_key_vault_secret" "app_client_id" {
   count        = var.enable_key_vault ? 1 : 0
   depends_on   = [time_sleep.wait_for_rbac]
-  name         = "reportmate-auth-client-id"
+  name         = "auth-client-id"
   value        = azuread_application.reportmate_web.client_id
   key_vault_id = var.key_vault_id
 
@@ -175,7 +175,7 @@ resource "azurerm_key_vault_secret" "app_client_id" {
 resource "azurerm_key_vault_secret" "app_client_secret" {
   count        = var.enable_key_vault ? 1 : 0
   depends_on   = [time_sleep.wait_for_rbac]
-  name         = "reportmate-auth-client-secret"
+  name         = "auth-client-secret"
   value        = azuread_application_password.reportmate_web.value
   key_vault_id = var.key_vault_id
 
@@ -184,7 +184,7 @@ resource "azurerm_key_vault_secret" "app_client_secret" {
 
 resource "azurerm_key_vault_secret" "app_tenant_id" {
   count        = var.enable_key_vault ? 1 : 0
-  name         = "reportmate-auth-tenant-id"
+  name         = "auth-tenant-id"
   value        = data.azuread_client_config.current.tenant_id
   key_vault_id = var.key_vault_id
 
@@ -207,7 +207,7 @@ resource "time_sleep" "wait_for_rbac" {
 resource "azurerm_key_vault_secret" "nextauth_secret" {
   count        = var.enable_key_vault ? 1 : 0
   depends_on   = [time_sleep.wait_for_rbac]
-  name         = "reportmate-nextauth-secret"
+  name         = "nextauth-secret"
   value        = random_password.nextauth_secret.result
   key_vault_id = var.key_vault_id
 

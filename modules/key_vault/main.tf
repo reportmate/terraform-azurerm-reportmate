@@ -73,7 +73,7 @@ resource "azurerm_role_assignment" "devops_group" {
 
 # Database Configuration Secrets
 resource "azurerm_key_vault_secret" "db_password" {
-  name         = "reportmate-db-password"
+  name         = "db-password"
   value        = var.db_password
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "PostgreSQL database password for reportmate user"
@@ -87,7 +87,7 @@ resource "azurerm_key_vault_secret" "db_password" {
 }
 
 resource "azurerm_key_vault_secret" "postgres_server_name" {
-  name         = "reportmate-postgres-server-name"
+  name         = "postgres-server-name"
   value        = var.postgres_server_name
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "PostgreSQL server name"
@@ -101,7 +101,7 @@ resource "azurerm_key_vault_secret" "postgres_server_name" {
 }
 
 resource "azurerm_key_vault_secret" "db_username" {
-  name         = "reportmate-db-username"
+  name         = "db-username"
   value        = var.db_username
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "PostgreSQL database username"
@@ -115,7 +115,7 @@ resource "azurerm_key_vault_secret" "db_username" {
 }
 
 resource "azurerm_key_vault_secret" "db_name" {
-  name         = "reportmate-db-name"
+  name         = "db-name"
   value        = var.db_name
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "PostgreSQL database name"
@@ -130,7 +130,7 @@ resource "azurerm_key_vault_secret" "db_name" {
 
 # Authentication Configuration Secrets
 resource "azurerm_key_vault_secret" "azure_ad_client_id" {
-  name         = "reportmate-azure-ad-client-id"
+  name         = "azure-ad-client-id"
   value        = var.azure_ad_client_id
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "Azure AD application client ID"
@@ -144,7 +144,7 @@ resource "azurerm_key_vault_secret" "azure_ad_client_id" {
 }
 
 resource "azurerm_key_vault_secret" "azure_ad_tenant_id" {
-  name         = "reportmate-azure-ad-tenant-id"
+  name         = "azure-ad-tenant-id"
   value        = var.azure_ad_tenant_id
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "Azure AD tenant ID"
@@ -159,7 +159,7 @@ resource "azurerm_key_vault_secret" "azure_ad_tenant_id" {
 
 # Client Authentication Passphrase Secret
 resource "azurerm_key_vault_secret" "client_passphrase" {
-  name         = "reportmate-client-passphrase"
+  name         = "client-passphrase"
   value        = var.client_passphrases
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "Client authentication passphrase for Windows agents"
@@ -174,7 +174,7 @@ resource "azurerm_key_vault_secret" "client_passphrase" {
 
 # Security Group Object ID
 resource "azurerm_key_vault_secret" "devops_group_object_id" {
-  name         = "reportmate-devops-group-object-id"
+  name         = "devops-group-object-id"
   value        = var.devops_resource_infrasec_group_object_id
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "DevOps Resource InfraSec group object ID for access control"
@@ -189,7 +189,7 @@ resource "azurerm_key_vault_secret" "devops_group_object_id" {
 
 # Custom Domain Configuration
 resource "azurerm_key_vault_secret" "custom_domain_name" {
-  name         = "reportmate-custom-domain-name"
+  name         = "custom-domain-name"
   value        = var.custom_domain_name
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "Custom domain name for ReportMate frontend"
@@ -204,7 +204,7 @@ resource "azurerm_key_vault_secret" "custom_domain_name" {
 
 # NextAuth Secret (for session encryption)
 resource "azurerm_key_vault_secret" "nextauth_secret" {
-  name         = "reportmate-nextauth-secret"
+  name         = "nextauth-secret"
   value        = var.nextauth_secret != null ? var.nextauth_secret : random_password.nextauth_secret.result
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "NextAuth session encryption secret"
@@ -232,7 +232,7 @@ resource "random_password" "nextauth_secret" {
 # Storage Account Connection String
 resource "azurerm_key_vault_secret" "storage_connection_string" {
   count        = var.storage_connection_string != null ? 1 : 0
-  name         = "reportmate-storage-connection-string"
+  name         = "storage-connection-string"
   value        = var.storage_connection_string
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "Azure Storage Account connection string"
@@ -248,7 +248,7 @@ resource "azurerm_key_vault_secret" "storage_connection_string" {
 # Web PubSub Connection String
 resource "azurerm_key_vault_secret" "web_pubsub_connection_string" {
   count        = var.web_pubsub_connection_string != null ? 1 : 0
-  name         = "reportmate-webpubsub-connection-string"
+  name         = "webpubsub-connection-string"
   value        = var.web_pubsub_connection_string
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "Azure Web PubSub connection string for real-time events"
@@ -264,7 +264,7 @@ resource "azurerm_key_vault_secret" "web_pubsub_connection_string" {
 # Application Insights Connection String
 resource "azurerm_key_vault_secret" "app_insights_connection_string" {
   count        = var.app_insights_connection_string != null ? 1 : 0
-  name         = "reportmate-appinsights-connection-string"
+  name         = "appinsights-connection-string"
   value        = var.app_insights_connection_string
   key_vault_id = azurerm_key_vault.reportmate.id
   content_type = "Application Insights connection string for monitoring"

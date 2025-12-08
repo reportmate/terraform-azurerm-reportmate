@@ -79,10 +79,10 @@ output "environment_variables" {
 output "key_vault_secret_names" {
   description = "Names of secrets stored in Key Vault"
   value = var.key_vault_id != null ? {
-    client_id     = "reportmate-auth-client-id"
-    client_secret = "reportmate-auth-client-secret"
-    tenant_id     = "reportmate-auth-tenant-id"
-    nextauth_secret = "reportmate-nextauth-secret"
+    client_id     = "auth-client-id"
+    client_secret = "auth-client-secret"
+    tenant_id     = "auth-tenant-id"
+    nextauth_secret = "nextauth-secret"
   } : null
 }
 
