@@ -1,0 +1,345 @@
+# GitHub Actions CI/CD Pipeline for ReportMate Infrastructure
+# Deploys infrastructure and containers via Terraform (single source of truth)
+# Replicates deploy-api.ps1 and deploy-app.ps1 functionality
+
+name: Deploy ReportMate Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+      - 'apps/www/**'
+      - 'infrastructure/modules/api/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - prod
+          - dev
+      force_build:
+        description: 'Force rebuild containers (no cache)'
+        required: false
+        default: false
+        type: boolean
+      deploy_frontend:
+        description: 'Deploy frontend container'
+        required: false
+        default: true
+        type: boolean
+      deploy_api:
+        description: 'Deploy API container'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  TERRAFORM_VERSION: '1.6.0'
+  AZURE_RESOURCE_GROUP: 'ReportMate'
+  AZURE_CONTAINER_REGISTRY: 'reportmateacr'
+  FRONTEND_CONTAINER_APP: 'reportmate-web-app-prod'
+  API_CONTAINER_APP: 'reportmate-functions-api'
+  FRONTEND_IMAGE: 'reportmate'
+  API_IMAGE: 'reportmate-api'
+  CUSTOM_DOMAIN: 'reportmate.ecuad.ca'
+  FRONTDOOR_PROFILE: 'reportmate-frontdoor'
+  FRONTDOOR_ENDPOINT: 'reportmate-endpoint'
+
+jobs:
+  # =================================================================
+  # TERRAFORM PLAN - Always runs on PRs and pushes
+  # =================================================================
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    outputs:
+      plan_exit_code: ${{ steps.plan.outputs.exitcode }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Terraform Init
+        working-directory: infrastructure
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=ecuadgitopsterraform" \
+            -backend-config="storage_account_name=ecuadgitopsterraform" \
+            -backend-config="container_name=terraform-state" \
+            -backend-config="key=reportmate.tfstate"
+
+      - name: Terraform Validate
+        working-directory: infrastructure
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: infrastructure
+        run: |
+          terraform plan \
+            -var-file="terraform.tfvars" \
+            -out=tfplan \
+            -detailed-exitcode || echo "exitcode=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: infrastructure/tfplan
+          retention-days: 5
+
+      - name: Comment PR with Plan
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const planOutput = `${{ steps.plan.outputs.stdout }}`;
+            const truncated = planOutput.length > 65000 
+              ? planOutput.substring(0, 65000) + '\n\n... (truncated)'
+              : planOutput;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Terraform Plan Output\n\`\`\`hcl\n${truncated}\n\`\`\``
+            });
+
+  # =================================================================
+  # BUILD CONTAINERS - Builds frontend and API images
+  # =================================================================
+  build-containers:
+    name: Build Container Images
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    outputs:
+      frontend_tag: ${{ steps.tags.outputs.frontend_tag }}
+      api_tag: ${{ steps.tags.outputs.api_tag }}
+      build_time: ${{ steps.tags.outputs.build_time }}
+      git_hash: ${{ steps.tags.outputs.git_hash }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Generate Build Tags
+        id: tags
+        run: |
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          GIT_HASH=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)
+          
+          echo "frontend_tag=${TIMESTAMP}-${GIT_HASH}" >> $GITHUB_OUTPUT
+          echo "api_tag=device-id-fix-${TIMESTAMP}-${GIT_HASH}" >> $GITHUB_OUTPUT
+          echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
+          echo "git_hash=${GIT_HASH}" >> $GITHUB_OUTPUT
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to Azure Container Registry
+        run: az acr login --name ${{ env.AZURE_CONTAINER_REGISTRY }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build Frontend Container (replicates deploy-app.ps1)
+      - name: Build Frontend Container
+        if: github.event.inputs.deploy_frontend != 'false'
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/www
+          file: apps/www/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.FRONTEND_IMAGE }}:${{ steps.tags.outputs.frontend_tag }}
+            ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.FRONTEND_IMAGE }}:latest
+          build-args: |
+            IMAGE_TAG=${{ steps.tags.outputs.frontend_tag }}
+            BUILD_TIME=${{ steps.tags.outputs.build_time }}
+            BUILD_ID=${{ steps.tags.outputs.git_hash }}
+            ENABLE_SIGNALR=true
+            API_BASE_URL=https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          no-cache: ${{ github.event.inputs.force_build == 'true' }}
+
+      # Build API Container (replicates deploy-api.ps1)
+      - name: Build API Container
+        if: github.event.inputs.deploy_api != 'false'
+        uses: docker/build-push-action@v5
+        with:
+          context: infrastructure/modules/api
+          file: infrastructure/modules/api/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.API_IMAGE }}:${{ steps.tags.outputs.api_tag }}
+            ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.API_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          no-cache: ${{ github.event.inputs.force_build == 'true' }}
+
+  # =================================================================
+  # TERRAFORM APPLY - Deploys infrastructure AND containers
+  # =================================================================
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: [terraform-plan, build-containers]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: production
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Terraform Init
+        working-directory: infrastructure
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=ecuadgitopsterraform" \
+            -backend-config="storage_account_name=ecuadgitopsterraform" \
+            -backend-config="container_name=terraform-state" \
+            -backend-config="key=reportmate.tfstate"
+
+      - name: Terraform Apply with Container Tags
+        working-directory: infrastructure
+        run: |
+          # Apply Terraform with the new image tags - this deploys EVERYTHING
+          terraform apply -auto-approve \
+            -var="frontend_image_tag=${{ needs.build-containers.outputs.frontend_tag }}" \
+            -var="api_image_tag=${{ needs.build-containers.outputs.api_tag }}"
+
+  # =================================================================
+  # PURGE CDN - Clears Front Door cache (replicates deploy-app.ps1)
+  # =================================================================
+  purge-cdn:
+    name: Purge Front Door Cache
+    runs-on: ubuntu-latest
+    needs: terraform-apply
+    if: github.event.inputs.deploy_frontend != 'false'
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Purge Azure Front Door Cache
+        run: |
+          az afd endpoint purge \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --profile-name ${{ env.FRONTDOOR_PROFILE }} \
+            --endpoint-name ${{ env.FRONTDOOR_ENDPOINT }} \
+            --content-paths "/*" \
+            --domains ${{ env.CUSTOM_DOMAIN }} \
+            --no-wait || true
+          
+          echo "Front Door cache purge triggered for ${{ env.CUSTOM_DOMAIN }}"
+
+  # =================================================================
+  # HEALTH CHECK - Validates deployments
+  # =================================================================
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    needs: [terraform-apply, purge-cdn, build-containers]
+    if: always() && needs.terraform-apply.result == 'success'
+
+    steps:
+      - name: Check Frontend Health
+        run: |
+          echo "Testing frontend at https://${{ env.CUSTOM_DOMAIN }}..."
+          
+          for i in {1..5}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ env.CUSTOM_DOMAIN }}" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Frontend is healthy (HTTP $STATUS)"
+              break
+            fi
+            echo "Attempt $i: HTTP $STATUS, retrying in 10s..."
+            sleep 10
+          done
+          
+          if [ "$STATUS" != "200" ]; then
+            echo "Warning: Frontend health check returned HTTP $STATUS"
+          fi
+
+      - name: Check API Health
+        run: |
+          API_URL="https://${{ env.API_CONTAINER_APP }}.blackdune-79551938.canadacentral.azurecontainerapps.io"
+          echo "Testing API at ${API_URL}/api/health..."
+          
+          for i in {1..5}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}/api/health" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "API is healthy (HTTP $STATUS)"
+              break
+            fi
+            echo "Attempt $i: HTTP $STATUS, retrying in 10s..."
+            sleep 10
+          done
+          
+          if [ "$STATUS" != "200" ]; then
+            echo "Warning: API health check returned HTTP $STATUS"
+          fi
+
+      - name: Deployment Summary
+        run: |
+          echo "=============================================="
+          echo "DEPLOYMENT SUMMARY"
+          echo "=============================================="
+          echo "Frontend Tag: ${{ needs.build-containers.outputs.frontend_tag }}"
+          echo "API Tag: ${{ needs.build-containers.outputs.api_tag }}"
+          echo "Build Time: ${{ needs.build-containers.outputs.build_time }}"
+          echo "Git Hash: ${{ needs.build-containers.outputs.git_hash }}"
+          echo ""
+          echo "Frontend URL: https://${{ env.CUSTOM_DOMAIN }}"
+          echo "API URL: https://${{ env.API_CONTAINER_APP }}.blackdune-79551938.canadacentral.azurecontainerapps.io"
+          echo "=============================================="
