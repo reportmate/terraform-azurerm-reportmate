@@ -40,6 +40,7 @@ terraform.rc
 
 # Terraform backend configuration (contains sensitive data)
 backend.tf
+backend.tfvars
 
 # =================================================================
 # AZURE & CLOUD
