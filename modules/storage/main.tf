@@ -16,6 +16,6 @@ resource "random_id" "storage_suffix" {
 
 # Queue for osquery data ingestion
 resource "azurerm_storage_queue" "ingest" {
-  name                 = "osquery-ingest"
-  storage_account_name = azurerm_storage_account.main.name
+  name               = "osquery-ingest"
+  storage_account_id = azurerm_storage_account.main.id
 }
