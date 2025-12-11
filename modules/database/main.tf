@@ -12,6 +12,10 @@ resource "azurerm_postgresql_flexible_server" "pg" {
   sku_name                      = var.db_sku_name
   public_network_access_enabled = true
 
+  # Backup configuration - automatic daily backups with 7 day retention
+  backup_retention_days         = 7
+  geo_redundant_backup_enabled  = false  # Set to true for production geo-redundancy
+
   authentication {
     password_auth_enabled = true
   }

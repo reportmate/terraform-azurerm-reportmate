@@ -47,16 +47,15 @@ resource "azurerm_role_assignment" "current_user" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
-# Grant access to managed identity (will be created after managed identity exists)
-# Note: This will be created in a separate apply after the managed identity exists
-# resource "azurerm_role_assignment" "managed_identity" {
-#   scope                = azurerm_key_vault.reportmate.id
-#   role_definition_name = "Key Vault Secrets User"
-#   principal_id         = var.managed_identity_principal_id
-#   
-#   # Only create this if managed identity principal ID is provided
-#   count = var.managed_identity_principal_id != "" && var.managed_identity_principal_id != null ? 1 : 0
-# }
+# Grant access to managed identity for Container Apps to read secrets
+resource "azurerm_role_assignment" "managed_identity" {
+  scope                = azurerm_key_vault.reportmate.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = var.managed_identity_principal_id
+  
+  # Only create this if managed identity principal ID is provided
+  count = var.managed_identity_principal_id != "" && var.managed_identity_principal_id != null ? 1 : 0
+}
 
 # Grant access to DevOps Resource InfraSec group
 resource "azurerm_role_assignment" "devops_group" {

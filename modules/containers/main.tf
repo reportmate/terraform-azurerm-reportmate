@@ -345,7 +345,9 @@ resource "azurerm_container_app" "frontend_prod_main" {
     }
   }
 
-  # Use managed identity for ACR authentication (only if using custom registry)
+  # Use managed identity for ACR authentication
+  # When use_custom_registry = true, use the created ACR
+  # When use_custom_registry = false, use the existing registry server
   dynamic "registry" {
     for_each = var.use_custom_registry ? [1] : []
     content {
@@ -354,10 +356,12 @@ resource "azurerm_container_app" "frontend_prod_main" {
     }
   }
 
-  # Registry for existing ACR (always include since we're using those images)
-  registry {
-    server   = var.existing_registry_server
-    identity = var.managed_identity_id
+  dynamic "registry" {
+    for_each = var.use_custom_registry ? [] : [1]
+    content {
+      server   = var.existing_registry_server
+      identity = var.managed_identity_id
+    }
   }
 
   tags = merge(var.tags, {
