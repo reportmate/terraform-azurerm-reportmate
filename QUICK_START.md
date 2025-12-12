@@ -47,22 +47,41 @@ If you need to deploy components individually:
 az login
 ```
 
-### 2. Infrastructure (Terraform)
+### 2. Configure Terraform Backend
+
+```powershell
+cd infrastructure
+
+# One-time setup: Create storage account for Terraform state
+az group create --name Terraform --location canadacentral
+az storage account create --name youruniquename --resource-group Terraform --sku Standard_LRS --encryption-services blob
+az storage container create --name terraform-state --account-name youruniquename
+
+# Create your backend.tf from the example
+Copy-Item backend.tf.example backend.tf
+
+# Edit backend.tf with your storage account details
+# NOTE: backend.tf is gitignored - never commit it to source control
+```
+
+### 3. Infrastructure (Terraform)
 
 ```powershell
 cd infrastructure
 
 # Copy and configure variables
-copy terraform.tfvars.example terraform.tfvars
+Copy-Item terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your values
 
-# Deploy infrastructure
+# Initialize with backend
 terraform init
+
+# Deploy infrastructure
 terraform plan -out=tfplan
 terraform apply tfplan
 ```
 
-### 3. Database Schema
+### 4. Database Schema
 
 ```powershell
 # Initialize database schema via API
@@ -72,7 +91,7 @@ curl "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecon
 psql "postgresql://reportmate:PASSWORD@reportmate-database.postgres.database.azure.com:5432/reportmate?sslmode=require" -f schemas/database.sql
 ```
 
-### 4. Container Apps Deployment
+### 5. Container Apps Deployment
 
 ```powershell
 cd infrastructure/scripts

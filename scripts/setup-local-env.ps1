@@ -104,21 +104,21 @@ Write-Info "Retrieving secrets from Key Vault..."
 
 $secrets = @{}
 $secretNames = @(
-    "reportmate-db-password",
-    "reportmate-postgres-server-name",
-    "reportmate-db-username",
-    "reportmate-db-name",
-    "reportmate-azure-ad-client-id",
-    "reportmate-azure-ad-tenant-id",
-    "reportmate-client-passphrase",
-    "reportmate-custom-domain-name",
-    "reportmate-nextauth-secret",
-    "reportmate-devops-group-object-id",
-    "reportmate-storage-connection-string",
-    "reportmate-webpubsub-connection-string",
-    "reportmate-appinsights-connection-string",
-    "reportmate-api-base-url",
-    "reportmate-frontend-url"
+    "db-password",
+    "postgres-server-name",
+    "db-username",
+    "db-name",
+    "azure-ad-client-id",
+    "azure-ad-tenant-id",
+    "client-passphrase",
+    "custom-domain-name",
+    "nextauth-secret",
+    "devops-group-object-id",
+    "storage-connection-string",
+    "webpubsub-connection-string",
+    "appinsights-connection-string",
+    "api-base-url",
+    "frontend-url"
 )
 
 foreach ($name in $secretNames) {
@@ -142,18 +142,18 @@ Write-Info "Retrieved $($secrets.Count) secrets from Key Vault"
 Write-Host ""
 
 # Build DATABASE_URL
-$dbPassword = $secrets["reportmate-db-password"]
-$dbServer = $secrets["reportmate-postgres-server-name"]
-$dbUser = $secrets["reportmate-db-username"]
-$dbName = $secrets["reportmate-db-name"]
+$dbPassword = $secrets["db-password"]
+$dbServer = $secrets["postgres-server-name"]
+$dbUser = $secrets["db-username"]
+$dbName = $secrets["db-name"]
 
 # URL encode the password for DATABASE_URL
 $encodedPassword = [System.Uri]::EscapeDataString($dbPassword)
 $databaseUrl = "postgresql://${dbUser}:${encodedPassword}@${dbServer}.postgres.database.azure.com:5432/${dbName}?sslmode=require"
 
 # Get API URL (from Key Vault or default)
-$apiBaseUrl = if ($secrets["reportmate-api-base-url"]) { 
-    $secrets["reportmate-api-base-url"] 
+$apiBaseUrl = if ($secrets["api-base-url"]) { 
+    $secrets["api-base-url"] 
 } else { 
     "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io" 
 }
@@ -188,15 +188,15 @@ NEXT_PUBLIC_WPS_URL=wss://reportmate-signalr.webpubsub.azure.com/client/hubs/fle
 DATABASE_URL=$databaseUrl
 
 # API Authentication (for localhost testing against production FastAPI)
-REPORTMATE_PASSPHRASE=$($secrets["reportmate-client-passphrase"])
+REPORTMATE_PASSPHRASE=$($secrets["client-passphrase"])
 
 # NextAuth Configuration
-NEXTAUTH_SECRET=$($secrets["reportmate-nextauth-secret"])
+NEXTAUTH_SECRET=$($secrets["nextauth-secret"])
 NEXTAUTH_URL=http://localhost:3000
 
 # Azure AD Authentication
-AZURE_AD_CLIENT_ID=$($secrets["reportmate-azure-ad-client-id"])
-AZURE_AD_TENANT_ID=$($secrets["reportmate-azure-ad-tenant-id"])
+AZURE_AD_CLIENT_ID=$($secrets["azure-ad-client-id"])
+AZURE_AD_TENANT_ID=$($secrets["azure-ad-tenant-id"])
 "@
 
     $envLocalContent | Out-File -FilePath $envLocalPath -Encoding utf8 -Force
@@ -237,15 +237,15 @@ NEXT_PUBLIC_WPS_URL=wss://reportmate-signalr.webpubsub.azure.com/client/hubs/fle
 DATABASE_URL=$databaseUrl
 
 # API Authentication (for localhost testing against production FastAPI)
-REPORTMATE_PASSPHRASE=$($secrets["reportmate-client-passphrase"])
+REPORTMATE_PASSPHRASE=$($secrets["client-passphrase"])
 
 # NextAuth Configuration
-NEXTAUTH_SECRET=$($secrets["reportmate-nextauth-secret"])
+NEXTAUTH_SECRET=$($secrets["nextauth-secret"])
 NEXTAUTH_URL=http://localhost:3000
 
 # Azure AD Authentication
-AZURE_AD_CLIENT_ID=$($secrets["reportmate-azure-ad-client-id"])
-AZURE_AD_TENANT_ID=$($secrets["reportmate-azure-ad-tenant-id"])
+AZURE_AD_CLIENT_ID=$($secrets["azure-ad-client-id"])
+AZURE_AD_TENANT_ID=$($secrets["azure-ad-tenant-id"])
 "@
 
     $envDevContent | Out-File -FilePath $envDevPath -Encoding utf8 -Force
@@ -294,13 +294,13 @@ api_image_tag      = "latest"
 
 # Custom Domain Configuration
 enable_custom_domain = true
-custom_domain_name   = "$($secrets["reportmate-custom-domain-name"])"
+custom_domain_name   = "$($secrets["custom-domain-name"])"
 
 # Container Configuration
 container_image = "reportmateacr.azurecr.io/reportmate:latest"
 
 # Client Authentication
-client_passphrases    = "$($secrets["reportmate-client-passphrase"])"
+client_passphrases    = "$($secrets["client-passphrase"])"
 enable_machine_groups = true
 enable_business_units = true
 
@@ -313,8 +313,8 @@ pipeline_service_principal_id = ""
 # =================================================================
 
 # Azure AD Authentication
-azure_ad_client_id    = "$($secrets["reportmate-azure-ad-client-id"])"
-azure_ad_tenant_id    = "$($secrets["reportmate-azure-ad-tenant-id"])"
+azure_ad_client_id    = "$($secrets["azure-ad-client-id"])"
+azure_ad_tenant_id    = "$($secrets["azure-ad-tenant-id"])"
 auth_sign_in_audience = "AzureADMyOrg"
 auth_providers        = ["azure-ad"]
 default_auth_provider = "azure-ad"
@@ -329,7 +329,7 @@ enable_key_vault = true
 key_vault_name   = "$VaultName"
 
 # DevOps Group Access
-devops_resource_infrasec_group_object_id = "$($secrets["reportmate-devops-group-object-id"])"
+devops_resource_infrasec_group_object_id = "$($secrets["devops-group-object-id"])"
 
 # Tags
 tags = {

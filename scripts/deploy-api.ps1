@@ -1,9 +1,28 @@
 #Requires -Version 7.0
 <#
+================================================================================
+ DEPRECATED - USE CI/CD PIPELINE INSTEAD
+================================================================================
+ This script is DEPRECATED. Use the Azure DevOps pipeline instead:
+ 
+   pipelines/reportmate-deploy-infra.yml
+ 
+ The pipeline provides:
+   - Terraform as single source of truth
+   - Image tag variables passed to infrastructure
+   - Proper CI/CD with approval gates
+   - Audit trail of all deployments
+ 
+ This script is kept ONLY for emergency manual deployments.
+================================================================================
+
 .SYNOPSIS
-    Deploy ReportMate FastAPI Container (API Functions) with Device ID Alignment Fix
+    [DEPRECATED] Deploy ReportMate FastAPI Container - Use CI/CD pipeline instead.
+    
 .DESCRIPTION
     Deploys the FastAPI container to Azure Container Apps with critical device ID standardization.
+    
+    DEPRECATED: This script is replaced by pipelines/reportmate-deploy-infra.yml
     
     🚨 CRITICAL FIXES IN THIS VERSION:
     - API code moved to proper infrastructure location (modules/api)
@@ -63,9 +82,9 @@ function Write-Warning {
     Write-Host "${Yellow}[WARNING]${Reset} $Message"
 }
 
-Write-Status "🚀 ReportMate API Container Deployment"
-Write-Status "🚨 DEVICE ID ALIGNMENT FIX - Version 2.1.0"
-Write-Status "✅ API code now in proper location: infrastructure/modules/api"
+Write-Status "ReportMate API Container Deployment"
+Write-Status "DEVICE ID ALIGNMENT FIX - Version 2.1.0"
+Write-Status "API code now in proper location: infrastructure/modules/api"
 Write-Status ""
 
 # Configuration
@@ -98,7 +117,7 @@ if (-not (Test-Path "modules\api\main.py")) {
     exit 1
 }
 
-Write-Success "✅ API source found at correct location: modules\api\main.py"
+Write-Success "API source found at correct location: modules\api\main.py"
 
 try {
     # Set working directory to infrastructure root
@@ -106,14 +125,14 @@ try {
     
     if (-not $SkipBuild) {
         # Authenticate to ACR first
-        Write-Host "`n🔐 Authenticating to Azure Container Registry..." -ForegroundColor Blue
+        Write-Host "`nAuthenticating to Azure Container Registry..." -ForegroundColor Blue
         az acr login --name $RegistryName
         if ($LASTEXITCODE -ne 0) {
             throw "ACR authentication failed. Run 'az login' first if needed."
         }
-        Write-Success "✅ ACR authentication successful"
+        Write-Success "ACR authentication successful"
         
-        Write-Host "`n� Building Docker image..." -ForegroundColor Blue
+        Write-Host "`nBuilding Docker image..." -ForegroundColor Blue
         Write-Status "  Image: $FullImageName"
         
         # Build the Docker image
@@ -138,20 +157,20 @@ try {
             throw "Docker build failed with exit code $LASTEXITCODE"
         }
         
-        Write-Success "✅ Docker image built successfully"
+        Write-Success "Docker image built successfully"
         
         # Push to Azure Container Registry
-        Write-Host "`n📤 Pushing image to ACR..." -ForegroundColor Blue
+        Write-Host "`nPushing image to ACR..." -ForegroundColor Blue
         docker push $FullImageName
         
         if ($LASTEXITCODE -ne 0) {
             throw "Docker push failed with exit code $LASTEXITCODE"
         }
         
-        Write-Success "✅ Image pushed to ACR"
+        Write-Success "Image pushed to ACR"
         
         # Update container app with new image
-        Write-Host "`n🔄 Updating container app..." -ForegroundColor Blue
+        Write-Host "`nUpdating container app..." -ForegroundColor Blue
         $revision = az containerapp update `
             --name $ContainerAppName `
             --resource-group $ResourceGroup `
@@ -163,28 +182,28 @@ try {
             throw "Container app update failed with exit code $LASTEXITCODE"
         }
         
-        Write-Success "✅ Container app updated to revision: $revision"
+        Write-Success "Container app updated to revision: $revision"
     } else {
-        Write-Warning "⏭️  Skipping Docker build (using existing image: $FullImageName)"
+        Write-Warning "Skipping Docker build (using existing image: $FullImageName)"
     }
     
     # Test API health
-    Write-Host "`n🔍 Testing API health..." -ForegroundColor Blue
+    Write-Host "`nTesting API health..." -ForegroundColor Blue
     $apiUrl = "https://$ContainerAppName.blackdune-79551938.canadacentral.azurecontainerapps.io"
     
     Start-Sleep -Seconds 10  # Give container time to start
     
     try {
         $response = Invoke-RestMethod -Uri "$apiUrl/api/health" -TimeoutSec 30
-        Write-Success "✅ API health check passed"
-        Write-Host "🌐 API URL: $apiUrl" -ForegroundColor Cyan
+        Write-Success "API health check passed"
+        Write-Host "API URL: $apiUrl" -ForegroundColor Cyan
     } catch {
-        Write-Warning "⚠️ API health check failed, but deployment completed"
+        Write-Warning "API health check failed, but deployment completed"
         Write-Host "   Try: curl $apiUrl/api/health" -ForegroundColor Yellow
     }
     
 } catch {
-    Write-Host "`n❌ API deployment failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "`nAPI deployment failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 } finally {
     Pop-Location

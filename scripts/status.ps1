@@ -5,10 +5,10 @@ param(
     [string]$ResourceGroup = "ReportMate"
 )
 
-Write-Host "🔍 Checking ReportMate Infrastructure Status..." -ForegroundColor Green
+Write-Host "Checking ReportMate Infrastructure Status..." -ForegroundColor Green
 
 # Check Azure Functions
-Write-Host "`n⚡ Azure Functions Status:" -ForegroundColor Yellow
+Write-Host "`nAzure Functions Status:" -ForegroundColor Yellow
 try {
     $functionsStatus = az functionapp show --name reportmate-api --resource-group $ResourceGroup --query "state" --output tsv
     Write-Host "   reportmate-api: $functionsStatus" -ForegroundColor $(if ($functionsStatus -eq "Running") { "Green" } else { "Red" })
@@ -16,20 +16,20 @@ try {
     # Test API endpoints
     try {
         $healthResponse = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/health" -TimeoutSec 10
-        Write-Host "   /api/health: ✅ OK" -ForegroundColor Green
+        Write-Host "   /api/health: OK" -ForegroundColor Green
         
         $devicesResponse = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/devices" -TimeoutSec 10
         $deviceCount = ($devicesResponse | Measure-Object).Count
-        Write-Host "   /api/devices: ✅ OK ($deviceCount devices)" -ForegroundColor Green
+        Write-Host "   /api/devices: OK ($deviceCount devices)" -ForegroundColor Green
     } catch {
-        Write-Host "   API endpoints: ❌ Failed" -ForegroundColor Red
+        Write-Host "   API endpoints: Failed" -ForegroundColor Red
     }
 } catch {
-    Write-Host "   reportmate-api: ❌ Not found" -ForegroundColor Red
+    Write-Host "   reportmate-api: Not found" -ForegroundColor Red
 }
 
 # Check Database
-Write-Host "`n🗄️  Database Status:" -ForegroundColor Yellow
+Write-Host "`nDatabase Status:" -ForegroundColor Yellow
 try {
     $dbStatus = az postgres flexible-server show --name reportmate-database --resource-group $ResourceGroup --query "state" --output tsv
     Write-Host "   reportmate-database: $dbStatus" -ForegroundColor $(if ($dbStatus -eq "Ready") { "Green" } else { "Red" })
@@ -37,16 +37,16 @@ try {
     # Test database connection
     try {
         $deviceCount = az postgres flexible-server execute --name reportmate-database --admin-user reportmate --admin-password "XXX" --database-name reportmate --querytext "SELECT COUNT(*) as count FROM devices;" --output json | ConvertFrom-Json
-        Write-Host "   Connection: ✅ OK ($($deviceCount[0].count) devices)" -ForegroundColor Green
+        Write-Host "   Connection: OK ($($deviceCount[0].count) devices)" -ForegroundColor Green
     } catch {
-        Write-Host "   Connection: ❌ Failed" -ForegroundColor Red
+        Write-Host "   Connection: Failed" -ForegroundColor Red
     }
 } catch {
-    Write-Host "   reportmate-database: ❌ Not found" -ForegroundColor Red
+    Write-Host "   reportmate-database: Not found" -ForegroundColor Red
 }
 
 # Check Container Apps (if they exist)
-Write-Host "`n🐳 Container Apps Status:" -ForegroundColor Yellow
+Write-Host "`nContainer Apps Status:" -ForegroundColor Yellow
 try {
     $containerApps = az containerapp list --resource-group $ResourceGroup --query "[].{name:name,status:properties.provisioningState}" --output json | ConvertFrom-Json
     
@@ -59,27 +59,27 @@ try {
         Write-Host "   No container apps found" -ForegroundColor Cyan
     }
 } catch {
-    Write-Host "   Container apps: ❌ Error checking" -ForegroundColor Red
+    Write-Host "   Container apps: Error checking" -ForegroundColor Red
 }
 
 # Check Storage Account
-Write-Host "`n💾 Storage Status:" -ForegroundColor Yellow
+Write-Host "`nStorage Status:" -ForegroundColor Yellow
 try {
     $storageAccounts = az storage account list --resource-group $ResourceGroup --query "[].{name:name,status:primaryEndpoints.blob}" --output json | ConvertFrom-Json
     
     foreach ($storage in $storageAccounts) {
         $statusColor = if ($storage.status) { "Green" } else { "Red" }
-        $status = if ($storage.status) { "✅ OK" } else { "❌ Failed" }
+        $status = if ($storage.status) { "OK" } else { "Failed" }
         Write-Host "   $($storage.name): $status" -ForegroundColor $statusColor
     }
 } catch {
-    Write-Host "   Storage accounts: ❌ Error checking" -ForegroundColor Red
+    Write-Host "   Storage accounts: Error checking" -ForegroundColor Red
 }
 
 # Summary
-Write-Host "`n📊 Quick Summary:" -ForegroundColor Cyan
-Write-Host "   🔗 API Health: https://reportmate-api.azurewebsites.net/api/health" -ForegroundColor Cyan
-Write-Host "   🔍 API Debug: https://reportmate-api.azurewebsites.net/api/debug" -ForegroundColor Cyan
-Write-Host "   📱 Dashboard: https://reportmate-frontend.azurewebsites.net" -ForegroundColor Cyan
+Write-Host "`nQuick Summary:" -ForegroundColor Cyan
+Write-Host "   API Health: https://reportmate-api.azurewebsites.net/api/health" -ForegroundColor Cyan
+Write-Host "   API Debug: https://reportmate-api.azurewebsites.net/api/debug" -ForegroundColor Cyan
+Write-Host "   Dashboard: https://reportmate-frontend.azurewebsites.net" -ForegroundColor Cyan
 
-Write-Host "`n✅ Status check completed!" -ForegroundColor Green
+Write-Host "`nStatus check completed!" -ForegroundColor Green

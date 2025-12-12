@@ -35,19 +35,19 @@ def print_header(text):
 
 def print_success(text):
     """Print success message"""
-    print(f"{GREEN}✅ {text}{RESET}")
+    print(f"{GREEN}[OK] {text}{RESET}")
 
 def print_error(text):
     """Print error message"""
-    print(f"{RED}❌ {text}{RESET}")
+    print(f"{RED}[ERR] {text}{RESET}")
 
 def print_warning(text):
     """Print warning message"""
-    print(f"{YELLOW}⚠️  {text}{RESET}")
+    print(f"{YELLOW}[WARN] {text}{RESET}")
 
 def print_info(text):
     """Print info message"""
-    print(f"{BLUE}ℹ️  {text}{RESET}")
+    print(f"{BLUE}[INFO] {text}{RESET}")
 
 def get_db_password_from_tfvars():
     """
@@ -415,12 +415,12 @@ def validate_serial_patterns(cursor):
     
     print()
     if total_issues == 0:
-        print_success("✅ All serial numbers are valid hardware serials")
+        print_success("All serial numbers are valid hardware serials")
         print_info("API validation and client gates are working correctly")
     else:
-        print_error(f"❌ Found {total_issues} devices with hostname-like serial numbers")
+        print_error(f"Found {total_issues} devices with hostname-like serial numbers")
         print_warning("These should have been rejected by API validation")
-        print_warning("Run: python scripts\manage-db.py --hostnames to clean up")
+        print_warning("Run: python scripts\\manage-db.py --hostnames to clean up")
 
 def cleanup_old_devices(cursor, conn, days=180, dry_run=False, auto_confirm=False):
     """Remove devices not seen in X days"""

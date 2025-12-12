@@ -1,12 +1,22 @@
-# Example backend configuration
-# Copy this file to backend.tf and customize for your environment
-# Or use terraform init with backend configuration parameters
+# =============================================================================
+# Terraform Backend Configuration
+# =============================================================================
+# 
+# Copy this file to 'backend.tfvars' and customize for your environment.
+# The backend.tfvars file is gitignored to prevent committing secrets.
+#
+# USAGE:
+#   terraform init -backend-config=backend.tfvars
+#
+# PREREQUISITE - Create storage account (run once):
+#   az group create --name Terraform --location canadacentral
+#   az storage account create --name <unique-name> --resource-group Terraform --sku Standard_LRS
+#   az storage container create --name terraform-state --account-name <unique-name>
+#
+# =============================================================================
 
-terraform {
-  backend "azurerm" {
-    resource_group_name  = "your-terraform-state-rg"
-    storage_account_name = "yourterraformstate"
-    container_name       = "terraform-state"
-    key                  = "reportmate.tfstate"
-  }
-}
+resource_group_name  = "Terraform"
+storage_account_name = "yourterraformstate"
+container_name       = "terraform-state"
+key                  = "reportmate.tfstate"
+
