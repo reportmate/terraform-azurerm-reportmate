@@ -241,8 +241,8 @@ module "containers" {
   # Key Vault integration for secrets
   key_vault_uri = var.enable_key_vault ? module.key_vault[0].key_vault_uri : null
   auth_secrets = var.enable_key_vault ? {
-    nextauth_secret_name = "reportmate-nextauth-secret"
-    client_secret_name   = "reportmate-auth-client-secret"
+    nextauth_secret_name = "nextauth-secret"
+    client_secret_name   = "auth-client-secret"
   } : null
 
   tags = var.tags

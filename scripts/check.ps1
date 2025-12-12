@@ -22,11 +22,11 @@ param(
 )
 
 # Color output functions
-function Write-Success { param($Message) Write-Host "✅ $Message" -ForegroundColor Green }
-function Write-Warning { param($Message) Write-Host "⚠️  $Message" -ForegroundColor Yellow }
-function Write-Error { param($Message) Write-Host "❌ $Message" -ForegroundColor Red }
-function Write-Info { param($Message) Write-Host "ℹ️  $Message" -ForegroundColor Cyan }
-function Write-Section { param($Message) Write-Host "`n🔍 $Message" -ForegroundColor Magenta -BackgroundColor Black }
+function Write-Success { param($Message) Write-Host "[OK] $Message" -ForegroundColor Green }
+function Write-Warning { param($Message) Write-Host "[WARN] $Message" -ForegroundColor Yellow }
+function Write-Error { param($Message) Write-Host "[ERR] $Message" -ForegroundColor Red }
+function Write-Info { param($Message) Write-Host "[INFO] $Message" -ForegroundColor Cyan }
+function Write-Section { param($Message) Write-Host "`n==> $Message" -ForegroundColor Magenta -BackgroundColor Black }
 
 # Global variables
 $script:TestResults = @{
@@ -272,34 +272,34 @@ function Test-DataTransmission {
 function Show-Summary {
     Write-Section "Infrastructure Health Check Summary"
     
-    Write-Host "`n📊 Test Results:" -ForegroundColor White -BackgroundColor DarkBlue
+    Write-Host "`nTest Results:" -ForegroundColor White -BackgroundColor DarkBlue
     foreach ($test in $script:TestResults.GetEnumerator()) {
-        $status = if ($test.Value) { "✅ PASS" } else { "❌ FAIL" }
+        $status = if ($test.Value) { "[PASS]" } else { "[FAIL]" }
         Write-Host "   $($test.Key): $status"
     }
     
-    Write-Host "`n📈 Summary:" -ForegroundColor White -BackgroundColor DarkBlue
-    Write-Host "   ✅ Successes: $script:SuccessCount" -ForegroundColor Green
-    Write-Host "   ⚠️  Warnings: $script:WarningCount" -ForegroundColor Yellow
-    Write-Host "   ❌ Errors: $script:ErrorCount" -ForegroundColor Red
+    Write-Host "`nSummary:" -ForegroundColor White -BackgroundColor DarkBlue
+    Write-Host "   Successes: $script:SuccessCount" -ForegroundColor Green
+    Write-Host "   Warnings: $script:WarningCount" -ForegroundColor Yellow
+    Write-Host "   Errors: $script:ErrorCount" -ForegroundColor Red
     
     $totalTests = $script:TestResults.Count
     $passedTests = ($script:TestResults.Values | Where-Object { $_ -eq $true }).Count
     $healthPercentage = [math]::Round(($passedTests / $totalTests) * 100, 1)
     
-    Write-Host "`n🎯 Overall Health: $healthPercentage% ($passedTests/$totalTests tests passing)" -ForegroundColor White -BackgroundColor DarkBlue
+    Write-Host "`nOverall Health: $healthPercentage% ($passedTests/$totalTests tests passing)" -ForegroundColor White -BackgroundColor DarkBlue
     
     if ($healthPercentage -ge 80) {
-        Write-Success "`nSystem Status: HEALTHY 🟢"
+        Write-Success "`nSystem Status: HEALTHY"
     } elseif ($healthPercentage -ge 60) {
-        Write-Warning "`nSystem Status: DEGRADED 🟡"
+        Write-Warning "`nSystem Status: DEGRADED"
     } else {
-        Write-Error "`nSystem Status: CRITICAL 🔴"
+        Write-Error "`nSystem Status: CRITICAL"
     }
     
     # Recommendations
     if ($script:ErrorCount -gt 0 -or $script:WarningCount -gt 0) {
-        Write-Host "`n💡 Recommendations:" -ForegroundColor White -BackgroundColor DarkMagenta
+        Write-Host "`nRecommendations:" -ForegroundColor White -BackgroundColor DarkMagenta
         
         if (-not $script:TestResults.DatabaseConnectivity) {
             Write-Host "   • Check database server status and firewall rules" -ForegroundColor Yellow

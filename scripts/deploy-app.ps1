@@ -1,9 +1,28 @@
 #!/usr/bin/env pwsh
 <#
+================================================================================
+ DEPRECATED - USE CI/CD PIPELINE INSTEAD
+================================================================================
+ This script is DEPRECATED. Use the Azure DevOps pipeline instead:
+ 
+   pipelines/reportmate-deploy-infra.yml
+ 
+ The pipeline provides:
+   - Terraform as single source of truth
+   - Image tag variables passed to infrastructure
+   - Proper CI/CD with approval gates
+   - Audit trail of all deployments
+   - Automatic Front Door cache purge
+ 
+ This script is kept ONLY for emergency manual deployments.
+================================================================================
+
 .SYNOPSIS
-    Deploy the ReportMate Next.js frontend container with full cache busting and metadata sync.
+    [DEPRECATED] Deploy the ReportMate Next.js frontend - Use CI/CD pipeline instead.
 
 .DESCRIPTION
+    DEPRECATED: This script is replaced by pipelines/reportmate-deploy-infra.yml
+    
     Builds (optionally forced) and deploys the ReportMate frontend container, updates environment
     variables to keep build metadata accurate, and purges Azure Front Door so users always see the
     latest UI.
@@ -165,7 +184,7 @@ if (-not $ApiBaseUrl) {
     throw "ApiBaseUrl is not configured for environment '$Environment'"
 }
 
-Write-Section "🚀 Frontend Container Deployment Configuration:"
+Write-Section "Frontend Container Deployment Configuration:"
 Write-Info "Environment: $Environment"
 Write-Info "Target Container: $($Config.ContainerApp)"
 Write-Info "Registry: $RegistryHost"
@@ -179,7 +198,7 @@ Write-Info "API Base URL: $ApiBaseUrl"
 Write-Info "SignalR Enabled: true (build-time)"
 
 # === Prerequisite validation ===
-Write-Section "🔍 Validating prerequisites..." 'Yellow'
+Write-Section "Validating prerequisites..." 'Yellow'
 
 # Ensure Docker is in PATH (common issue with fresh terminals)
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -298,7 +317,7 @@ Write-Info "Resolved image reference: $FullImage"
 
 # === Docker build & push ===
 if (-not $SkipBuild) {
-    Write-Section "🔐 Authenticating and building image..." 'Yellow'
+    Write-Section "Authenticating and building image..." 'Yellow'
     az acr login --name $RegistryName | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw "ACR authentication failed for '$RegistryName'."
@@ -344,11 +363,11 @@ if (-not $SkipBuild) {
         Pop-Location
     }
 } else {
-    Write-Section "⏭️  Skipping Docker build/push per request" 'Yellow'
+    Write-Section "Skipping Docker build/push per request" 'Yellow'
 }
 
 # === Environment variable reconciliation ===
-Write-Section "⚙️  Updating container configuration..." 'Yellow'
+Write-Section "Updating container configuration..." 'Yellow'
 
 $EnvPairs = @()
 $KeysToReplace = @(
