@@ -142,7 +142,7 @@ cd infrastructure/scripts
 ### Data Flow
 
 ```
-Windows Client (runner.exe)
+Windows Client (managedreportsrunner.exe)
     ↓ [HTTPS POST]
 Azure Functions API (/api/events-submit)
     ↓ [Validate & Process]
@@ -165,9 +165,9 @@ LOG_LEVEL=INFO|DEBUG
 ### Client Configuration
 
 ```powershell
-# Windows client configuration (runner.exe)
-runner.exe config --api-url https://reportmate-api.azurewebsites.net
-runner.exe test  # Test connectivity
+# Windows client configuration (managedreportsrunner.exe)
+managedreportsrunner.exe config --api-url https://reportmate-api.azurewebsites.net
+managedreportsrunner.exe test  # Test connectivity
 ```
 
 ## 🐛 Troubleshooting
@@ -197,13 +197,13 @@ az functionapp logs tail --name reportmate-api --resource-group ReportMate
 
 ```powershell
 # Test client connectivity
-runner.exe test
+managedreportsrunner.exe test
 
 # View client logs
 Get-Content "C:\ProgramData\ManagedReports\logs\reportmate.log" -Tail 50
 
 # Reset client configuration
-runner.exe config --reset
+managedreportsrunner.exe config --reset
 ```
 
 ## 📊 Monitoring Commands
