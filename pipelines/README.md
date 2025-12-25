@@ -70,11 +70,13 @@ Frontend container receives build metadata:
 - `NEXT_PUBLIC_BUILD_TIME`
 
 ### Terraform Backend
-Both pipelines use the same backend:
-- Resource Group: `ecuadgitopsterraform`
-- Storage Account: `ecuadgitopsterraform`
+Both pipelines use a shared backend configuration:
+- Resource Group: `<your-terraform-backend-rg>`
+- Storage Account: `<your-terraform-backend-storage>`
 - Container: `terraform-state`
 - Key: `reportmate.tfstate`
+
+> **Note:** Replace the placeholders above with your actual Terraform backend configuration values.
 
 ## Manual Deployment Options
 

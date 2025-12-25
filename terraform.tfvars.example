@@ -13,15 +13,18 @@ location           = "East US"
 
 # Database Configuration
 # SECURITY: Use a strong password for production deployments
-db_password = "your-secure-database-password-here"
+# Generate with: openssl rand -base64 32
+db_password = "CHANGE-ME-TO-SECURE-PASSWORD"
+db_username = "reportmate_admin"
+db_name     = "reportmate"
+
+# Database Sizing (adjust based on your needs)
+db_sku_name   = "B_Standard_B1ms"  # Basic tier for dev/test, use GP_Standard_D2s_v3+ for production
+db_storage_mb = 32768               # 32 GB for dev/test, 65536+ for production
 
 # =================================================================
 # OPTIONAL VARIABLES - Customize as needed
 # =================================================================
-
-# Database Settings
-db_username = "reportmate_admin"
-db_name     = "reportmate"
 
 # Environment Configuration
 environment = "prod"
@@ -44,6 +47,7 @@ container_image = "ghcr.io/reportmate/reportmate-app-web:latest"
 # container_image = "mycompanyacr.azurecr.io/reportmate-web:latest"
 
 # Client Authentication (optional)
+# Generate with: openssl rand -base64 32
 # Leave empty for open access, or provide comma-separated passphrases
 client_passphrases    = ""
 enable_machine_groups = true
@@ -58,37 +62,69 @@ pipeline_service_principal_id = ""
 # =================================================================
 
 # Entra ID Authentication
+# You must create an App Registration in Azure AD first
+# See: https://learn.microsoft.com/azure/active-directory/develop/quickstart-register-app
+azure_ad_client_id    = "your-app-registration-client-id"
+azure_ad_tenant_id    = "your-azure-tenant-id"
 auth_sign_in_audience = "AzureADMyOrg"  # Only your organization
 auth_providers        = ["azure-ad"]
 default_auth_provider = "azure-ad"
 
 # Security Settings
-allowed_auth_domains        = ["ecuad.ca"]  # Replace with your domain(s)
+allowed_auth_domains        = ["yourdomain.com"]  # Replace with your domain(s)
 require_email_verification  = false
 auth_client_secret_expiry   = "2026-12-31T23:59:59Z"  # 2 years from now
 
 # Secret Storage
 enable_key_vault = true
-key_vault_name   = "reportmate-kv-prod"  # Must be globally unique
+key_vault_name   = "your-reportmate-kv"  # Must be globally unique (3-24 alphanumeric chars)
 
 # App Ownership and Authorization
-app_owners = ["your-email@yourdomain.com"]  # Replace with actual owner emails
-authorized_groups = ["your-azure-ad-group-id"]  # Replace with actual Entra ID group IDs
+# Get group IDs from Azure AD -> Groups -> Object ID
+authorized_groups = [
+  "your-admin-group-object-id",
+  "your-users-group-object-id",
+]
+
+# DevOps Group Access (for Key Vault RBAC)
+devops_resource_infrasec_group_object_id = "your-devops-group-object-id"
+
+# =================================================================
+# DATABASE MAINTENANCE (Optional - Recommended for Production)
+# =================================================================
+
+# Automated cleanup schedule (cron format)
+# Default: Daily at 2:00 AM UTC
+# Examples:
+#   "0 2 * * *"   - Daily at 2 AM
+#   "0 3 * * 0"   - Weekly on Sunday at 3 AM
+#   "0 4 1 * *"   - Monthly on 1st at 4 AM
+# maintenance_schedule_cron = "0 2 * * *"
+
+# Event retention period in days
+# Older events will be automatically deleted
+# maintenance_event_retention_days = 30
 
 # =================================================================
 # MULTI-ENVIRONMENT EXAMPLE
 # =================================================================
 
 # For development environment, you might want:
+# environment = "dev"
+# db_sku_name = "B_Standard_B1ms"  # Basic tier
+# db_storage_mb = 32768  # 32 GB
 # auth_sign_in_audience = "AzureADMyOrg"
 # auth_providers = ["azure-ad", "credentials"]  # Enable local auth for testing
-# allowed_auth_domains = ["ecuad.ca", "gmail.com"]  # Broader for testing
+# allowed_auth_domains = ["yourdomain.com", "gmail.com"]  # Broader for testing
 # enable_key_vault = false  # Simpler for dev
 
 # For staging environment:
+# environment = "staging"
+# db_sku_name = "GP_Standard_D2s_v3"  # General Purpose
+# db_storage_mb = 65536  # 64 GB
 # auth_sign_in_audience = "AzureADMyOrg"
 # auth_providers = ["azure-ad"]
-# allowed_auth_domains = ["ecuad.ca"]
+# allowed_auth_domains = ["yourdomain.com"]
 # enable_key_vault = true
 
 # Tags
@@ -96,5 +132,5 @@ tags = {
   Environment = "production"
   Project     = "ReportMate"
   ManagedBy   = "Terraform"
-  Owner       = "your-team-name"
+  Owner       = "YourTeamName"
 }

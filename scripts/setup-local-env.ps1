@@ -320,7 +320,8 @@ auth_providers        = ["azure-ad"]
 default_auth_provider = "azure-ad"
 
 # Security Settings
-allowed_auth_domains        = ["ecuad.ca"]
+# CUSTOMIZE: Replace with your organization's domain(s)
+allowed_auth_domains        = ["yourdomain.com"]
 require_email_verification  = false
 auth_client_secret_expiry   = "2026-12-31T23:59:59Z"
 
@@ -332,11 +333,12 @@ key_vault_name   = "$VaultName"
 devops_resource_infrasec_group_object_id = "$($secrets["devops-group-object-id"])"
 
 # Tags
+# CUSTOMIZE: Update tags for your organization
 tags = {
   Environment = "production"
   Project     = "ReportMate"
   ManagedBy   = "Terraform"
-  Owner       = "ECUAD-IT"
+  Owner       = "Your-Organization"
   LastUpdated = "$(Get-Date -Format "yyyy-MM-dd")"
 }
 "@
