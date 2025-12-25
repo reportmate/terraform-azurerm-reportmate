@@ -76,10 +76,26 @@ try {
     Write-Host "   Storage accounts: Error checking" -ForegroundColor Red
 }
 
-# Summary
+# Summary - Get URLs from terraform outputs
 Write-Host "`nQuick Summary:" -ForegroundColor Cyan
-Write-Host "   API Health: https://reportmate-api.azurewebsites.net/api/health" -ForegroundColor Cyan
-Write-Host "   API Debug: https://reportmate-api.azurewebsites.net/api/debug" -ForegroundColor Cyan
-Write-Host "   Dashboard: https://reportmate-frontend.azurewebsites.net" -ForegroundColor Cyan
+
+try {
+    $apiUrl = (terraform output -raw api_url 2>$null)
+    $frontendUrl = (terraform output -raw frontend_url 2>$null)
+    
+    if ($apiUrl) {
+        Write-Host "   API Health: $apiUrl/api/health" -ForegroundColor Cyan
+        Write-Host "   API Debug: $apiUrl/api/debug" -ForegroundColor Cyan
+    }
+    if ($frontendUrl) {
+        Write-Host "   Dashboard: $frontendUrl" -ForegroundColor Cyan
+    }
+    
+    if (-not $apiUrl -and -not $frontendUrl) {
+        Write-Host "   URLs: Run 'terraform output' to get deployment URLs" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "   URLs: Run 'terraform output' to get deployment URLs" -ForegroundColor Yellow
+}
 
 Write-Host "`nStatus check completed!" -ForegroundColor Green

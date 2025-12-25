@@ -108,8 +108,22 @@ function Test-DatabaseSchema {
 function Test-APIEndpoints {
     Write-Section "Testing API Endpoints"
     
-    $baseUrl = "https://reportmate-api.azurewebsites.net"
-    $testSerial = "0F33V9G25083HJ"  # Known test device serial
+    # Get API URL from terraform output or environment variable
+    $baseUrl = $env:API_BASE_URL
+    if (-not $baseUrl) {
+        try {
+            $baseUrl = (terraform output -raw api_url 2>$null)
+        } catch {
+            Write-Warning "Could not get API URL from terraform output. Set API_BASE_URL environment variable"
+            return
+        }
+    }
+    
+    # Use a test device serial if provided in environment
+    $testSerial = $env:TEST_DEVICE_SERIAL
+    if (-not $testSerial) {
+        Write-Warning "TEST_DEVICE_SERIAL environment variable not set. Skipping device-specific tests."
+    }
     
     # Test health endpoint
     Write-Info "Testing health endpoint..."
@@ -202,7 +216,21 @@ function Test-ContainerApps {
 function Test-FrontDoorRouting {
     Write-Section "Testing Front Door Routing"
     
-    $customDomain = "https://reportmate.ecuad.ca"
+    # Get custom domain from terraform output or environment variable
+    $customDomain = $env:CUSTOM_DOMAIN
+    if (-not $customDomain) {
+        try {
+            $customDomain = (terraform output -raw frontend_url 2>$null)
+        } catch {
+            Write-Warning "Could not get custom domain from terraform output. Set CUSTOM_DOMAIN environment variable. Skipping Front Door tests."
+            return
+        }
+    }
+    
+    # Ensure URL has https://
+    if ($customDomain -notmatch "^https?://") {
+        $customDomain = "https://$customDomain"
+    }
     
     try {
         # Test main site routing

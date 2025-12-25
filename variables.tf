@@ -319,8 +319,8 @@ variable "default_auth_provider" {
 
 variable "allowed_auth_domains" {
   type        = list(string)
-  description = "List of allowed email domains for authentication"
-  default     = ["ecuad.ca"]
+  description = "List of allowed email domains for authentication (e.g., ['example.com'])"
+  default     = []  # Must be specified in terraform.tfvars for security
 }
 
 variable "require_email_verification" {
