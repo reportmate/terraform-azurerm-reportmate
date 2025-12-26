@@ -108,14 +108,23 @@ resource "azurerm_container_app" "frontend_prod_main" {
         value = "true"
       }
 
+      # Internal API URL for server-side calls (container-to-container within same environment)
+      # Uses internal DNS: http://<container-app-name> - traffic stays within Container Apps environment
       env {
         name  = "API_BASE_URL"
-        value = "https://${azurerm_container_app.api_functions.ingress[0].fqdn}"
+        value = "http://${var.api_container_name}"
       }
 
+      # External API URL for client-side browser calls (must use HTTPS external URL)
       env {
         name  = "NEXT_PUBLIC_API_BASE_URL"
         value = "https://${azurerm_container_app.api_functions.ingress[0].fqdn}"
+      }
+
+      # Shared secret for internal container-to-container API authentication
+      env {
+        name  = "API_INTERNAL_SECRET"
+        value = var.api_internal_secret
       }
 
       env {
@@ -500,10 +509,10 @@ resource "azurerm_container_app" "api_functions" {
         value = "production"
       }
 
-      # Disable authentication for API (passphrase-only auth for Windows clients)
+      # Internal API secret for container-to-container authentication (frontend to API)
       env {
-        name  = "DISABLE_AUTH"
-        value = "true"
+        name  = "API_INTERNAL_SECRET"
+        value = var.api_internal_secret
       }
     }
 

@@ -33,27 +33,14 @@ resource "azurerm_cdn_frontdoor_origin_group" "main" {
   }
 }
 
-# Front Door Origin Group for API
-resource "azurerm_cdn_frontdoor_origin_group" "api" {
-  name                     = "reportmate-api-origin-group"
-  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
-  session_affinity_enabled = false
+# NOTE: Removed dedicated API Origin Group and Route
+# All traffic now goes through the frontend container, which proxies to the API
+# with proper authentication headers. This ensures:
+# 1. Frontend adds X-Internal-Secret header for container-to-container auth
+# 2. No unauthenticated direct access to API endpoints
+# 3. Single point of entry for all requests
 
-  load_balancing {
-    additional_latency_in_milliseconds = 50
-    sample_size                        = 4
-    successful_samples_required        = 3
-  }
-
-  health_probe {
-    interval_in_seconds = 30
-    path                = "/api/health"
-    protocol            = "Https"
-    request_type        = "GET"
-  }
-}
-
-# Front Door Origin
+# Front Door Origin (points to frontend container - all traffic goes through here)
 resource "azurerm_cdn_frontdoor_origin" "main" {
   name                          = "reportmate-origin"
   cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.main.id
@@ -64,21 +51,6 @@ resource "azurerm_cdn_frontdoor_origin" "main" {
   http_port                      = 80
   https_port                     = 443
   origin_host_header             = var.frontend_fqdn
-  priority                       = 1
-  weight                         = 1000
-}
-
-# Front Door API Origin
-resource "azurerm_cdn_frontdoor_origin" "api" {
-  name                          = "reportmate-api-origin"
-  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.api.id
-  enabled                       = true
-
-  certificate_name_check_enabled = true
-  host_name                      = var.api_app_hostname
-  http_port                      = 80
-  https_port                     = 443
-  origin_host_header             = var.api_app_hostname
   priority                       = 1
   weight                         = 1000
 }
@@ -101,7 +73,7 @@ resource "azurerm_cdn_frontdoor_endpoint" "main" {
   tags = var.tags
 }
 
-# Front Door Route
+# Front Door Route (single route handles all traffic via frontend)
 resource "azurerm_cdn_frontdoor_route" "main" {
   name                          = "reportmate-route"
   cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.main.id
@@ -116,23 +88,6 @@ resource "azurerm_cdn_frontdoor_route" "main" {
 
   cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.main.id]
   cdn_frontdoor_rule_set_ids      = [azurerm_cdn_frontdoor_rule_set.main.id]
-  link_to_default_domain          = true
-}
-
-# Front Door API Route
-resource "azurerm_cdn_frontdoor_route" "api" {
-  name                          = "reportmate-api-route"
-  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.main.id
-  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.api.id
-  cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.api.id]
-  enabled                       = true
-
-  forwarding_protocol    = "HttpsOnly"
-  https_redirect_enabled = true
-  patterns_to_match      = ["/api/*"]
-  supported_protocols    = ["Http", "Https"]
-
-  cdn_frontdoor_custom_domain_ids = [azurerm_cdn_frontdoor_custom_domain.main.id]
   link_to_default_domain          = true
 }
 

@@ -123,7 +123,10 @@ $Environments = @{
         RegistryHost     = "reportmateacr.azurecr.io"
         ImageName        = "reportmate"
         Domain           = "reportmate.ecuad.ca"
-        ApiBaseUrl       = "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io"
+        # Internal URL for server-side API calls (container-to-container within Azure)
+        ApiBaseUrl       = "http://reportmate-functions-api"
+        # External URL for client-side browser calls (WebSocket negotiate, etc.)
+        PublicApiBaseUrl = "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io"
         FrontDoorProfile = "reportmate-frontdoor"
         FrontDoorEndpoint= "reportmate-endpoint"
     }
@@ -178,10 +181,16 @@ if (-not $Tag) {
 
 $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
 
-# Extract API base URL from config - for Next.js build-time embedding
+# Extract API URLs from config
+# - ApiBaseUrl = Internal URL for server-side calls (container-to-container)
+# - PublicApiBaseUrl = External URL for client-side browser calls
 $ApiBaseUrl = $Config.ApiBaseUrl
+$PublicApiBaseUrl = $Config.PublicApiBaseUrl
 if (-not $ApiBaseUrl) {
     throw "ApiBaseUrl is not configured for environment '$Environment'"
+}
+if (-not $PublicApiBaseUrl) {
+    throw "PublicApiBaseUrl is not configured for environment '$Environment'"
 }
 
 Write-Section "Frontend Container Deployment Configuration:"
@@ -194,7 +203,8 @@ Write-Info "Force Build: $ForceBuild"
 Write-Info "Skip Build: $SkipBuild"
 Write-Info "Auto SSO: $AutoSSO"
 Write-Info "Build Directory: $FrontendDir"
-Write-Info "API Base URL: $ApiBaseUrl"
+Write-Info "API Base URL (internal): $ApiBaseUrl"
+Write-Info "API Base URL (public): $PublicApiBaseUrl"
 Write-Info "SignalR Enabled: true (build-time)"
 
 # === Prerequisite validation ===
@@ -331,7 +341,8 @@ if (-not $SkipBuild) {
             "--build-arg", "BUILD_TIME=$BuildTime",
             "--build-arg", "BUILD_ID=$GitHash",
             "--build-arg", "ENABLE_SIGNALR=true",
-            "--build-arg", "API_BASE_URL=$ApiBaseUrl"
+            "--build-arg", "API_BASE_URL=$ApiBaseUrl",
+            "--build-arg", "NEXT_PUBLIC_API_BASE_URL=$PublicApiBaseUrl"
         )
 
         if ($ForceBuild) {
@@ -340,7 +351,8 @@ if (-not $SkipBuild) {
                 "--build-arg", "BUILD_TIME=$BuildTime",
                 "--build-arg", "BUILD_ID=$GitHash",
                 "--build-arg", "ENABLE_SIGNALR=true",
-                "--build-arg", "API_BASE_URL=$ApiBaseUrl"
+                "--build-arg", "API_BASE_URL=$ApiBaseUrl",
+                "--build-arg", "NEXT_PUBLIC_API_BASE_URL=$PublicApiBaseUrl"
             )
         }
 
@@ -375,6 +387,7 @@ $KeysToReplace = @(
     "BUILD_TIME",
     "BUILD_ID",
     "API_BASE_URL",
+    "API_INTERNAL_SECRET",
     "NEXT_PUBLIC_API_BASE_URL",
     "NEXT_PUBLIC_VERSION",
     "NEXT_PUBLIC_BUILD_ID",
@@ -402,15 +415,59 @@ $EnvPairs += "NEXT_PUBLIC_VERSION=$Tag"
 $EnvPairs += "NEXT_PUBLIC_BUILD_ID=$GitHash"
 $EnvPairs += "NEXT_PUBLIC_BUILD_TIME=$BuildTime"
 
-$ApiBaseUrl = $Config.ApiBaseUrl
-if (-not $ApiBaseUrl -and $ExistingEnv) {
-    $ApiBaseUrl = ($ExistingEnv | Where-Object { $_.name -eq "API_BASE_URL" } | Select-Object -First 1).value
+# Set API URLs:
+# - API_BASE_URL = Internal URL for server-side calls (container-to-container)
+# - NEXT_PUBLIC_API_BASE_URL = External URL for client-side browser calls
+$InternalApiUrl = $Config.ApiBaseUrl  # e.g., http://reportmate-functions-api
+$PublicApiUrl = $Config.PublicApiBaseUrl  # e.g., https://...
+
+if (-not $InternalApiUrl -and $ExistingEnv) {
+    $InternalApiUrl = ($ExistingEnv | Where-Object { $_.name -eq "API_BASE_URL" } | Select-Object -First 1).value
+}
+if (-not $PublicApiUrl -and $ExistingEnv) {
+    $PublicApiUrl = ($ExistingEnv | Where-Object { $_.name -eq "NEXT_PUBLIC_API_BASE_URL" } | Select-Object -First 1).value
 }
 
-if ($ApiBaseUrl) {
-    $EnvPairs += "API_BASE_URL=$ApiBaseUrl"
-    $EnvPairs += "NEXT_PUBLIC_API_BASE_URL=$ApiBaseUrl"
+if ($InternalApiUrl) {
+    $EnvPairs += "API_BASE_URL=$InternalApiUrl"
 }
+if ($PublicApiUrl) {
+    $EnvPairs += "NEXT_PUBLIC_API_BASE_URL=$PublicApiUrl"
+}
+
+# Set API_INTERNAL_SECRET for container-to-container authentication
+# Fetch from Key Vault to ensure it matches what the API container expects
+$KeyVaultName = "reportmate-keyvault"
+$InternalSecret = $null
+
+try {
+    Write-Info "Fetching API_INTERNAL_SECRET from Key Vault..."
+    $InternalSecret = az keyvault secret show --vault-name $KeyVaultName --name "api-internal-secret" --query "value" -o tsv 2>$null
+    if ($LASTEXITCODE -eq 0 -and $InternalSecret) {
+        Write-Success "API_INTERNAL_SECRET loaded from Key Vault"
+    } else {
+        $InternalSecret = $null
+    }
+} catch {
+    Write-WarningLine "Key Vault lookup failed: $($_.Exception.Message)"
+}
+
+# Fallback chain: Key Vault -> Existing container value -> Hardcoded default
+if (-not $InternalSecret) {
+    $InternalSecret = ($ExistingEnv | Where-Object { $_.name -eq "API_INTERNAL_SECRET" } | Select-Object -First 1).value
+    if ($InternalSecret) {
+        Write-Info "Using existing API_INTERNAL_SECRET from container"
+    }
+}
+
+if (-not $InternalSecret) {
+    # Hardcoded fallback - matches the value set on the API container
+    # This ensures deployments work even if Key Vault is unavailable
+    $InternalSecret = "RmApi9IntSec7K3wP2vN8xF6HqL5bMnEz4Tj"
+    Write-WarningLine "Using hardcoded API_INTERNAL_SECRET fallback"
+}
+
+$EnvPairs += "API_INTERNAL_SECRET=$InternalSecret"
 
 $UpdateArgs = @(
     "containerapp", "update",
