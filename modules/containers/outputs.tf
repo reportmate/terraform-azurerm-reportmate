@@ -43,3 +43,21 @@ output "api_container_app_id" {
   value       = azurerm_container_app.api_functions.id
   description = "ID of the API Functions Container App"
 }
+
+# ACR Outputs for maintenance module
+output "acr_login_server" {
+  value       = var.use_custom_registry ? azurerm_container_registry.acr[0].login_server : var.existing_registry_server
+  description = "ACR login server URL"
+}
+
+output "acr_admin_username" {
+  value       = var.use_custom_registry ? azurerm_container_registry.acr[0].admin_username : ""
+  description = "ACR admin username"
+  sensitive   = true
+}
+
+output "acr_admin_password" {
+  value       = var.use_custom_registry ? azurerm_container_registry.acr[0].admin_password : ""
+  description = "ACR admin password"
+  sensitive   = true
+}

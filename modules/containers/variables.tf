@@ -220,8 +220,8 @@ variable "api_image_name" {
 # Allowed domains for authentication
 variable "allowed_domains" {
   type        = string
-  description = "Comma-separated list of allowed email domains for authentication"
-  default     = "ecuad.ca"
+  description = "Comma-separated list of allowed email domains for authentication. Must be specified in terraform.tfvars"
+  default     = ""
 }
 
 # Default site URL (used when custom domain is not enabled)

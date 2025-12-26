@@ -67,6 +67,28 @@ module "monitoring" {
   tags = var.tags
 }
 
+# Maintenance Module - Automated Database Cleanup
+module "maintenance" {
+  source = "./modules/maintenance"
+
+  resource_group_name          = data.azurerm_resource_group.rg.name
+  location                     = data.azurerm_resource_group.rg.location
+  container_app_environment_id = module.containers.container_app_environment_id
+  
+  # ACR credentials
+  acr_login_server   = module.containers.acr_login_server
+  acr_admin_username = module.containers.acr_admin_username
+  acr_admin_password = module.containers.acr_admin_password
+  
+  # Database connection
+  db_host     = module.database.postgres_fqdn
+  db_password = var.db_password
+  
+  # Configuration
+  event_retention_days = 30         # Keep events for 30 days
+  schedule_cron        = "0 2 * * *" # Run daily at 2 AM UTC
+}
+
 # Identity Module
 module "identity" {
   source = "./modules/identity"
