@@ -241,8 +241,9 @@ module "containers" {
   web_pubsub_connection = module.messaging.web_pubsub_connection_string
   
   # Client authentication
-  client_passphrases = var.client_passphrases
-  allowed_domains    = var.allowed_domains
+  client_passphrases  = var.client_passphrases
+  api_internal_secret = var.api_internal_secret
+  allowed_domains     = var.allowed_domains
 
   # Key Vault integration for secrets
   key_vault_uri = var.enable_key_vault ? module.key_vault[0].key_vault_uri : null

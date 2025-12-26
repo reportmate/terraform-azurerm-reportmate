@@ -105,6 +105,12 @@ variable "client_passphrases" {
   sensitive   = true
 }
 
+variable "api_internal_secret" {
+  type        = string
+  description = "Shared secret for internal container-to-container API authentication (frontend to API)"
+  sensitive   = true
+}
+
 variable "enable_custom_domain" {
   type        = bool
   description = "Enable custom domain configuration"

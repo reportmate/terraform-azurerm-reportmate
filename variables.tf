@@ -253,6 +253,13 @@ variable "client_passphrases" {
   sensitive   = true
 }
 
+variable "api_internal_secret" {
+  type        = string
+  description = "Shared secret for internal container-to-container API authentication (frontend to API)"
+  default     = ""
+  sensitive   = true
+}
+
 variable "enable_machine_groups" {
   type        = bool
   description = "Enable per-machine-group passphrase authentication"
