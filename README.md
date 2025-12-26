@@ -15,7 +15,6 @@ infrastructure/
 ├── outputs.tf          # Output values
 ├── versions.tf         # Provider and version constraints
 ├── backend.tf          # State backend configuration
-├── CONTAINER_UPDATE_GUIDE.md  # Container update documentation
 ├── modules/            # Reusable Terraform modules
 │   ├── database/       # PostgreSQL database module
 │   ├── storage/        # Azure Storage module
@@ -24,100 +23,133 @@ infrastructure/
 │   ├── identity/       # Managed Identity module
 │   ├── containers/     # Container Apps module
 │   └── networking/     # Front Door module
-├── api/               # Azure Functions (Python) for REST API
-├── scripts/           # Deployment and utility scripts
-├── schemas/           # Database schemas and migrations
-└── examples/          # Example configurations
+├── api/                # FastAPI container application
+├── scripts/            # Deployment and utility scripts
+├── schemas/            # Database schemas and migrations
+├── wiki/               # Detailed documentation and guides
+└── examples/           # Example configurations
 ```
+
+For detailed documentation, see [wiki/README.md](./wiki/README.md)
 
 ## 🚀 Quick Start
 
-### Using Deployment Scripts (Recommended)
+### Prerequisites
 
-The easiest way to deploy ReportMate is using the provided deployment scripts:
+**Required Tools:**
+- **Azure CLI**: `winget install Microsoft.AzureCLI` or [Download](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- **Terraform**: `winget install Hashicorp.Terraform` or [Download](https://www.terraform.io/downloads)
+- **PowerShell 7+**: `winget install Microsoft.PowerShell` (for scripts)
 
-**PowerShell (Cross-platform):**
+**Azure Authentication:**
 ```powershell
-# Full deployment
-./scripts/deploy.ps1 -Environment prod
-
-# Quick function-only deployment
-./scripts/deploy.ps1 -Quick
-
-# Infrastructure only
-./scripts/deploy.ps1 -Infrastructure
-
-# Auto-approve without prompts
-./scripts/deploy.ps1 -Yes
+az login
+az account set --subscription "<your-subscription-id>"
+az account show  # Verify your account
 ```
 
-**Bash (Linux/macOS):**
-```bash
-# Full deployment
-./scripts/deploy.sh --env prod
+### Bootstrap Deployment (Recommended)
 
-# Quick function-only deployment
-./scripts/deploy.sh --quick
+For a fresh deployment, use the canonical bootstrap script:
 
-# Infrastructure only
-./scripts/deploy.sh --infra
+```powershell
+# Complete bootstrap (infrastructure + database + functions)
+.\scripts\bootstrap.ps1
 
-# Auto-approve without prompts
-./scripts/deploy.sh --yes
+# With auto-approval for CI/CD pipelines
+.\scripts\bootstrap.ps1 -AutoApprove -Validate
+```
+
+The bootstrap script handles:
+- Terraform backend configuration validation
+- Infrastructure provisioning
+- Database schema initialization
+- Container deployments
+
+### Individual Component Deployment
+
+**Deploy FastAPI Container (API code changes):**
+```powershell
+.\scripts\deploy-api.ps1 -ForceBuild
+```
+
+**Deploy Frontend Container (web app changes):**
+```powershell
+.\scripts\deploy-containers.ps1 -Environment prod -ForceBuild
+```
+
+**Deploy Database Maintenance Jobs:**
+```powershell
+.\scripts\deploy-maintenance.ps1
+```
+
+**Check System Status:**
+```powershell
+.\scripts\check.ps1              # Basic health check
+.\scripts\check.ps1 -FixIssues   # Attempt to fix issues
+.\scripts\status.ps1             # Detailed component status
 ```
 
 ### Manual Terraform Deployment
 
-1. **Navigate to the terraform directory:**
-   ```bash
-   cd infrastructure/terraform
-   ```
+If you prefer manual control or CI/CD integration:
 
-2. **Configure backend (copy and edit):**
-   ```bash
-   cp backend.tf.example backend.tf
-   # Edit backend.tf with your Azure storage account details
-   ```
+**1. Configure Terraform Backend:**
+```powershell
+# One-time setup: Create storage account for Terraform state
+az group create --name Terraform --location canadacentral
+az storage account create --name youruniquename --resource-group Terraform --sku Standard_LRS
+az storage container create --name terraform-state --account-name youruniquename
 
-3. **Set variables (copy and edit):**
-   ```bash
-   cp terraform.tfvars.example terraform.tfvars
-   # Edit terraform.tfvars with your deployment values
-   ```
+# Create backend configuration from example
+Copy-Item backend.tf.example backend.tf
+# Edit backend.tf with your storage account details
+# NOTE: backend.tf is gitignored - never commit it!
+```
 
-4. **Deploy:**
-   ```bash
-   terraform init
-   terraform plan
-   terraform apply
-   ```
+**2. Configure Variables:**
+```powershell
+# Copy and configure variables
+Copy-Item terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your deployment values
+# NOTE: terraform.tfvars is gitignored - contains secrets!
+```
+
+**3. Deploy Infrastructure:**
+```powershell
+terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+
+**4. Initialize Database:**
+```powershell
+# Via API endpoint (recommended)
+curl "https://reportmate-functions-api.<your-subdomain>.azurecontainerapps.io/api/init-db?init=true"
+
+# Or manually via psql
+psql "postgresql://reportmate:PASSWORD@reportmate-database.postgres.database.azure.com:5432/reportmate?sslmode=require" -f schemas/database.sql
+```
 
 ## 🛠️ Deployment Scripts
 
-ReportMate includes comprehensive deployment scripts for different platforms and use cases:
+ReportMate includes comprehensive deployment scripts in `./scripts/`:
 
-### `scripts/deploy.ps1` (PowerShell)
-Cross-platform PowerShell deployment script that supports:
-- Complete infrastructure deployment (Terraform + Functions)
-- Quick function-only deployments
-- Environment-specific deployments (dev, staging, prod)
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `bootstrap.ps1` | Complete initial deployment | `.\scripts\bootstrap.ps1` |
+| `deploy-api.ps1` | Deploy FastAPI container | `.\scripts\deploy-api.ps1 -ForceBuild` |
+| `deploy-containers.ps1` | Deploy frontend container | `.\scripts\deploy-containers.ps1 -Environment prod -ForceBuild` |
+| `deploy-maintenance.ps1` | Deploy maintenance jobs | `.\scripts\deploy-maintenance.ps1` |
+| `check.ps1` | Health checks and diagnostics | `.\scripts\check.ps1` |
+| `status.ps1` | Detailed component status | `.\scripts\status.ps1` |
 
-**Features:**
+**Key Features:**
+- Cross-platform PowerShell scripts (Windows, macOS, Linux)
 - Auto-detects environment and provides intelligent deployment options
-- Supports both ZIP deployment and traditional Azure Functions Core Tools
 - Comprehensive error handling and validation
-- Cross-platform compatibility (Windows, macOS, Linux)
-
-### `scripts/deploy.sh` (Bash)
-Linux/macOS bash deployment script with similar functionality to the PowerShell version.
-
-### Prerequisites for Scripts
-- Azure CLI installed and authenticated
-- Terraform installed (for infrastructure deployment)
-- PowerShell Core (for .ps1 script on non-Windows)
-
-### Working Directory
-Scripts should be run from the repository root directory. They automatically navigate to the appropriate subdirectories (`infrastructure/terraform/` for Terraform operations).
+- Supports `-ForceBuild` for clean rebuilds without Docker cache
+- Automated health checks and verification
 
 ## Architecture
 
@@ -215,7 +247,24 @@ container_image = "mycompanyacr.azurecr.io/reportmate-web:custom"
 - **Easy Updates**: Update web app without infrastructure changes
 - **Multi-Environment**: Same infrastructure, different app versions
 
-## Quick Start
+### Container Updates
+
+For detailed container update procedures, see [wiki/CONTAINER_UPDATE_GUIDE.md](./wiki/CONTAINER_UPDATE_GUIDE.md).
+
+**Quick update commands:**
+```powershell
+# Deploy API container
+.\scripts\deploy-api.ps1 -ForceBuild
+
+# Deploy frontend container
+.\scripts\deploy-containers.ps1 -Environment prod -ForceBuild
+```
+
+The update process includes automated health checks, rollback capabilities, and production verification.
+
+## Terraform Module Usage
+
+## Terraform Module Usage
 
 ```hcl
 module "reportmate" {
@@ -235,90 +284,6 @@ module "reportmate" {
   
   # Container image (defaults to official ReportMate image)
   container_image = "ghcr.io/reportmate/reportmate-app-web:latest"
-}
-```
-
-## Container Strategy
-
-By default, this module uses the official ReportMate container image published at:
-- **Registry**: `ghcr.io/reportmate/reportmate-app-web`
-- **Source**: https://github.com/reportmate/reportmate-app-web
-- **Tags**: `latest`, `v1.0.0`, `dev`
-
-You can override the container image to use your own build:
-
-```hcl
-module "reportmate" {
-  source = "reportmate/reportmate/azurerm"
-  
-  # Use your own container registry
-  use_custom_registry = true
-  container_image = "mycompanyacr.azurecr.io/reportmate:custom"
-  
-  # ... other variables
-}
-```
-
-## Container Updates
-
-For updating production containers after deployment, see the comprehensive guide and automated scripts:
-
-- **📖 Complete Guide**: [CONTAINER_UPDATE_GUIDE.md](./CONTAINER_UPDATE_GUIDE.md)
-- **🔧 Update Scripts**: [scripts/](./scripts/)
-
-### Quick Update Commands
-
-**PowerShell (Windows):**
-```powershell
-# Standard container update (auto-discovers all resources)
-.\scripts\update.ps1
-
-# Check current status
-.\scripts\update.ps1 -Action status
-
-# Rollback if needed
-.\scripts\update.ps1 -Action rollback
-```
-
-**Bash (Linux/macOS/WSL):**
-```bash
-# Standard container update (auto-discovers all resources) 
-./scripts/update.sh
-
-# Check current status
-./scripts/update.sh status
-
-# Rollback if needed
-./scripts/update.sh rollback
-```
-
-The update process includes:
-- ✅ **Smart configuration discovery** from Terraform outputs and Azure resources
-- ✅ Automated building and pushing to ACR
-- ✅ Container App deployment with health checks
-- ✅ Front Door cache invalidation
-- ✅ Production verification
-- ✅ Automatic rollback on failure
-
-## Required Variables
-
-The following variables are required:
-
-```hcl
-variable "resource_group_name" {
-  type        = string
-  description = "Name of the Azure resource group to create"
-}
-
-variable "location" {
-  type        = string
-  description = "Azure region where resources will be deployed"
-}
-
-variable "db_password" {
-  type        = string
-  description = "PostgreSQL administrator password"
-  sensitive   = true
 }
 ```
 
@@ -470,6 +435,18 @@ See [variables.tf](./variables.tf) for a complete list of configurable options.
 - Azure CLI authenticated
 - Contributor access to Azure subscription
 
+## 📖 Additional Documentation
+
+For detailed guides and operational documentation, see the [wiki/](./wiki/) directory:
+
+- **[Container Updates](./wiki/CONTAINER_UPDATE_GUIDE.md)** - Production container deployment procedures
+- **[Security Best Practices](./wiki/SECURITY.md)** - Security configuration and secrets management
+- **[Database Maintenance](./wiki/DATABASE_MAINTENANCE_OPTIONS.md)** - Database optimization and cleanup
+- **[Device Archive](./wiki/DEVICE_ARCHIVE_API.md)** - Device lifecycle management
+- **[Application Utilization](./wiki/APPLICATION_UTILIZATION_WINDOWS.md)** - Usage tracking features
+
+Full documentation index: [wiki/README.md](./wiki/README.md)
+
 ## License
 
 MIT License - see [LICENSE](./LICENSE) for details.
@@ -484,4 +461,5 @@ MIT License - see [LICENSE](./LICENSE) for details.
 ## Support
 
 - Documentation: [ReportMate Docs](https://github.com/reportmate/reportmate)
+- Issues: [GitHub Issues](https://github.com/reportmate/terraform-azurerm-reportmate/issues)
 - Issues: [GitHub Issues](https://github.com/reportmate/terraform-azurerm-reportmate/issues)

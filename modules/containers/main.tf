@@ -30,7 +30,7 @@ resource "azurerm_container_registry" "acr" {
   resource_group_name = var.resource_group_name
   location            = var.location
   sku                 = "Basic"
-  admin_enabled       = false # Use managed identity instead
+  admin_enabled       = true  # Required for maintenance job authentication
 
   tags = var.tags
 }
