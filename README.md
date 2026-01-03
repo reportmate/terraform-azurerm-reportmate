@@ -6,33 +6,47 @@
 
 A comprehensive Terraform module for deploying ReportMate infrastructure on Azure. This module provisions a complete osquery fleet management platform with web interface, API, real-time messaging, and monitoring.
 
-## 📁 Directory Structure
+## Directory Structure
 
 ```
-infrastructure/
-├── main.tf             # Primary infrastructure definition
-├── variables.tf        # Input variables
-├── outputs.tf          # Output values
-├── versions.tf         # Provider and version constraints
-├── backend.tf          # State backend configuration
-├── modules/            # Reusable Terraform modules
-│   ├── database/       # PostgreSQL database module
-│   ├── storage/        # Azure Storage module
-│   ├── messaging/      # Web PubSub module
-│   ├── monitoring/     # Application Insights module
-│   ├── identity/       # Managed Identity module
-│   ├── containers/     # Container Apps module
-│   └── networking/     # Front Door module
-├── api/                # FastAPI container application
-├── scripts/            # Deployment and utility scripts
-├── schemas/            # Database schemas and migrations
-├── wiki/               # Detailed documentation and guides
-└── examples/           # Example configurations
+infrastructure/azure/
+├── main.tf                 # Primary infrastructure definition
+├── variables.tf            # Input variables
+├── outputs.tf              # Output values
+├── versions.tf             # Provider and version constraints
+├── backend.tf              # State backend configuration (gitignored)
+├── terraform.tfvars        # Deployment variables (gitignored)
+├── modules/                # Reusable Terraform modules
+│   ├── api/                # FastAPI container application
+│   │   ├── main.py         # FastAPI application (4300+ lines)
+│   │   ├── Dockerfile      # Container build definition
+│   │   ├── requirements.txt
+│   │   ├── sql/            # External SQL queries (43 files)
+│   │   │   ├── devices/    # Device query files
+│   │   │   ├── events/     # Event query files
+│   │   │   ├── admin/      # Admin operation queries
+│   │   │   └── tests/      # pgAdmin test wrappers
+│   │   └── scripts/        # API utility scripts
+│   ├── auth/               # Authentication module
+│   ├── containers/         # Container Apps module
+│   ├── database/           # PostgreSQL database module
+│   ├── functions/          # Azure Functions (deprecated)
+│   ├── identity/           # Managed Identity module
+│   ├── key_vault/          # Key Vault module
+│   ├── maintenance/        # Database maintenance jobs
+│   ├── messaging/          # Web PubSub module
+│   ├── monitoring/         # Application Insights module
+│   ├── networking/         # Front Door module
+│   └── storage/            # Azure Storage module
+├── scripts/                # Deployment and utility scripts
+├── schemas/                # Database schemas and migrations
+├── pipelines/              # CI/CD pipeline definitions
+└── wiki/                   # Detailed documentation and guides
 ```
 
 For detailed documentation, see [wiki/README.md](./wiki/README.md)
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -40,6 +54,7 @@ For detailed documentation, see [wiki/README.md](./wiki/README.md)
 - **Azure CLI**: `winget install Microsoft.AzureCLI` or [Download](https://learn.microsoft.com/cli/azure/install-azure-cli)
 - **Terraform**: `winget install Hashicorp.Terraform` or [Download](https://www.terraform.io/downloads)
 - **PowerShell 7+**: `winget install Microsoft.PowerShell` (for scripts)
+- **Docker**: Required for container builds
 
 **Azure Authentication:**
 ```powershell
@@ -53,7 +68,7 @@ az account show  # Verify your account
 For a fresh deployment, use the canonical bootstrap script:
 
 ```powershell
-# Complete bootstrap (infrastructure + database + functions)
+# Complete bootstrap (infrastructure + database + containers)
 .\scripts\bootstrap.ps1
 
 # With auto-approval for CI/CD pipelines
@@ -131,7 +146,7 @@ curl "https://reportmate-functions-api.<your-subdomain>.azurecontainerapps.io/ap
 psql "postgresql://reportmate:PASSWORD@reportmate-database.postgres.database.azure.com:5432/reportmate?sslmode=require" -f schemas/database.sql
 ```
 
-## 🛠️ Deployment Scripts
+## Deployment Scripts
 
 ReportMate includes comprehensive deployment scripts in `./scripts/`:
 
@@ -155,83 +170,103 @@ ReportMate includes comprehensive deployment scripts in `./scripts/`:
 
 ReportMate provides a complete osquery fleet management platform with:
 
-- **💻 Web Application**: Next.js frontend with real-time dashboard and modular architecture
-- **🚀 Powerful REST API**: Complete Azure Functions-based API with 9 specialized data processors
-- **🗄️ Database**: PostgreSQL for storing osquery results and configurations with business unit support
-- **⚡ Real-time Messaging**: Azure Web PubSub for live fleet updates and notifications
-- **📦 Container Platform**: Azure Container Apps for scalable web hosting
-- **📊 Monitoring**: Application Insights for comprehensive observability and analytics
-- **🔒 Security**: Machine group authentication, business unit access control, and managed identities
+- **Web Application**: Next.js frontend with real-time dashboard and modular architecture
+- **REST API**: FastAPI container with external SQL queries and comprehensive endpoints
+- **Database**: PostgreSQL for storing osquery results and configurations
+- **Real-time Messaging**: Azure Web PubSub for live fleet updates
+- **Container Platform**: Azure Container Apps for scalable hosting
+- **Monitoring**: Application Insights for observability and analytics
+- **Security**: Machine group authentication and managed identities
 
 ### REST API Endpoints
 
-The ReportMate API provides comprehensive endpoints for fleet management:
+The FastAPI application (`modules/api/main.py`) provides these endpoint categories:
 
-#### Core Device Endpoints
-- **POST** `/api/v1/devices/ingest` - Enhanced device data ingestion with 9-module processing
-- **GET** `/api/v1/devices` - List all devices with filtering and pagination  
-- **GET** `/api/v1/devices/{id}` - Get detailed device information with all modules
-- **DELETE** `/api/v1/devices/{id}` - Remove device from fleet
+#### Health and Status
+- **GET** `/api/health` - API health status and database connectivity
+- **GET** `/api/docs` - Interactive OpenAPI documentation
 
-#### Device-Specific Module Endpoints
-- **GET** `/api/v1/devices/{id}/applications` - Device applications inventory
-- **GET** `/api/v1/devices/{id}/hardware` - Device hardware specifications
-- **GET** `/api/v1/devices/{id}/security` - Device security posture and compliance
-- **GET** `/api/v1/devices/{id}/network` - Device network configuration
-- **GET** `/api/v1/devices/{id}/system` - Device operating system information
-- **GET** `/api/v1/devices/{id}/inventory` - Device asset and identification data
-- **GET** `/api/v1/devices/{id}/management` - Device MDM enrollment status
-- **GET** `/api/v1/devices/{id}/profiles` - Device configuration profiles
-- **GET** `/api/v1/devices/{id}/installs` - Device managed installations
+#### Device Management
+- **GET** `/api/devices` - List all devices with filtering
+- **GET** `/api/device/{serial}` - Get device with all module data
+- **POST** `/api/events` - Ingest device telemetry data
+- **POST** `/api/device/{serial}/archive` - Archive a device
+- **POST** `/api/device/{serial}/unarchive` - Restore archived device
+- **DELETE** `/api/device/{serial}` - Permanently delete device
 
-#### Global Module Endpoints (Fleet-Wide Data)
-- **GET** `/api/v1/applications` - Application inventory across all devices
-- **GET** `/api/v1/hardware` - Hardware inventory report
-- **GET** `/api/v1/security` - Security posture overview
-- **GET** `/api/v1/network` - Network configuration summary
-- **GET** `/api/v1/system` - Operating system distribution
-- **GET** `/api/v1/inventory` - Asset management summary
-- **GET** `/api/v1/management` - MDM enrollment summary
-- **GET** `/api/v1/profiles` - Configuration profiles summary
-- **GET** `/api/v1/installs` - Managed installations summary
+#### Bulk Fleet Endpoints
+- **GET** `/api/devices/hardware` - Hardware inventory across fleet
+- **GET** `/api/devices/installs` - Managed installations fleet-wide
+- **GET** `/api/devices/network` - Network configuration summary
+- **GET** `/api/devices/security` - Security posture overview
+- **GET** `/api/devices/profiles` - Configuration profiles summary
+- **GET** `/api/devices/management` - MDM enrollment summary
+- **GET** `/api/devices/inventory` - Asset management summary
+- **GET** `/api/devices/system` - Operating system distribution
+- **GET** `/api/devices/peripherals` - Displays and printers
 
-#### Analytics & Reporting
-- **GET** `/api/v1/analytics/summary` - Fleet summary statistics and KPIs
-- **GET** `/api/v1/analytics/trends` - Historical trends and forecasting
-- **GET** `/api/v1/analytics/compliance` - Compliance reporting and insights
+#### Events
+- **GET** `/api/events` - List events with filtering
+- **GET** `/api/events/{id}` - Get specific event
+- **GET** `/api/events/{id}/payload` - Get event raw payload
 
-#### Administrative
-- **GET** `/api/v1/health` - API health status and diagnostics
-- **GET** `/api/v1/metrics` - API performance metrics and statistics
-- **GET** `/api/v1/version` - API version and capability information
+#### Dashboard
+- **GET** `/api/dashboard` - Aggregated dashboard data
 
-**Data Processing Modules:**
-- `applications` - Installed software and application inventory
-- `hardware` - Physical hardware specifications and capabilities
-- `inventory` - Asset management and device tracking
-- `system` - Operating system information and configuration
-- `management` - MDM enrollment and management status
-- `security` - Security features, compliance, and vulnerabilities
-- `network` - Network interfaces and connectivity
-- `profiles` - Configuration profiles and policies
-- `installs` - Managed installations (Munki, Cimian, etc.)
+### SQL Query Architecture
+
+SQL queries are externalized to `.sql` files for maintainability:
+
+```
+modules/api/sql/
+├── devices/           # 20 device query files
+│   ├── bulk_hardware.sql
+│   ├── bulk_installs.sql
+│   ├── list_devices.sql
+│   └── ...
+├── events/            # 3 event query files
+├── admin/             # 8 admin operation files
+└── tests/             # 12 pgAdmin test wrappers
+```
+
+Benefits:
+- Test queries directly in pgAdmin
+- Syntax highlighting in SQL editors
+- Version control friendly diffs
+- Security: Path traversal validation
+- Performance: Queries preloaded at startup
+
+### Data Processing Modules
+
+ReportMate processes 11 data modules from client telemetry:
+
+| Module | Description |
+|--------|-------------|
+| `applications` | Installed software inventory |
+| `hardware` | Physical hardware specifications |
+| `inventory` | Asset management and device tracking |
+| `system` | Operating system information |
+| `management` | MDM enrollment status |
+| `security` | Security features and compliance |
+| `network` | Network interfaces and connectivity |
+| `profiles` | Configuration profiles and policies |
+| `installs` | Managed installations (Munki, Cimian) |
+| `displays` | Connected display information |
+| `printers` | Connected printer information |
 
 ## Container Strategy
 
-ReportMate uses a modern container-based approach for the web application:
+ReportMate uses Azure Container Apps for both API and frontend:
 
-### Official Container Image
-By default, ReportMate deploys the official web application container from GitHub Container Registry:
-```
-ghcr.io/reportmate/reportmate-app-web:latest
-```
+### API Container
+- **Image**: Built from `modules/api/Dockerfile`
+- **Registry**: Azure Container Registry (reportmateacr.azurecr.io)
+- **Deployment**: `.\scripts\deploy-api.ps1 -ForceBuild`
 
-This provides:
-- ✅ **Complete Next.js frontend** - Full-featured web dashboard
-- ✅ **Pre-built and tested** - Production-ready container image
-- ✅ **Automatic updates** - Latest features and security patches
-- ✅ **Zero build time** - Deploy immediately without compilation
-- ✅ **Official support** - Maintained by the ReportMate team
+### Frontend Container
+- **Image**: `ghcr.io/reportmate/reportmate-app-web:latest` (default)
+- **Registry**: GitHub Container Registry or custom ACR
+- **Deployment**: `.\scripts\deploy-containers.ps1 -Environment prod -ForceBuild`
 
 ### Custom Container Registry (Optional)
 For enterprise environments requiring custom modifications:
@@ -240,29 +275,6 @@ use_custom_registry = true
 container_registry_name = "mycompanyacr"
 container_image = "mycompanyacr.azurecr.io/reportmate-web:custom"
 ```
-
-### Architecture Benefits
-- **Separation of Concerns**: Infrastructure code vs. application code
-- **Independent Scaling**: Web app and API scale independently
-- **Easy Updates**: Update web app without infrastructure changes
-- **Multi-Environment**: Same infrastructure, different app versions
-
-### Container Updates
-
-For detailed container update procedures, see [wiki/CONTAINER_UPDATE_GUIDE.md](./wiki/CONTAINER_UPDATE_GUIDE.md).
-
-**Quick update commands:**
-```powershell
-# Deploy API container
-.\scripts\deploy-api.ps1 -ForceBuild
-
-# Deploy frontend container
-.\scripts\deploy-containers.ps1 -Environment prod -ForceBuild
-```
-
-The update process includes automated health checks, rollback capabilities, and production verification.
-
-## Terraform Module Usage
 
 ## Terraform Module Usage
 
@@ -289,7 +301,7 @@ module "reportmate" {
 
 ## Backend Configuration
 
-This module requires a configured Terraform backend for state storage. Create a `backend.tf` file or use CLI configuration:
+This module requires a configured Terraform backend for state storage:
 
 ```hcl
 terraform {
@@ -302,86 +314,14 @@ terraform {
 }
 ```
 
-Or use CLI initialization:
-```bash
-terraform init \
-  -backend-config="resource_group_name=your-terraform-state-rg" \
-  -backend-config="storage_account_name=yourterraformstate" \
-  -backend-config="container_name=terraform-state" \
-  -backend-config="key=reportmate.tfstate"
-```
-
-## Examples
-
-- [Basic Deployment](./examples/basic/) - Simple development setup
-- [Production with Custom Domain](./examples/production/) - Production-ready with Front Door
-- [Custom Container Registry](./examples/custom-registry/) - Using your own container images
-
-## Module Structure
-
-```
-├── main.tf                    # Main module entry point
-├── variables.tf              # Input variables
-├── outputs.tf               # Output values
-├── versions.tf              # Provider requirements
-├── backend.tf.example       # Example backend configuration
-├── terraform.tfvars.example # Example variables file
-├── api/                     # Complete REST API implementation
-│   ├── main.tf             # API infrastructure (Azure Functions)
-│   ├── variables.tf        # API-specific variables
-│   ├── outputs.tf          # API outputs
-│   ├── devices/            # GET /api/v1/devices endpoint
-│   ├── ingest/             # POST /api/v1/ingest endpoint
-│   ├── health/             # GET /api/v1/health endpoint
-│   ├── version/            # GET /api/v1/version endpoint
-│   ├── device-applications/ # GET /api/v1/devices/{id}/applications
-│   ├── device-hardware/    # GET /api/v1/devices/{id}/hardware
-│   ├── device-security/    # GET /api/v1/devices/{id}/security
-│   ├── device-management/  # GET /api/v1/devices/{id}/management
-│   ├── applications/       # GET /api/v1/applications (global)
-│   ├── analytics-summary/  # GET /api/v1/analytics/summary
-│   ├── processors/         # 9 data processing modules
-│   └── shared/             # Shared utilities (auth, database, etc.)
-├── modules/
-│   ├── containers/         # Azure Container Apps for web frontend
-│   ├── database/          # PostgreSQL Flexible Server
-│   ├── identity/          # Managed Identity and RBAC
-│   ├── messaging/         # Azure Web PubSub for real-time updates
-│   ├── monitoring/        # Application Insights and Log Analytics
-│   ├── networking/        # Azure Front Door (optional)
-│   └── storage/           # Storage Account for functions and data
-├── schemas/               # Database schema and migrations
-│   ├── schema.prisma     # Master Prisma schema (source of truth)
-│   ├── database.sql      # Raw SQL schema
-│   └── migrations/       # Database migration scripts
-└── examples/             # Example configurations and deployments
-    ├── basic/            # Basic single-tenant deployment
-    ├── enterprise/       # Multi-tenant enterprise deployment
-    └── development/      # Development environment setup
-```
-│   ├── database/           # PostgreSQL Flexible Server
-│   ├── containers/         # Container Apps for web hosting
-│   ├── storage/            # Storage Account and containers
-│   ├── messaging/          # Web PubSub for real-time features
-│   ├── monitoring/         # Application Insights and Log Analytics
-│   ├── identity/           # RBAC and managed identities
-│   └── networking/         # Front Door and custom domain support
-├── schemas/                # Database schemas (Prisma)
-├── examples/               # Usage examples
-│   ├── basic/             # Simple development setup
-│   ├── production/        # Production-ready with custom domain
-│   └── complete/          # All features enabled
-└── .gitignore             # Terraform and development files
-```
-
 ## Variables
 
 ### Required Variables
 
 | Name | Type | Description |
 |------|------|-------------|
-| `resource_group_name` | `string` | Name of the Azure resource group to create |
-| `location` | `string` | Azure region where resources will be deployed |
+| `resource_group_name` | `string` | Name of the Azure resource group |
+| `location` | `string` | Azure region for deployment |
 | `db_password` | `string` | PostgreSQL administrator password (sensitive) |
 
 ### Optional Variables
@@ -392,40 +332,17 @@ terraform init \
 | `db_name` | `string` | `"reportmate"` | Name of the PostgreSQL database |
 | `container_image` | `string` | `"ghcr.io/reportmate/reportmate-app-web:latest"` | Container image for web app |
 | `enable_custom_domain` | `bool` | `false` | Enable custom domain with Azure Front Door |
-| `custom_domain_name` | `string` | `""` | Custom domain name (e.g., "reportmate.example.com") |
-| `environment` | `string` | `"prod"` | Deployment environment (dev, prod, or both) |
-| `deploy_dev` | `bool` | `false` | Deploy development container app |
-| `deploy_prod` | `bool` | `true` | Deploy production container app |
-| `enable_machine_groups` | `bool` | `false` | Enable machine groups for client organization |
-| `enable_business_units` | `bool` | `false` | Enable business units for access control |
-
-For a complete list of variables, see [variables.tf](./variables.tf).
-
-See [variables.tf](./variables.tf) for a complete list of configurable options.
-
-### Required Variables
-
-| Name | Type | Description |
-|------|------|-------------|
-| `resource_group_name` | `string` | Name of the resource group |
-| `location` | `string` | Azure region for deployment |
-| `db_password` | `string` | PostgreSQL admin password |
-
-### Optional Variables
-
-| Name | Type | Default | Description |
-|------|------|---------|-------------|
-| `container_image` | `string` | `ghcr.io/reportmate/reportmate-app-web:latest` | Container image to deploy |
-| `environment` | `string` | `prod` | Environment name (dev/prod/both) |
-| `enable_custom_domain` | `bool` | `false` | Enable custom domain with Front Door |
 | `custom_domain_name` | `string` | `""` | Custom domain name |
+| `environment` | `string` | `"prod"` | Deployment environment (dev, prod) |
+
+See [variables.tf](./variables.tf) for complete list.
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
 | `frontend_url` | URL of the deployed web application |
-| `api_url` | URL of the REST API |
+| `api_url` | URL of the FastAPI container |
 | `database_fqdn` | PostgreSQL server FQDN |
 | `container_registry_url` | Container registry login server |
 
@@ -433,9 +350,10 @@ See [variables.tf](./variables.tf) for a complete list of configurable options.
 
 - Terraform >= 1.12
 - Azure CLI authenticated
+- Docker (for container builds)
 - Contributor access to Azure subscription
 
-## 📖 Additional Documentation
+## Additional Documentation
 
 For detailed guides and operational documentation, see the [wiki/](./wiki/) directory:
 
@@ -443,7 +361,6 @@ For detailed guides and operational documentation, see the [wiki/](./wiki/) dire
 - **[Security Best Practices](./wiki/SECURITY.md)** - Security configuration and secrets management
 - **[Database Maintenance](./wiki/DATABASE_MAINTENANCE_OPTIONS.md)** - Database optimization and cleanup
 - **[Device Archive](./wiki/DEVICE_ARCHIVE_API.md)** - Device lifecycle management
-- **[Application Utilization](./wiki/APPLICATION_UTILIZATION_WINDOWS.md)** - Usage tracking features
 
 Full documentation index: [wiki/README.md](./wiki/README.md)
 
@@ -461,5 +378,4 @@ MIT License - see [LICENSE](./LICENSE) for details.
 ## Support
 
 - Documentation: [ReportMate Docs](https://github.com/reportmate/reportmate)
-- Issues: [GitHub Issues](https://github.com/reportmate/terraform-azurerm-reportmate/issues)
 - Issues: [GitHub Issues](https://github.com/reportmate/terraform-azurerm-reportmate/issues)
