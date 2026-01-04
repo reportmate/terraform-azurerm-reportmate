@@ -24,7 +24,7 @@ Write-Host "Running database migrations..." -ForegroundColor Green
 Write-Host "Testing database connection..." -ForegroundColor Yellow
 try {
     $result = az postgres flexible-server execute --name $Server --admin-user $Username --admin-password $Password --database-name $Database --querytext "SELECT 1 as test;" --output json | ConvertFrom-Json
-    Write-Host "[OK] Database connection successful" -ForegroundColor Green
+    Write-Host "[SUCCESS] Database connection successful" -ForegroundColor Green
 } catch {
     Write-Error "[ERROR] Database connection failed: $_"
     exit 1
@@ -47,7 +47,7 @@ foreach ($migration in $migrationFiles) {
         try {
             $sql = Get-Content $migrationPath -Raw
             az postgres flexible-server execute --name $Server --admin-user $Username --admin-password $Password --database-name $Database --querytext $sql --output none
-            Write-Host "[OK] Migration $migration completed" -ForegroundColor Green
+            Write-Host "[SUCCESS] Migration $migration completed" -ForegroundColor Green
         } catch {
             Write-Error "[ERROR] Migration $migration failed: $_"
             exit 1
@@ -63,7 +63,7 @@ try {
     $deviceCount = az postgres flexible-server execute --name $Server --admin-user $Username --admin-password $Password --database-name $Database --querytext "SELECT COUNT(*) as count FROM devices;" --output json | ConvertFrom-Json
     $tableCount = az postgres flexible-server execute --name $Server --admin-user $Username --admin-password $Password --database-name $Database --querytext "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public';" --output json | ConvertFrom-Json
     
-    Write-Host "[OK] Database ready:" -ForegroundColor Green
+    Write-Host "[SUCCESS] Database ready:" -ForegroundColor Green
     Write-Host "   Tables: $($tableCount[0].count)" -ForegroundColor Cyan
     Write-Host "   Devices: $($deviceCount[0].count)" -ForegroundColor Cyan
 } catch {
