@@ -22,7 +22,7 @@ param(
 )
 
 # Color output functions
-function Write-Success { param($Message) Write-Host "[OK] $Message" -ForegroundColor Green }
+function Write-Success { param($Message) Write-Host "[SUCCESS] $Message" -ForegroundColor Green }
 function Write-Warning { param($Message) Write-Host "[WARN] $Message" -ForegroundColor Yellow }
 function Write-Error { param($Message) Write-Host "[ERR] $Message" -ForegroundColor Red }
 function Write-Info { param($Message) Write-Host "[INFO] $Message" -ForegroundColor Cyan }
