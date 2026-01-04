@@ -14,11 +14,11 @@ module "database" {
   location            = data.azurerm_resource_group.rg.location
 
   postgres_server_name = var.postgres_server_name
-  db_username   = var.db_username
-  db_password   = var.db_password
-  db_name       = var.db_name
-  db_sku_name   = var.db_sku_name
-  db_storage_mb = var.db_storage_mb
+  db_username          = var.db_username
+  db_password          = var.db_password
+  db_name              = var.db_name
+  db_sku_name          = var.db_sku_name
+  db_storage_mb        = var.db_storage_mb
 
   allowed_ips = var.allowed_ips
   tags        = var.tags
@@ -67,6 +67,32 @@ module "monitoring" {
   tags = var.tags
 }
 
+# Functions Module - Storage Alerts and Scheduled Tasks
+module "functions" {
+  source = "./modules/functions"
+
+  resource_group_name = data.azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+
+  function_app_name = var.function_app_name
+  sku_name          = var.function_app_sku
+
+  # API Configuration
+  api_base_url       = var.api_base_url_override != "" ? var.api_base_url_override : module.containers.api_url
+  client_passphrases = var.client_passphrases
+  teams_webhook_url  = var.teams_webhook_url
+
+  # Monitoring
+  app_insights_connection_string = module.monitoring.app_insights_connection_string
+
+  # Key Vault access (optional)
+  key_vault_id = var.enable_key_vault ? module.key_vault[0].key_vault_id : null
+
+  tags = var.tags
+
+  depends_on = [module.monitoring, module.containers]
+}
+
 # Maintenance Module - Automated Database Cleanup
 module "maintenance" {
   source = "./modules/maintenance"
@@ -74,18 +100,18 @@ module "maintenance" {
   resource_group_name          = data.azurerm_resource_group.rg.name
   location                     = data.azurerm_resource_group.rg.location
   container_app_environment_id = module.containers.container_app_environment_id
-  
+
   # ACR credentials
   acr_login_server   = module.containers.acr_login_server
   acr_admin_username = module.containers.acr_admin_username
   acr_admin_password = module.containers.acr_admin_password
-  
+
   # Database connection
   db_host     = module.database.postgres_fqdn
   db_password = var.db_password
-  
+
   # Configuration
-  event_retention_days = 30         # Keep events for 30 days
+  event_retention_days = 30          # Keep events for 30 days
   schedule_cron        = "0 2 * * *" # Run daily at 2 AM UTC
 }
 
@@ -114,21 +140,21 @@ module "auth" {
 
   # Application Configuration
   app_display_name = "ReportMate${var.environment != "prod" ? " (${title(var.environment)})" : ""}"
-  homepage_url = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : module.containers.frontend_url
-  logout_url   = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}/auth/signout" : "${module.containers.frontend_url}/auth/signout"
+  homepage_url     = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : module.containers.frontend_url
+  logout_url       = var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}/auth/signout" : "${module.containers.frontend_url}/auth/signout"
   # OAuth Configuration
   redirect_uris = concat([
     # Production/Custom domain URLs
     var.enable_custom_domain && var.custom_domain_name != "" ? "https://${var.custom_domain_name}/api/auth/callback/azure-ad" : "${module.containers.frontend_url}/api/auth/callback/azure-ad"
-  ], var.environment != "prod" ? [
+    ], var.environment != "prod" ? [
     # Development URLs for non-prod environments
     "http://localhost:3000/api/auth/callback/azure-ad"
   ] : [])
 
   # Security Settings
   app_role_assignment_required = var.environment == "prod" ? true : false
-  grant_admin_consent         = var.environment == "dev" ? true : false  # Auto-consent only in dev
-  sign_in_audience           = var.auth_sign_in_audience
+  grant_admin_consent          = var.environment == "dev" ? true : false # Auto-consent only in dev
+  sign_in_audience             = var.auth_sign_in_audience
 
   # App Ownership
   app_owners = var.app_owners
@@ -137,18 +163,18 @@ module "auth" {
   authorized_groups = var.authorized_groups
 
   # Authentication Configuration
-  auth_providers        = var.auth_providers
-  default_auth_provider = var.default_auth_provider
-  allowed_domains      = var.allowed_auth_domains
+  auth_providers             = var.auth_providers
+  default_auth_provider      = var.default_auth_provider
+  allowed_domains            = var.allowed_auth_domains
   require_email_verification = var.require_email_verification
 
   # Secret Management (if Key Vault is enabled)
-  enable_key_vault = var.enable_key_vault
-  key_vault_id = var.enable_key_vault ? module.key_vault[0].key_vault_id : null
+  enable_key_vault     = var.enable_key_vault
+  key_vault_id         = var.enable_key_vault ? module.key_vault[0].key_vault_id : null
   client_secret_expiry = var.auth_client_secret_expiry
 
   # Environment and Tagging
-  environment   = var.environment
+  environment  = var.environment
   tags         = var.tags
   azuread_tags = ["ReportMate", "Authentication", "Environment:${var.environment}"]
 }
@@ -189,7 +215,7 @@ module "key_vault" {
   storage_connection_string      = module.storage.storage_connection_string
   web_pubsub_connection_string   = module.messaging.web_pubsub_connection_string
   app_insights_connection_string = module.monitoring.app_insights_connection_string
-  
+
   # URLs are NOT stored here to avoid circular dependencies
   # The restore script will get these from the current Azure resources
 
@@ -236,10 +262,10 @@ module "containers" {
   database_name     = var.db_name
   database_username = var.db_username
   database_password = var.db_password
-  
+
   # Web PubSub connection
   web_pubsub_connection = module.messaging.web_pubsub_connection_string
-  
+
   # Client authentication
   client_passphrases  = var.client_passphrases
   api_internal_secret = var.api_internal_secret
@@ -277,8 +303,8 @@ module "networking" {
   environment        = var.environment
 
   # Dependencies
-  frontend_fqdn      = module.containers.frontend_fqdn
-  api_app_hostname   = module.containers.api_fqdn
+  frontend_fqdn    = module.containers.frontend_fqdn
+  api_app_hostname = module.containers.api_fqdn
 
   tags = var.tags
 }

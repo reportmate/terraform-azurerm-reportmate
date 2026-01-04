@@ -123,6 +123,32 @@ variable "app_insights_daily_cap" {
   default     = 10
 }
 
+# Functions Configuration
+variable "function_app_name" {
+  type        = string
+  description = "Name of the Azure Functions App"
+  default     = "reportmate-functions"
+}
+
+variable "function_app_sku" {
+  type        = string
+  description = "Azure Functions SKU (Y1 for Consumption, others for Premium/Dedicated)"
+  default     = "Y1"
+}
+
+variable "teams_webhook_url" {
+  type        = string
+  description = "Microsoft Teams webhook URL for alerts"
+  default     = ""
+  sensitive   = true
+}
+
+variable "api_base_url_override" {
+  type        = string
+  description = "Override for API base URL (if not using container API URL)"
+  default     = ""
+}
+
 # Identity Configuration
 variable "managed_identity_name" {
   type        = string
@@ -294,7 +320,7 @@ variable "auth_sign_in_audience" {
   validation {
     condition = contains([
       "AzureADMyOrg",
-      "AzureADMultipleOrgs", 
+      "AzureADMultipleOrgs",
       "AzureADandPersonalMicrosoftAccount",
       "PersonalMicrosoftAccount"
     ], var.auth_sign_in_audience)
@@ -310,7 +336,7 @@ variable "auth_providers" {
     condition = alltrue([
       for provider in var.auth_providers : contains([
         "azure-ad",
-        "google", 
+        "google",
         "credentials"
       ], provider)
     ])
@@ -327,7 +353,7 @@ variable "default_auth_provider" {
 variable "allowed_auth_domains" {
   type        = list(string)
   description = "List of allowed email domains for authentication (e.g., ['example.com'])"
-  default     = []  # Must be specified in terraform.tfvars for security
+  default     = [] # Must be specified in terraform.tfvars for security
 }
 
 variable "require_email_verification" {
