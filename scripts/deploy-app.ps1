@@ -106,11 +106,12 @@ function Write-ErrorLine {
     Write-Host "   $Message" -ForegroundColor Red
 }
 
-# Resolve directory structure (script -> infrastructure -> repo root -> apps/www)
+# Resolve directory structure (script -> scripts -> azure -> infrastructure -> repo root -> apps/www)
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$InfraDir = Split-Path -Parent $ScriptDir
+$AzureDir = Split-Path -Parent $ScriptDir
+$InfraDir = Split-Path -Parent $AzureDir
 $RepoRoot = Split-Path -Parent $InfraDir
-$FrontendDir = Join-Path $RepoRoot "apps\www"
+$FrontendDir = Join-Path $RepoRoot "apps/www"
 
 if (-not (Test-Path $FrontendDir)) {
     throw "Unable to locate frontend directory at '$FrontendDir'."
