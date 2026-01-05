@@ -307,3 +307,148 @@ resource "azurerm_key_vault_secret" "frontend_url" {
 
   depends_on = [azurerm_role_assignment.current_user]
 }
+
+# =================================================================
+# MACOS CLIENT SIGNING SECRETS
+# For code signing and notarization of macOS client
+# =================================================================
+
+resource "azurerm_key_vault_secret" "macdev_team_id" {
+  count        = var.macdev_team_id != "" ? 1 : 0
+  name         = "macdev-team-id"
+  value        = var.macdev_team_id
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "macOS Team ID for code signing"
+
+  tags = merge(var.tags, {
+    Purpose = "macOS Client Signing"
+    Type    = "TeamID"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+resource "azurerm_key_vault_secret" "macdev_signing_identity_app" {
+  count        = var.macdev_signing_identity_app != "" ? 1 : 0
+  name         = "macdev-signing-identity-app"
+  value        = var.macdev_signing_identity_app
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "macOS Developer ID Application for code signing"
+
+  tags = merge(var.tags, {
+    Purpose = "macOS Client Signing"
+    Type    = "SigningIdentity"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+resource "azurerm_key_vault_secret" "macdev_signing_identity_installer" {
+  count        = var.macdev_signing_identity_installer != "" ? 1 : 0
+  name         = "macdev-signing-identity-installer"
+  value        = var.macdev_signing_identity_installer
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "macOS Developer ID Installer for PKG signing"
+
+  tags = merge(var.tags, {
+    Purpose = "macOS Client Signing"
+    Type    = "SigningIdentity"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+resource "azurerm_key_vault_secret" "macdev_notarization_apple_id" {
+  count        = var.macdev_notarization_apple_id != "" ? 1 : 0
+  name         = "macdev-notarization-apple-id"
+  value        = var.macdev_notarization_apple_id
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "Apple ID email for notarization"
+
+  tags = merge(var.tags, {
+    Purpose = "macOS Client Notarization"
+    Type    = "AppleID"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+resource "azurerm_key_vault_secret" "macdev_notarization_password" {
+  count        = var.macdev_notarization_password != "" ? 1 : 0
+  name         = "macdev-notarization-password"
+  value        = var.macdev_notarization_password
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "App-specific password for Apple notarization"
+
+  tags = merge(var.tags, {
+    Purpose = "macOS Client Notarization"
+    Type    = "Password"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+# =================================================================
+# AUTHENTICATION & SSH SECRETS
+# Additional secrets for Azure AD authentication and SSH access
+# =================================================================
+
+resource "azurerm_key_vault_secret" "auth_client_id" {
+  count        = var.auth_client_id != "" ? 1 : 0
+  name         = "auth-client-id"
+  value        = var.auth_client_id
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "Azure AD application (client) ID for authentication"
+
+  tags = merge(var.tags, {
+    Purpose = "Authentication"
+    Type    = "ClientID"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+resource "azurerm_key_vault_secret" "auth_client_secret" {
+  count        = var.auth_client_secret != "" ? 1 : 0
+  name         = "auth-client-secret"
+  value        = var.auth_client_secret
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "Azure AD client secret for authentication"
+
+  tags = merge(var.tags, {
+    Purpose = "Authentication"
+    Type    = "ClientSecret"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+resource "azurerm_key_vault_secret" "auth_tenant_id" {
+  count        = var.auth_tenant_id != "" ? 1 : 0
+  name         = "auth-tenant-id"
+  value        = var.auth_tenant_id
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "Azure AD tenant ID for authentication"
+
+  tags = merge(var.tags, {
+    Purpose = "Authentication"
+    Type    = "TenantID"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+resource "azurerm_key_vault_secret" "ssh_password" {
+  count        = var.ssh_password != "" ? 1 : 0
+  name         = "ssh-password"
+  value        = var.ssh_password
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "SSH password for remote access"
+
+  tags = merge(var.tags, {
+    Purpose = "Remote Access"
+    Type    = "Password"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}

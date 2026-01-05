@@ -159,3 +159,73 @@ variable "frontend_url" {
   type        = string
   default     = null
 }
+
+# =================================================================
+# MACOS CLIENT SIGNING SECRETS (Optional)
+# Used by macOS client for code signing and notarization
+# =================================================================
+
+variable "macdev_team_id" {
+  description = "macOS Team ID for code signing (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "macdev_signing_identity_app" {
+  description = "macOS Developer ID Application for code signing (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "macdev_signing_identity_installer" {
+  description = "macOS Developer ID Installer for PKG signing (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "macdev_notarization_apple_id" {
+  description = "Apple ID email for notarization (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "macdev_notarization_password" {
+  description = "App-specific password for Apple notarization (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# =================================================================
+# AUTHENTICATION & SSH SECRETS
+# Additional secrets for Azure AD authentication and SSH access
+# =================================================================
+
+variable "auth_client_id" {
+  description = "Azure AD application (client) ID for authentication"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "auth_client_secret" {
+  description = "Azure AD client secret for authentication"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "auth_tenant_id" {
+  description = "Azure AD tenant ID for authentication"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "ssh_password" {
+  description = "SSH password for remote access"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
