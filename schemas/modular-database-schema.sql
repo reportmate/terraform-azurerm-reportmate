@@ -201,6 +201,19 @@ CREATE TABLE IF NOT EXISTS system (
     CONSTRAINT unique_system_per_device UNIQUE(device_id)
 );
 
+-- identity.json (User accounts, groups, sessions, login history, BTMDB health)
+CREATE TABLE IF NOT EXISTS identity (
+    id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
+    device_id VARCHAR(255) NOT NULL,
+    data JSONB NOT NULL,                        -- Raw JSON data from identity collection
+    collected_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+    CONSTRAINT unique_identity_per_device UNIQUE(device_id)
+);
+
 -- =============================================================================
 -- BUSINESS LOGIC TABLES (ReportMate specific)
 -- =============================================================================
@@ -292,6 +305,9 @@ CREATE INDEX IF NOT EXISTS idx_security_data_gin ON security USING GIN(data);
 CREATE INDEX IF NOT EXISTS idx_system_device_id ON system(device_id);
 CREATE INDEX IF NOT EXISTS idx_system_data_gin ON system USING GIN(data);
 
+CREATE INDEX IF NOT EXISTS idx_identity_device_id ON identity(device_id);
+CREATE INDEX IF NOT EXISTS idx_identity_data_gin ON identity USING GIN(data);
+
 -- Business logic indexes
 CREATE INDEX IF NOT EXISTS idx_machine_groups_business_unit_id ON machine_groups(business_unit_id);
 CREATE INDEX IF NOT EXISTS idx_business_unit_users_username ON business_unit_users(username);
@@ -323,5 +339,6 @@ CREATE TRIGGER update_printers_updated_at BEFORE UPDATE ON printers FOR EACH ROW
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_security_updated_at BEFORE UPDATE ON security FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_system_updated_at BEFORE UPDATE ON system FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_identity_updated_at BEFORE UPDATE ON identity FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_business_units_updated_at BEFORE UPDATE ON business_units FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_machine_groups_updated_at BEFORE UPDATE ON machine_groups FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
