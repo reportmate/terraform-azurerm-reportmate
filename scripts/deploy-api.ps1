@@ -171,10 +171,38 @@ try {
         
         # Update container app with new image
         Write-Host "`nUpdating container app..." -ForegroundColor Blue
+        
+        # Read existing env vars from the live container so they are preserved.
+        # az containerapp update --image replaces the entire container spec,
+        # which can reset env vars that were set outside Terraform.
+        Write-Host "Reading existing environment variables from container..." -ForegroundColor Blue
+        $ExistingSecret = az containerapp show `
+            --name $ContainerAppName `
+            --resource-group $ResourceGroup `
+            --query "properties.template.containers[0].env[?name=='API_INTERNAL_SECRET'].value | [0]" `
+            -o tsv 2>$null
+        $ExistingPassphrase = az containerapp show `
+            --name $ContainerAppName `
+            --resource-group $ResourceGroup `
+            --query "properties.template.containers[0].env[?name=='REPORTMATE_PASSPHRASE'].value | [0]" `
+            -o tsv 2>$null
+        
+        if ([string]::IsNullOrWhiteSpace($ExistingSecret) -or $ExistingSecret -eq 'None') {
+            throw "API_INTERNAL_SECRET is not set on the running container. Set it first via Terraform (terraform apply) or az containerapp update --set-env-vars."
+        }
+        if ([string]::IsNullOrWhiteSpace($ExistingPassphrase) -or $ExistingPassphrase -eq 'None') {
+            throw "REPORTMATE_PASSPHRASE is not set on the running container. Set it first via Terraform."
+        }
+        
+        Write-Success "Existing secrets read from live container (not hardcoded)"
+        
         $revision = az containerapp update `
             --name $ContainerAppName `
             --resource-group $ResourceGroup `
             --image $FullImageName `
+            --set-env-vars `
+                "API_INTERNAL_SECRET=$ExistingSecret" `
+                "REPORTMATE_PASSPHRASE=$ExistingPassphrase" `
             --query "properties.latestRevisionName" `
             -o tsv
         

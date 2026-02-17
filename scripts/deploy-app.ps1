@@ -462,10 +462,7 @@ if (-not $InternalSecret) {
 }
 
 if (-not $InternalSecret) {
-    # Hardcoded fallback - matches the value set on the API container
-    # This ensures deployments work even if Key Vault is unavailable
-    $InternalSecret = "RmApi9IntSec7K3wP2vN8xF6HqL5bMnEz4Tj"
-    Write-WarningLine "Using hardcoded API_INTERNAL_SECRET fallback"
+    throw "API_INTERNAL_SECRET could not be loaded from Key Vault or existing container. Set it via Terraform (terraform apply) or manually before deploying."
 }
 
 $EnvPairs += "API_INTERNAL_SECRET=$InternalSecret"
