@@ -176,6 +176,11 @@ resource "azurerm_container_app" "frontend_prod_main" {
       }
 
       env {
+        name  = "NEXT_PUBLIC_AZURE_AD_CLIENT_ID"
+        value = var.auth_client_id
+      }
+
+      env {
         name  = "AZURE_AD_TENANT_ID"
         value = var.auth_tenant_id
       }

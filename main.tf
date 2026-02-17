@@ -69,6 +69,7 @@ module "monitoring" {
 
 # Functions Module - Storage Alerts and Scheduled Tasks
 module "functions" {
+  count  = var.enable_functions ? 1 : 0
   source = "./modules/functions"
 
   resource_group_name = data.azurerm_resource_group.rg.name

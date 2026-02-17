@@ -136,6 +136,12 @@ variable "function_app_sku" {
   default     = "Y1"
 }
 
+variable "enable_functions" {
+  type        = bool
+  description = "Enable Azure Functions deployment (separate from Container Apps API)"
+  default     = false
+}
+
 variable "teams_webhook_url" {
   type        = string
   description = "Microsoft Teams webhook URL for alerts"
@@ -281,8 +287,7 @@ variable "client_passphrases" {
 
 variable "api_internal_secret" {
   type        = string
-  description = "Shared secret for internal container-to-container API authentication (frontend to API)"
-  default     = ""
+  description = "Shared secret for internal container-to-container API authentication (frontend to API). Set in terraform.tfvars (gitignored)."
   sensitive   = true
 }
 

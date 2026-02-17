@@ -1,19 +1,19 @@
 # ReportMate Infrastructure Outputs
 
-# Functions Outputs
+# Functions Outputs (conditional - only when enable_functions = true)
 output "function_app_name" {
   description = "Name of the Azure Functions App"
-  value       = module.functions.function_app_name
+  value       = var.enable_functions ? module.functions[0].function_app_name : null
 }
 
 output "function_app_url" {
   description = "Default hostname of the Functions App"
-  value       = module.functions.function_app_default_hostname
+  value       = var.enable_functions ? module.functions[0].function_app_default_hostname : null
 }
 
 output "function_app_identity_principal_id" {
   description = "Principal ID of the Functions App managed identity"
-  value       = module.functions.function_app_identity_principal_id
+  value       = var.enable_functions ? module.functions[0].function_app_identity_principal_id : null
 }
 
 # Maintenance Job Outputs
