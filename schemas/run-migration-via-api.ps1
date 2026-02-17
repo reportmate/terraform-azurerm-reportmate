@@ -5,8 +5,13 @@ $body = @{
     sql = $sql
 } | ConvertTo-Json
 
+$passphrase = $env:REPORTMATE_PASSPHRASE
+if (-not $passphrase) {
+    throw "REPORTMATE_PASSPHRASE environment variable not set. Export it before running this script."
+}
+
 $headers = @{
-    "X-API-Passphrase" = "XmZ8Kp3NwQ7YtR9vC2LzH6FgDj4BlMnE"
+    "X-API-Passphrase" = $passphrase
     "Content-Type" = "application/json"
 }
 
