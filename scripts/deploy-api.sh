@@ -209,10 +209,43 @@ if [ "$SKIP_BUILD" = false ]; then
     
     # Update container app with new image
     echo -e "\n${BLUE}Updating container app...${RESET}"
+    
+    # Read existing env vars from the live container so they are preserved.
+    # az containerapp update --image replaces the entire container spec,
+    # which can reset env vars that were set outside Terraform.
+    write_status "Reading existing environment variables from container..."
+    EXISTING_SECRET=$(az containerapp show \
+        --name "$CONTAINER_APP_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --query "properties.template.containers[0].env[?name=='API_INTERNAL_SECRET'].value | [0]" \
+        -o tsv 2>/dev/null)
+    EXISTING_PASSPHRASE=$(az containerapp show \
+        --name "$CONTAINER_APP_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --query "properties.template.containers[0].env[?name=='REPORTMATE_PASSPHRASE'].value | [0]" \
+        -o tsv 2>/dev/null)
+    
+    if [ -z "$EXISTING_SECRET" ] || [ "$EXISTING_SECRET" = "None" ]; then
+        write_error "API_INTERNAL_SECRET is not set on the running container."
+        write_error "Set it first via Terraform (terraform apply) or manually:"
+        write_error "  az containerapp update --name $CONTAINER_APP_NAME --resource-group $RESOURCE_GROUP --set-env-vars API_INTERNAL_SECRET=<value>"
+        exit 1
+    fi
+    
+    if [ -z "$EXISTING_PASSPHRASE" ] || [ "$EXISTING_PASSPHRASE" = "None" ]; then
+        write_error "REPORTMATE_PASSPHRASE is not set on the running container."
+        exit 1
+    fi
+    
+    write_success "Existing secrets read from live container (not hardcoded)"
+    
     REVISION=$(az containerapp update \
         --name "$CONTAINER_APP_NAME" \
         --resource-group "$RESOURCE_GROUP" \
         --image "$FULL_IMAGE_NAME" \
+        --set-env-vars \
+            "API_INTERNAL_SECRET=$EXISTING_SECRET" \
+            "REPORTMATE_PASSPHRASE=$EXISTING_PASSPHRASE" \
         --query "properties.latestRevisionName" \
         -o tsv)
     

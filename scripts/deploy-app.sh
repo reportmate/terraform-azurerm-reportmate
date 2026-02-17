@@ -378,8 +378,9 @@ elif [ "$EXISTING_ENV" != "null" ]; then
 fi
 
 if [ -z "$INTERNAL_SECRET" ]; then
-    INTERNAL_SECRET="RmApi9IntSec7K3wP2vN8xF6HqL5bMnEz4Tj"
-    write_warning "Using hardcoded API_INTERNAL_SECRET fallback"
+    write_error "API_INTERNAL_SECRET could not be loaded from Key Vault or existing container."
+    write_error "Set it via Terraform (terraform apply) or manually before deploying."
+    exit 1
 fi
 
 ENV_PAIRS+=("API_INTERNAL_SECRET=$INTERNAL_SECRET")
