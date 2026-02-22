@@ -164,6 +164,25 @@ write_success "API source found at correct location: modules/api/main.py"
 cd "$INFRA_DIR"
 
 if [ "$SKIP_BUILD" = false ]; then
+    # Ensure Docker daemon is running
+    if ! docker info &> /dev/null; then
+        write_warning "Docker daemon not running. Attempting to start Docker Desktop..."
+        open -a Docker
+        write_status "Waiting for Docker daemon to start (up to 60 seconds)..."
+        for i in $(seq 1 12); do
+            sleep 5
+            if docker info &> /dev/null; then
+                break
+            fi
+            if [ "$i" -eq 12 ]; then
+                write_error "Docker daemon did not start within 60 seconds. Start Docker Desktop manually and retry."
+                exit 1
+            fi
+            write_status "Still waiting... (${i}/12)"
+        done
+    fi
+    write_success "Docker daemon available"
+
     # Authenticate to ACR first
     echo -e "\n${BLUE}Authenticating to Azure Container Registry...${RESET}"
     if ! az acr login --name "$REGISTRY_NAME"; then
