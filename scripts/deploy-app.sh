@@ -217,8 +217,20 @@ if ! command -v docker &> /dev/null; then
 fi
 
 if ! docker info &> /dev/null; then
-    write_error "Docker daemon not running. Start Docker Desktop and retry."
-    exit 1
+    write_warning "Docker daemon not running. Attempting to start Docker Desktop..."
+    open -a Docker
+    write_info "Waiting for Docker daemon to start (up to 60 seconds)..."
+    for i in $(seq 1 12); do
+        sleep 5
+        if docker info &> /dev/null; then
+            break
+        fi
+        if [ "$i" -eq 12 ]; then
+            write_error "Docker daemon did not start within 60 seconds. Start Docker Desktop manually and retry."
+            exit 1
+        fi
+        write_info "Still waiting... (${i}/12)"
+    done
 fi
 
 write_success "Docker daemon available"
