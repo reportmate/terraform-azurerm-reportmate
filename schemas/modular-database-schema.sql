@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS events (
     id SERIAL PRIMARY KEY,                      -- Using SERIAL instead of UUID for Azure compatibility
     device_id VARCHAR(255) NOT NULL,           -- References devices.id (serial number)
     event_type VARCHAR(20) NOT NULL CHECK (event_type IN ('success', 'warning', 'error', 'info', 'system')),
+    module_id VARCHAR(50),                     -- For upsert: os_update events are one per device
     message TEXT,
     details JSONB,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -270,6 +271,8 @@ CREATE INDEX IF NOT EXISTS idx_devices_mac_address_primary ON devices(mac_addres
 CREATE INDEX IF NOT EXISTS idx_events_device_id ON events(device_id);
 CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_device_module_upsert
+    ON events(device_id, module_id) WHERE module_id IS NOT NULL;
 
 -- Module tables indexes (for JSONB queries)
 CREATE INDEX IF NOT EXISTS idx_applications_device_id ON applications(device_id);
