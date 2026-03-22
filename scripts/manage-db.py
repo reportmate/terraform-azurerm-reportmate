@@ -155,7 +155,7 @@ def cleanup_hostnames(cursor, conn, dry_run=False, auto_confirm=False):
     Remove devices with hostname patterns instead of real serial numbers
     
     This matches the validation logic from:
-    1. API endpoint (/api/device) - Rejects hostname patterns at ingestion
+    1. API endpoint (/api/v1/device) - Rejects hostname patterns at ingestion
     2. Client code (ApiService.cs) - Prevents hostname fallback at transmission
     
     Hostname patterns detected (matching API validation):

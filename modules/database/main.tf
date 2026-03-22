@@ -97,7 +97,7 @@ resource "null_resource" "database_init_api" {
       echo ""
       echo "Next Steps:"
       echo "1. Deploy Containers: terraform apply (containers module)"
-      echo "2. Initialize Schema: curl '<API_URL>/api/init-db?init=true'"
+      echo "2. Initialize Schema: curl '<API_URL>/api/v1/init-db?init=true'"
       echo "3. Validate Setup: pwsh infrastructure/scripts/check.ps1"
       echo ""
       echo "For complete bootstrap, run: pwsh infrastructure/scripts/bootstrap.ps1"

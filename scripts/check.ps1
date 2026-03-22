@@ -128,7 +128,7 @@ function Test-APIEndpoints {
     # Test health endpoint
     Write-Info "Testing health endpoint..."
     try {
-        $healthResponse = Invoke-RestMethod -Uri "$baseUrl/api/health" -Method GET -TimeoutSec 30
+        $healthResponse = Invoke-RestMethod -Uri "$baseUrl/api/v1/health" -Method GET -TimeoutSec 30
         if ($healthResponse) {
             Write-Success "Health endpoint responding: $($healthResponse | ConvertTo-Json -Compress)"
             $script:TestResults.APIHealth = $true
@@ -142,7 +142,7 @@ function Test-APIEndpoints {
     # Test device endpoint
     Write-Info "Testing device endpoint with serial: $testSerial"
     try {
-        $deviceResponse = Invoke-RestMethod -Uri "$baseUrl/api/device/$testSerial" -Method GET -TimeoutSec 30
+        $deviceResponse = Invoke-RestMethod -Uri "$baseUrl/api/v1/device/$testSerial" -Method GET -TimeoutSec 30
         if ($deviceResponse -and $deviceResponse.device) {
             Write-Success "Device endpoint responding - Serial: $($deviceResponse.device.serial_number)"
             
@@ -166,7 +166,7 @@ function Test-APIEndpoints {
     # Test events endpoint
     Write-Info "Testing events endpoint..."
     try {
-        $eventsResponse = Invoke-RestMethod -Uri "$baseUrl/api/events" -Method GET -TimeoutSec 30
+        $eventsResponse = Invoke-RestMethod -Uri "$baseUrl/api/v1/events" -Method GET -TimeoutSec 30
         if ($eventsResponse -and $eventsResponse.events) {
             $eventCount = $eventsResponse.events.Count
             Write-Success "Events endpoint responding - Event count: $eventCount"
@@ -245,7 +245,7 @@ function Test-FrontDoorRouting {
         
         # Test API routing through Front Door
         Write-Info "Testing API routing through Front Door..."
-        $apiResponse = Invoke-WebRequest -Uri "$customDomain/api/health" -Method HEAD -TimeoutSec 30
+        $apiResponse = Invoke-WebRequest -Uri "$customDomain/api/v1/health" -Method HEAD -TimeoutSec 30
         if ($apiResponse.StatusCode -eq 200) {
             Write-Success "Front Door API routing working - Status: $($apiResponse.StatusCode)"
             $script:TestResults.FrontDoorRouting = $true
@@ -269,7 +269,7 @@ function Test-DataTransmission {
     
     try {
         $baseUrl = "https://reportmate-api.azurewebsites.net"
-        $eventsResponse = Invoke-RestMethod -Uri "$baseUrl/api/events" -Method GET -TimeoutSec 30
+        $eventsResponse = Invoke-RestMethod -Uri "$baseUrl/api/v1/events" -Method GET -TimeoutSec 30
         
         if ($eventsResponse -and $eventsResponse.events) {
             $recentEvents = $eventsResponse.events | Where-Object { 
