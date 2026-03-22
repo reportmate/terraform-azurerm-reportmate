@@ -15,12 +15,12 @@ try {
     
     # Test API endpoints
     try {
-        $healthResponse = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/health" -TimeoutSec 10
-        Write-Host "   /api/health: OK" -ForegroundColor Green
+        $healthResponse = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/v1/health" -TimeoutSec 10
+        Write-Host "   /api/v1/health: OK" -ForegroundColor Green
         
-        $devicesResponse = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/devices" -TimeoutSec 10
+        $devicesResponse = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/v1/devices" -TimeoutSec 10
         $deviceCount = ($devicesResponse | Measure-Object).Count
-        Write-Host "   /api/devices: OK ($deviceCount devices)" -ForegroundColor Green
+        Write-Host "   /api/v1/devices: OK ($deviceCount devices)" -ForegroundColor Green
     } catch {
         Write-Host "   API endpoints: Failed" -ForegroundColor Red
     }
@@ -84,8 +84,8 @@ try {
     $frontendUrl = (terraform output -raw frontend_url 2>$null)
     
     if ($apiUrl) {
-        Write-Host "   API Health: $apiUrl/api/health" -ForegroundColor Cyan
-        Write-Host "   API Debug: $apiUrl/api/debug" -ForegroundColor Cyan
+        Write-Host "   API Health: $apiUrl/api/v1/health" -ForegroundColor Cyan
+        Write-Host "   API Debug: $apiUrl/api/v1/debug" -ForegroundColor Cyan
     }
     if ($frontendUrl) {
         Write-Host "   Dashboard: $frontendUrl" -ForegroundColor Cyan

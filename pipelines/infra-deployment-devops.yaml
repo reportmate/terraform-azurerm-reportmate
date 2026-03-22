@@ -470,10 +470,10 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 API_URL="https://$(apiContainerApp).blackdune-79551938.canadacentral.azurecontainerapps.io"
-                echo "Testing API at ${API_URL}/api/health..."
+                echo "Testing API at ${API_URL}/api/v1/health..."
                 
                 for i in {1..5}; do
-                  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}/api/health" || echo "000")
+                  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}/api/v1/health" || echo "000")
                   if [ "$STATUS" = "200" ]; then
                     echo "API is healthy (HTTP $STATUS)"
                     break

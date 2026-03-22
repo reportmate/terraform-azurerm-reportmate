@@ -284,12 +284,12 @@ API_URL="https://$CONTAINER_APP_NAME.blackdune-79551938.canadacentral.azureconta
 
 sleep 10  # Give container time to start
 
-if curl -sf "$API_URL/api/health" > /dev/null; then
+if curl -sf "$API_URL/api/v1/health" > /dev/null; then
     write_success "API health check passed"
     echo -e "${BLUE}API URL: $API_URL${RESET}"
 else
     write_warning "API health check failed, but deployment completed"
-    echo -e "${YELLOW}   Try: curl $API_URL/api/health${RESET}"
+    echo -e "${YELLOW}   Try: curl $API_URL/api/v1/health${RESET}"
 fi
 
 write_success "Deployment completed successfully"

@@ -222,12 +222,12 @@ try {
     Start-Sleep -Seconds 10  # Give container time to start
     
     try {
-        $response = Invoke-RestMethod -Uri "$apiUrl/api/health" -TimeoutSec 30
+        $response = Invoke-RestMethod -Uri "$apiUrl/api/v1/health" -TimeoutSec 30
         Write-Success "API health check passed"
         Write-Host "API URL: $apiUrl" -ForegroundColor Cyan
     } catch {
         Write-Warning "API health check failed, but deployment completed"
-        Write-Host "   Try: curl $apiUrl/api/health" -ForegroundColor Yellow
+        Write-Host "   Try: curl $apiUrl/api/v1/health" -ForegroundColor Yellow
     }
     
 } catch {
