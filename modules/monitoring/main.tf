@@ -17,11 +17,11 @@ resource "azurerm_application_insights" "main" {
   application_type    = "web"
   workspace_id        = azurerm_log_analytics_workspace.main.id
 
-  # Enable detailed telemetry and logging
-  retention_in_days    = 90
-  daily_data_cap_in_gb = var.app_insights_daily_cap
+  retention_in_days                     = 30
+  daily_data_cap_in_gb                  = var.app_insights_daily_cap
+  daily_data_cap_notifications_disabled = false
+  sampling_percentage                   = 50
 
-  # Disable auto-generated failure anomaly detection rules
   disable_ip_masking = false
 
   tags = var.tags
