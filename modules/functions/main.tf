@@ -39,6 +39,8 @@ resource "azurerm_linux_function_app" "main" {
       python_version = "3.11"
     }
 
+    application_insights_connection_string = var.app_insights_connection_string
+
     # CORS configuration
     cors {
       allowed_origins = ["*"]
@@ -56,9 +58,6 @@ resource "azurerm_linux_function_app" "main" {
       "ENABLE_ORYX_BUILD"               = "true"
       "SCM_DO_BUILD_DURING_DEPLOYMENT"  = "true"
       "AzureWebJobsFeatureFlags"        = "EnableWorkerIndexing"
-
-      # Application Insights
-      "APPLICATIONINSIGHTS_CONNECTION_STRING" = var.app_insights_connection_string
 
       # ReportMate API Configuration
       "REPORTMATE_API_URL"    = var.api_base_url
