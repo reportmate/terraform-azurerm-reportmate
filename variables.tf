@@ -144,8 +144,15 @@ variable "enable_functions" {
 
 variable "teams_webhook_url" {
   type        = string
-  description = "Microsoft Teams webhook URL for alerts"
+  description = "Default Microsoft Teams webhook URL for alerts. Exposed to functions as TEAMS_WEBHOOK_URL."
   default     = ""
+  sensitive   = true
+}
+
+variable "teams_webhooks" {
+  type        = list(string)
+  description = "Additional Teams webhook URLs, exposed to functions as TEAMS_WEBHOOK_1, TEAMS_WEBHOOK_2, ... The index-to-purpose mapping is documented privately alongside the function code that consumes them."
+  default     = []
   sensitive   = true
 }
 

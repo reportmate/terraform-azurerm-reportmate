@@ -37,9 +37,22 @@ variable "client_passphrases" {
 }
 
 variable "teams_webhook_url" {
-  description = "Microsoft Teams incoming webhook URL for alerts"
+  description = "Default Microsoft Teams incoming webhook URL for alerts. Exposed to functions as the TEAMS_WEBHOOK_URL env var."
   type        = string
   default     = ""
+  sensitive   = true
+}
+
+variable "teams_webhooks" {
+  description = <<-EOT
+    Additional Microsoft Teams incoming webhook URLs. Exposed to functions as
+    indexed env vars TEAMS_WEBHOOK_1, TEAMS_WEBHOOK_2, ... in the order they
+    appear in the list. Adopters can add as many as they need and reference
+    them from their function code by index. Keep the assignment (which index
+    serves which purpose) documented privately alongside your function code.
+  EOT
+  type        = list(string)
+  default     = []
   sensitive   = true
 }
 

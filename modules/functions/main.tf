@@ -12,6 +12,14 @@ resource "azurerm_storage_account" "functions" {
   tags = var.tags
 }
 
+# Table Storage for render farm alert aggregation
+# render_alerts_receive upserts per-machine rows here; render_alerts_digest
+# reads them at 04:15 UTC to build the daily Teams message.
+resource "azurerm_storage_table" "render_alerts" {
+  name                 = "renderalerts"
+  storage_account_name = azurerm_storage_account.functions.name
+}
+
 # App Service Plan (Consumption/Serverless)
 resource "azurerm_service_plan" "functions" {
   name                = "${var.function_app_name}-plan"
@@ -32,7 +40,7 @@ resource "azurerm_linux_function_app" "main" {
   storage_account_name       = azurerm_storage_account.functions.name
   storage_account_access_key = azurerm_storage_account.functions.primary_access_key
   service_plan_id            = azurerm_service_plan.functions.id
-  https_only               = true
+  https_only                 = true
 
   site_config {
     application_stack {
@@ -64,9 +72,14 @@ resource "azurerm_linux_function_app" "main" {
       "REPORTMATE_PASSPHRASE" = var.client_passphrases
       "REPORTMATE_API_KEY"    = var.client_passphrases
 
-      # Teams Webhook (optional - set if you want alerts)
+      # Default Teams webhook (optional - set if you want alerts)
       "TEAMS_WEBHOOK_URL" = var.teams_webhook_url
+
+      # Render alerts table (used by render_alerts_receive / render_alerts_digest)
+      "RENDER_ALERTS_TABLE" = azurerm_storage_table.render_alerts.name
     },
+    # Additional indexed Teams webhooks: TEAMS_WEBHOOK_1, TEAMS_WEBHOOK_2, ...
+    { for idx, url in var.teams_webhooks : "TEAMS_WEBHOOK_${idx + 1}" => url },
     var.additional_app_settings
   )
 

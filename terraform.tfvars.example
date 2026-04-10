@@ -90,6 +90,31 @@ authorized_groups = [
 devops_resource_infrasec_group_object_id = "your-devops-group-object-id"
 
 # =================================================================
+# AZURE FUNCTIONS - Alerts Function App (Optional)
+# =================================================================
+# Hosts scheduled alert functions (storage, BTMDB, render farm) plus an
+# HTTP endpoint for render nodes to POST per-machine payloads to.
+# Set enable_functions = true to provision.
+
+enable_functions  = false
+function_app_name = "reportmate-alerts"  # Must be globally unique
+function_app_sku  = "Y1"                 # Y1 = Consumption (serverless)
+
+# Microsoft Teams incoming webhook URLs for alert delivery.
+# Create webhooks in Teams: channel -> ... -> Connectors -> Incoming Webhook.
+#
+# teams_webhook_url is the default channel (exposed to functions as
+# TEAMS_WEBHOOK_URL). Add more channels in the teams_webhooks list; each is
+# exposed as TEAMS_WEBHOOK_1, TEAMS_WEBHOOK_2, ... in the order listed. Your
+# function code decides which index to read for which purpose - keep that
+# mapping documented alongside your function code.
+teams_webhook_url = ""
+teams_webhooks    = [
+  # "https://outlook.office.com/webhook/CHANNEL-A",  # -> TEAMS_WEBHOOK_1
+  # "https://outlook.office.com/webhook/CHANNEL-B",  # -> TEAMS_WEBHOOK_2
+]
+
+# =================================================================
 # DATABASE MAINTENANCE (Optional - Recommended for Production)
 # =================================================================
 
