@@ -82,6 +82,7 @@ module "functions" {
   api_base_url       = var.api_base_url_override != "" ? var.api_base_url_override : module.containers.api_url
   client_passphrases = var.client_passphrases
   teams_webhook_url  = var.teams_webhook_url
+  teams_webhooks     = var.teams_webhooks
 
   # Monitoring
   app_insights_connection_string = module.monitoring.app_insights_connection_string

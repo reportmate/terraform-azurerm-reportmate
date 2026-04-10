@@ -8,14 +8,14 @@ locals {
   # Extract image name and tag from the full image path
   # e.g., "reportmateacr.azurecr.io/reportmate-web:latest" -> "reportmate-web:latest"
   image_name_tag = var.use_custom_registry ? (
-    length(split("/", var.container_image)) > 1 ? 
-    split("/", var.container_image)[length(split("/", var.container_image)) - 1] : 
+    length(split("/", var.container_image)) > 1 ?
+    split("/", var.container_image)[length(split("/", var.container_image)) - 1] :
     var.container_image
   ) : var.container_image
 
   # Compute site URL values - use custom domain if enabled, otherwise derive from container environment
   # Note: We can't use the container app's own FQDN here (self-reference), so we use the environment pattern
-  
+
   # Site URL: custom domain takes priority, then compute from environment default domain
   site_hostname = var.enable_custom_domain && var.custom_domain_name != "" ? var.custom_domain_name : (
     var.default_site_url != "" ? var.default_site_url : "${var.frontend_container_name}.${azurerm_container_app_environment.main.default_domain}"
@@ -30,7 +30,7 @@ resource "azurerm_container_registry" "acr" {
   resource_group_name = var.resource_group_name
   location            = var.location
   sku                 = "Basic"
-  admin_enabled       = true  # Required for maintenance job authentication
+  admin_enabled       = true # Required for maintenance job authentication
 
   tags = var.tags
 }
@@ -44,7 +44,7 @@ resource "azurerm_container_app_environment" "main" {
 
   lifecycle {
     ignore_changes = [
-      log_analytics_workspace_id  # Ignore case sensitivity changes in Azure resource IDs
+      log_analytics_workspace_id # Ignore case sensitivity changes in Azure resource IDs
     ]
   }
 
@@ -77,7 +77,11 @@ resource "azurerm_container_app" "frontend_prod_main" {
 
   lifecycle {
     ignore_changes = [
-      container_app_environment_id  # Ignore case sensitivity changes in Azure resource IDs
+      container_app_environment_id, # Ignore case sensitivity changes in Azure resource IDs
+      # Image tag is managed by the CI/CD pipeline (deploy-containers.ps1 -ForceBuild),
+      # which pushes immutable tags directly to the container app. Terraform must
+      # not revert those tags back to the default tfvars value on every plan.
+      template[0].container[0].image,
     ]
   }
 
@@ -292,7 +296,7 @@ resource "azurerm_container_app" "frontend_prod_main" {
         transport = "HTTP"
         port      = 3000
         path      = "/"
-        
+
         failure_count_threshold = 3
         initial_delay           = 10
         interval_seconds        = 10
@@ -303,7 +307,7 @@ resource "azurerm_container_app" "frontend_prod_main" {
         transport = "HTTP"
         port      = 3000
         path      = "/"
-        
+
         failure_count_threshold = 3
         initial_delay           = 30
         interval_seconds        = 30
@@ -314,7 +318,7 @@ resource "azurerm_container_app" "frontend_prod_main" {
         transport = "HTTP"
         port      = 3000
         path      = "/"
-        
+
         failure_count_threshold = 3
         interval_seconds        = 10
         timeout                 = 5
@@ -341,17 +345,17 @@ resource "azurerm_container_app" "frontend_prod_main" {
   dynamic "secret" {
     for_each = var.key_vault_uri != null && var.auth_secrets != null ? [
       {
-        name     = var.auth_secrets.nextauth_secret_name
-        identity = var.managed_identity_id
+        name                = var.auth_secrets.nextauth_secret_name
+        identity            = var.managed_identity_id
         key_vault_secret_id = "${var.key_vault_uri}secrets/${var.auth_secrets.nextauth_secret_name}"
       },
       {
-        name     = var.auth_secrets.client_secret_name
-        identity = var.managed_identity_id
+        name                = var.auth_secrets.client_secret_name
+        identity            = var.managed_identity_id
         key_vault_secret_id = "${var.key_vault_uri}secrets/${var.auth_secrets.client_secret_name}"
       }
     ] : []
-    
+
     content {
       name                = secret.value.name
       identity            = secret.value.identity
@@ -385,10 +389,10 @@ resource "azurerm_container_app" "frontend_prod_main" {
 
 # ACR Role Assignments (only if using custom registry)
 resource "azurerm_role_assignment" "container_acr_pull" {
-  count                            = var.use_custom_registry ? 1 : 0
-  scope                            = azurerm_container_registry.acr[0].id
-  role_definition_name             = "AcrPull"
-  principal_id                     = var.managed_identity_principal_id
+  count                = var.use_custom_registry ? 1 : 0
+  scope                = azurerm_container_registry.acr[0].id
+  role_definition_name = "AcrPull"
+  principal_id         = var.managed_identity_principal_id
 
   lifecycle {
     create_before_destroy = true
@@ -398,10 +402,10 @@ resource "azurerm_role_assignment" "container_acr_pull" {
 }
 
 resource "azurerm_role_assignment" "container_acr_push" {
-  count                            = var.use_custom_registry ? 1 : 0
-  scope                            = azurerm_container_registry.acr[0].id
-  role_definition_name             = "AcrPush"
-  principal_id                     = var.managed_identity_principal_id
+  count                = var.use_custom_registry ? 1 : 0
+  scope                = azurerm_container_registry.acr[0].id
+  role_definition_name = "AcrPush"
+  principal_id         = var.managed_identity_principal_id
 
   lifecycle {
     create_before_destroy = true
@@ -438,10 +442,10 @@ resource "azurerm_container_app" "api_functions" {
   # External ingress for API endpoints
   # external_enabled MUST be true - do not change!
   ingress {
-    external_enabled = true  # MUST be true for Windows/Mac client check-ins
+    external_enabled = true # MUST be true for Windows/Mac client check-ins
     target_port      = 8000
     transport        = "auto"
-    
+
     traffic_weight {
       latest_revision = true
       percentage      = 100
@@ -529,7 +533,11 @@ resource "azurerm_container_app" "api_functions" {
   # Workaround for Azure's API cache returning old resource group casing
   lifecycle {
     ignore_changes = [
-      container_app_environment_id  # Ignore changes to environment ID due to Azure API cache
+      container_app_environment_id, # Ignore changes to environment ID due to Azure API cache
+      # Image tag is managed by the CI/CD pipeline (deploy-api.ps1 -ForceBuild),
+      # which pushes immutable tags directly to the container app. Terraform must
+      # not revert those tags back to the default tfvars value on every plan.
+      template[0].container[0].image,
     ]
   }
 
