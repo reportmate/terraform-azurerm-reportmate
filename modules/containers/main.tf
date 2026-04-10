@@ -485,8 +485,8 @@ resource "azurerm_container_app" "api_functions" {
     container {
       name   = "api"
       image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/${var.api_image_name}:${var.api_image_tag}" : "${var.existing_registry_server}/${var.api_image_name}:${var.api_image_tag}"
-      cpu    = 0.5
-      memory = "1Gi"
+      cpu    = 2.0
+      memory = "4Gi"
 
       # Database connection from secure secret
       env {
