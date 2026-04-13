@@ -103,15 +103,27 @@ function_app_sku  = "Y1"                 # Y1 = Consumption (serverless)
 # Microsoft Teams incoming webhook URLs for alert delivery.
 # Create webhooks in Teams: channel -> ... -> Connectors -> Incoming Webhook.
 #
-# teams_webhook_url is the default channel (exposed to functions as
-# TEAMS_WEBHOOK_URL). Add more channels in the teams_webhooks list; each is
-# exposed as TEAMS_WEBHOOK_1, TEAMS_WEBHOOK_2, ... in the order listed. Your
-# function code decides which index to read for which purpose - keep that
-# mapping documented alongside your function code.
+# teams_webhook_url is the default/fallback channel (exposed to functions as
+# TEAMS_WEBHOOK_URL). Blueprints fall back to this when their indexed slot
+# is empty, so a single URL set here will still work for every alert type.
+#
+# teams_webhooks supplies indexed channels, exposed as TEAMS_WEBHOOK_1,
+# TEAMS_WEBHOOK_2, ... in the order listed. The shipped blueprints read
+# the following indexes (index -> purpose is a private deployment
+# decision; if you fork the blueprints, re-wire as you see fit):
+#
+#   TEAMS_WEBHOOK_1  render farm pre-flight digest (blueprints/render_alerts.py)
+#   TEAMS_WEBHOOK_2  daily low-storage scan       (blueprints/storage_alerts.py)
+#   TEAMS_WEBHOOK_3  macOS BTMDB health digest    (blueprints/btmdb_alerts.py)
+#
+# To start simple: leave teams_webhooks empty and set only teams_webhook_url -
+# all three alerts will post to the same channel via the fallback. Split out
+# to dedicated channels by filling in indexes 1-3 as needed.
 teams_webhook_url = ""
 teams_webhooks    = [
-  # "https://outlook.office.com/webhook/CHANNEL-A",  # -> TEAMS_WEBHOOK_1
-  # "https://outlook.office.com/webhook/CHANNEL-B",  # -> TEAMS_WEBHOOK_2
+  # "https://outlook.office.com/webhook/RENDER-CHANNEL",   # -> TEAMS_WEBHOOK_1
+  # "https://outlook.office.com/webhook/STORAGE-CHANNEL",  # -> TEAMS_WEBHOOK_2
+  # "https://outlook.office.com/webhook/BTMDB-CHANNEL",    # -> TEAMS_WEBHOOK_3
 ]
 
 # =================================================================
