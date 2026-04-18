@@ -29,7 +29,7 @@ variable "log_retention_days" {
 variable "app_insights_daily_cap" {
   type        = number
   description = "Application Insights daily data cap in GB"
-  default     = 10
+  default     = 1
 }
 
 variable "tags" {
