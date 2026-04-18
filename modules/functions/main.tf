@@ -77,6 +77,8 @@ resource "azurerm_linux_function_app" "main" {
 
       # Render alerts table (used by render_alerts_receive / render_alerts_digest)
       "RENDER_ALERTS_TABLE" = azurerm_storage_table.render_alerts.name
+
+      "APPLICATIONINSIGHTS_DISABLE_DEPENDENCY_TRACKING" = "true"
     },
     # Additional indexed Teams webhooks: TEAMS_WEBHOOK_1, TEAMS_WEBHOOK_2, ...
     { for idx, url in var.teams_webhooks : "TEAMS_WEBHOOK_${idx + 1}" => url },
