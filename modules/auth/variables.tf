@@ -188,3 +188,9 @@ variable "authorized_groups" {
   type        = list(string)
   default     = []
 }
+
+variable "admin_principal_ids" {
+  description = "List of Entra ID principal object IDs (users or groups) to assign the Administrator app role. Members can hard-delete devices and perform other privileged operations in the web app."
+  type        = list(string)
+  default     = []
+}
