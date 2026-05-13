@@ -164,6 +164,9 @@ module "auth" {
   # Authorized Groups for Sign-in
   authorized_groups = var.authorized_groups
 
+  # Principals (users or groups) granted the Administrator app role
+  admin_principal_ids = var.admin_principal_ids
+
   # Authentication Configuration
   auth_providers             = var.auth_providers
   default_auth_provider      = var.default_auth_provider

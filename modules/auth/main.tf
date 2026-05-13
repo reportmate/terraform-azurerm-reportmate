@@ -222,3 +222,14 @@ resource "azuread_app_role_assignment" "authorized_groups" {
   principal_object_id = var.authorized_groups[count.index]
   resource_object_id  = azuread_service_principal.reportmate_web.object_id
 }
+
+# Assign principals (users or groups) to the Administrator role. The web app
+# checks for the `admin` claim before exposing destructive actions such as
+# hard-deleting a device. Role id below matches the Administrator entry in
+# var.app_roles (value = "admin").
+resource "azuread_app_role_assignment" "admins" {
+  count               = length(var.admin_principal_ids)
+  app_role_id         = "1b19509b-32b1-4e9f-b71d-4dc9cd1d4c1e"
+  principal_object_id = var.admin_principal_ids[count.index]
+  resource_object_id  = azuread_service_principal.reportmate_web.object_id
+}

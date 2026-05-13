@@ -86,6 +86,14 @@ authorized_groups = [
   "your-users-group-object-id",
 ]
 
+# Principals (users or groups, by Object ID) granted the Administrator app role.
+# Members can hard-delete devices, archive/unarchive, and run destructive
+# maintenance actions in the web app. Keep this list short. Get Object IDs from
+# Azure AD -> Users -> profile, or Azure AD -> Groups -> Object ID.
+admin_principal_ids = [
+  # "00000000-0000-0000-0000-000000000000",
+]
+
 # DevOps Group Access (for Key Vault RBAC)
 devops_resource_infrasec_group_object_id = "your-devops-group-object-id"
 

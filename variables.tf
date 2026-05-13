@@ -441,3 +441,9 @@ variable "authorized_groups" {
   description = "List of Entra ID group IDs authorized for sign-in"
   default     = []
 }
+
+variable "admin_principal_ids" {
+  type        = list(string)
+  description = "Entra ID principal object IDs (users or groups) granted the Administrator app role. Required to perform destructive actions in the web app such as deleting devices."
+  default     = []
+}
