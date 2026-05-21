@@ -2810,6 +2810,7 @@ async def get_bulk_identity(
                 # Do NOT return the full raw identity blob (~50KB per device)
                 summary = {}
                 users_preview = []
+                admin_usernames: list[str] = []
                 logged_in_usernames = []
                 btmdb = {}
                 secure_token = {}
@@ -2832,6 +2833,20 @@ async def get_bulk_identity(
                     
                     admin_count = sum(1 for u in users if isinstance(u, dict) and u.get('isAdmin')) if isinstance(users, list) else 0
                     disabled_count = sum(1 for u in users if isinstance(u, dict) and u.get('disabled')) if isinstance(users, list) else 0
+                    # Full list of admin usernames (preserves original case, dedup, order)
+                    if isinstance(users, list):
+                        _seen_admins: set[str] = set()
+                        for u in users:
+                            if not (isinstance(u, dict) and u.get('isAdmin')):
+                                continue
+                            name = u.get('username') or u.get('userName') or u.get('name')
+                            if not name:
+                                continue
+                            key = str(name).lower()
+                            if key in _seen_admins:
+                                continue
+                            _seen_admins.add(key)
+                            admin_usernames.append(str(name))
                     
                     # Mac client emits raw osquery shape ({'user': ...}); Windows client
                     # emits the C# LoggedInUser model ({'username': ...}). Accept both.
@@ -2879,6 +2894,7 @@ async def get_bulk_identity(
                     'fleet': fleet,
                     'summary': summary,
                     'users': users_preview,
+                    'adminUsernames': admin_usernames,
                     'loggedInUsernames': logged_in_usernames,
                     'btmdbHealth': {
                         'status': btmdb.get('status') or btmdb.get('health_status'),
