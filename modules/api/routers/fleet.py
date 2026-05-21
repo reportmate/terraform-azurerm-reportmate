@@ -2804,7 +2804,7 @@ async def get_bulk_identity(
             try:
                 (serial_number, device_uuid, last_seen, platform, identity_data, collected_at,
                  device_name, computer_name, usage, catalog, location, asset_tag,
-                 department, fleet) = row
+                 department, fleet, bootstrap_token) = row
                 
                 # Extract only the summary fields needed by the fleet page
                 # Do NOT return the full raw identity blob (~50KB per device)
@@ -2951,6 +2951,13 @@ async def get_bulk_identity(
                         'avgSessionMinutes': session_summary.get('avgSessionMinutes') or session_summary.get('avg_session_minutes', 0),
                         'medianSessionMinutes': session_summary.get('medianSessionMinutes') or session_summary.get('median_session_minutes', 0),
                     } if session_summary else None,
+                    # macOS Bootstrap Token (from security module). Surface a flat
+                    # status so the frontend can render it as a filter chip.
+                    'bootstrapToken': ({
+                        'status': (bootstrap_token or {}).get('status'),
+                        'escrowed': (bootstrap_token or {}).get('escrowed'),
+                        'supported': (bootstrap_token or {}).get('supported'),
+                    }) if isinstance(bootstrap_token, dict) else None,
                 })
             except Exception as e:
                 logger.warning(f"Error processing identity for device {row[0]}: {e}")
