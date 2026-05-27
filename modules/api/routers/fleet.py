@@ -969,9 +969,21 @@ async def get_applications_distribution(
             return _cached
         _t0 = _time.monotonic()
 
-        app_name_list = [s.strip() for s in applicationNames.split(',') if s.strip()]
-        if not app_name_list:
+        # Dedupe app names case-insensitively while preserving first-seen casing
+        # for the response keys. Two buckets that differ only in case would
+        # otherwise produce two SQL rows but overwrite each other in the
+        # response dict, silently dropping one bucket's counts.
+        raw_names = [s.strip() for s in applicationNames.split(',') if s.strip()]
+        if not raw_names:
             raise HTTPException(status_code=400, detail="applicationNames must contain at least one non-empty value")
+        app_name_list: List[str] = []
+        _seen_lower: set = set()
+        for name in raw_names:
+            key = name.lower()
+            if key in _seen_lower:
+                continue
+            _seen_lower.add(key)
+            app_name_list.append(name)
 
         usage_list = [s.strip() for s in usages.split(',')] if usages else []
         catalog_list = [s.strip() for s in catalogs.split(',')] if catalogs else []
@@ -1037,6 +1049,16 @@ async def get_applications_distribution(
 
         # DISTINCT collapses duplicate installer rows so a device with two
         # Chrome entries at the same version contributes 1, not 2.
+        #
+        # strpos() rather than LIKE: LIKE would treat `%` / `_` in user-supplied
+        # bucket patterns as wildcards, diverging from the bulk endpoint's
+        # Python `in`-style substring check and turning `applicationNames=%`
+        # into a fleet-wide match. strpos() always compares literals.
+        #
+        # NULLIF(BTRIM(...), '') normalizes empty/whitespace version strings
+        # to NULL so they collapse into the 'Unknown' bucket here rather than
+        # producing a separate '' group that would silently overwrite the
+        # 'Unknown' count in the Python aggregation below.
         query = f"""
         WITH device_base AS (
             SELECT DISTINCT ON (d.serial_number)
@@ -1059,11 +1081,15 @@ async def get_applications_distribution(
             SELECT DISTINCT
                 db.device_pk,
                 bucket.idx AS bucket_idx,
-                COALESCE(elem->>'version', elem->>'bundle_version', 'Unknown') AS version
+                COALESCE(
+                    NULLIF(BTRIM(elem->>'version'), ''),
+                    NULLIF(BTRIM(elem->>'bundle_version'), ''),
+                    'Unknown'
+                ) AS version
             FROM device_base db
             CROSS JOIN LATERAL jsonb_array_elements(db.apps_array) AS elem
             CROSS JOIN LATERAL unnest(%s::text[]) WITH ORDINALITY AS bucket(pattern, idx)
-            WHERE LOWER(COALESCE(elem->>'name', elem->>'displayName', '')) LIKE '%%' || bucket.pattern || '%%'
+            WHERE strpos(LOWER(COALESCE(elem->>'name', elem->>'displayName', '')), bucket.pattern) > 0
         ),
         version_counts AS (
             SELECT bucket_idx, version, COUNT(*) AS device_count
