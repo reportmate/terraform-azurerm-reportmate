@@ -15,12 +15,12 @@ variable "function_app_name" {
 }
 
 variable "sku_name" {
-  description = "SKU for the App Service Plan (Y1=Consumption, B1=Basic, S1=Standard, P1V2=Premium)"
+  description = "SKU for the App Service Plan (FC1=Flex Consumption, Y1=Consumption, B1=Basic, S1=Standard, P1V2=Premium). FC1 requires the azurerm_function_app_flex_consumption resource."
   type        = string
-  default     = "Y1"
+  default     = "FC1"
 
   validation {
-    condition     = contains(["Y1", "B1", "B2", "B3", "S1", "S2", "S3", "P1V2", "P2V2", "P3V2"], var.sku_name)
+    condition     = contains(["FC1", "Y1", "B1", "B2", "B3", "S1", "S2", "S3", "P1V2", "P2V2", "P3V2"], var.sku_name)
     error_message = "SKU must be a valid App Service Plan tier"
   }
 }
