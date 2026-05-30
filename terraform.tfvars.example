@@ -106,7 +106,7 @@ devops_resource_infrasec_group_object_id = "your-devops-group-object-id"
 
 enable_functions  = false
 function_app_name = "reportmate-alerts"  # Must be globally unique
-function_app_sku  = "Y1"                 # Y1 = Consumption (serverless)
+function_app_sku  = "FC1"  # Flex Consumption (serverless)
 
 # Microsoft Teams incoming webhook URLs for alert delivery.
 # Create webhooks in Teams: channel -> ... -> Connectors -> Incoming Webhook.

@@ -1,26 +1,26 @@
 output "function_app_id" {
   description = "ID of the Azure Functions App"
-  value       = azurerm_linux_function_app.main.id
+  value       = azurerm_function_app_flex_consumption.main.id
 }
 
 output "function_app_name" {
   description = "Name of the Azure Functions App"
-  value       = azurerm_linux_function_app.main.name
+  value       = azurerm_function_app_flex_consumption.main.name
 }
 
 output "function_app_default_hostname" {
   description = "Default hostname of the Functions App"
-  value       = azurerm_linux_function_app.main.default_hostname
+  value       = azurerm_function_app_flex_consumption.main.default_hostname
 }
 
 output "function_app_identity_principal_id" {
   description = "Principal ID of the Functions App managed identity"
-  value       = azurerm_linux_function_app.main.identity[0].principal_id
+  value       = azurerm_function_app_flex_consumption.main.identity[0].principal_id
 }
 
 output "function_app_identity_tenant_id" {
   description = "Tenant ID of the Functions App managed identity"
-  value       = azurerm_linux_function_app.main.identity[0].tenant_id
+  value       = azurerm_function_app_flex_consumption.main.identity[0].tenant_id
 }
 
 output "storage_account_name" {
