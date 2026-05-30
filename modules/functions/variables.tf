@@ -68,6 +68,12 @@ variable "key_vault_id" {
   default     = null
 }
 
+variable "key_vault_uri" {
+  description = "Key Vault URI (https://<name>.vault.azure.net/) for @Microsoft.KeyVault references in app_settings"
+  type        = string
+  default     = null
+}
+
 variable "additional_app_settings" {
   description = "Additional application settings for the Function App"
   type        = map(string)

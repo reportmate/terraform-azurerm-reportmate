@@ -67,10 +67,14 @@ resource "azurerm_linux_function_app" "main" {
       "SCM_DO_BUILD_DURING_DEPLOYMENT"  = "true"
       "AzureWebJobsFeatureFlags"        = "EnableWorkerIndexing"
 
-      # ReportMate API Configuration
+      # ReportMate API Configuration — KV-resolved at startup via the function
+      # app's MI so plaintext doesn't sit in app_settings at rest. Both env
+      # vars point at the same `client-passphrase` secret today (Path A); the
+      # planned Path B will split REPORTMATE_API_KEY off to a separate KV secret
+      # and add a distinct validation branch in the API container.
       "REPORTMATE_API_URL"    = var.api_base_url
-      "REPORTMATE_PASSPHRASE" = var.client_passphrases
-      "REPORTMATE_API_KEY"    = var.client_passphrases
+      "REPORTMATE_PASSPHRASE" = var.key_vault_uri != null ? "@Microsoft.KeyVault(SecretUri=${var.key_vault_uri}secrets/client-passphrase)" : var.client_passphrases
+      "REPORTMATE_API_KEY"    = var.key_vault_uri != null ? "@Microsoft.KeyVault(SecretUri=${var.key_vault_uri}secrets/client-passphrase)" : var.client_passphrases
 
       # Default Teams webhook (optional - set if you want alerts)
       "TEAMS_WEBHOOK_URL" = var.teams_webhook_url
@@ -93,16 +97,14 @@ resource "azurerm_linux_function_app" "main" {
   tags = var.tags
 }
 
-# Grant Functions App access to Key Vault (if provided)
-resource "azurerm_key_vault_access_policy" "functions" {
+# Grant Functions App access to Key Vault (if provided).
+# The reportmate KV uses RBAC (enable_rbac_authorization = true) so access
+# policies are ignored — use a role assignment instead.
+resource "azurerm_role_assignment" "functions_kv_secrets_user" {
   count = var.key_vault_id != null ? 1 : 0
 
-  key_vault_id = var.key_vault_id
-  tenant_id    = azurerm_linux_function_app.main.identity[0].tenant_id
-  object_id    = azurerm_linux_function_app.main.identity[0].principal_id
-
-  secret_permissions = [
-    "Get",
-    "List"
-  ]
+  scope                = var.key_vault_id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_linux_function_app.main.identity[0].principal_id
+  principal_type       = "ServicePrincipal"
 }

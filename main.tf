@@ -88,7 +88,8 @@ module "functions" {
   app_insights_connection_string = module.monitoring.app_insights_connection_string
 
   # Key Vault access (optional)
-  key_vault_id = var.enable_key_vault ? module.key_vault[0].key_vault_id : null
+  key_vault_id  = var.enable_key_vault ? module.key_vault[0].key_vault_id : null
+  key_vault_uri = var.enable_key_vault ? module.key_vault[0].key_vault_uri : null
 
   tags = var.tags
 
