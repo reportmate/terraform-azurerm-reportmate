@@ -62,6 +62,18 @@ SELECT DISTINCT ON (d.serial_number)
         false
     ) as gatekeeper_enabled,
 
+    -- Firmware Password
+    -- Windows clients populate firmwarePassword.statusDisplay ("Set"/"Not Set"/"Not Implemented"/"Unknown")
+    -- macOS clients populate firmwarePassword.enabled (boolean)
+    COALESCE(
+        sec.data->'firmwarePassword'->>'statusDisplay',
+        CASE
+            WHEN (sec.data->'firmwarePassword'->>'enabled')::boolean = true THEN 'Set'
+            WHEN (sec.data->'firmwarePassword'->>'enabled')::boolean = false THEN 'Not Set'
+            ELSE NULL
+        END
+    ) as firmware_password_status,
+
     -- Device Guard / Protection (Windows)
     COALESCE((sec.data->'deviceGuard'->>'memoryIntegrityEnabled')::boolean, false) as memory_integrity_enabled,
     COALESCE((sec.data->'deviceGuard'->>'coreIsolationEnabled')::boolean, false) as core_isolation_enabled,
