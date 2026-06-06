@@ -40,8 +40,21 @@ SELECT DISTINCT ON (d.serial_number)
     sec.data->'antivirus'->>'version' as antivirus_version,
     sec.data->'antivirus'->>'lastScan' as antivirus_last_scan,
 
-    -- Detection (threat alerts from Defender/AV - empty = clean device)
+    -- Detection: raw event count (includes ASR blocks, not just active threats)
     COALESCE(jsonb_array_length(sec.data->'detections'), 0) as detection_count,
+    -- Active threats only (excludes ASR rule blocks which are protection working)
+    -- ASR blocks are category='ASR Rule' or eventId=1121
+    COALESCE((
+        SELECT count(*)::int FROM jsonb_array_elements(sec.data->'detections') det
+        WHERE COALESCE(det->>'category', '') NOT IN ('ASR Rule')
+          AND COALESCE((det->>'eventId')::int, 0) NOT IN (1121)
+    ), 0) as active_threat_count,
+    -- Detection summary fields populated by the client
+    COALESCE((sec.data->'detectionSummary'->>'hasActiveThreats')::boolean, false) as has_active_threats,
+    COALESCE((sec.data->'detectionSummary'->>'totalBlocked30d')::int, 0) as detections_blocked_30d,
+    COALESCE((sec.data->'detectionSummary'->>'totalCleaned30d')::int, 0) as detections_cleaned_30d,
+    COALESCE((sec.data->'detectionSummary'->>'totalDetections30d')::int, 0) as detections_total_30d,
+    sec.data->'detectionSummary'->>'lastThreatDetectedAt' as last_threat_detected_at,
 
     -- Tampering: TPM (Windows)
     COALESCE((sec.data->'tpm'->>'isPresent')::boolean, false) as tpm_present,
@@ -74,23 +87,94 @@ SELECT DISTINCT ON (d.serial_number)
     -- Remote Access: RDP (Windows)
     COALESCE((sec.data->'rdp'->>'isEnabled')::boolean, false) as rdp_enabled,
 
-    -- Certificates (summary counts)
-    COALESCE(jsonb_array_length(sec.data->'certificates'), 0) as certificate_count,
-    COALESCE((
-        SELECT count(*)::int FROM jsonb_array_elements(sec.data->'certificates') cert
-        WHERE (cert->>'isExpired')::boolean = true
-    ), 0) as expired_cert_count,
-    COALESCE((
-        SELECT count(*)::int FROM jsonb_array_elements(sec.data->'certificates') cert
-        WHERE (cert->>'isExpiringSoon')::boolean = true
-    ), 0) as expiring_soon_cert_count,
+    -- Certificates: prefer client-computed summary when present, fall back to JSONB scan
+    COALESCE(
+        (sec.data->'certificateSummary'->>'totalCount')::int,
+        jsonb_array_length(sec.data->'certificates'),
+        0
+    ) as certificate_count,
+    COALESCE(
+        (sec.data->'certificateSummary'->>'expiredCount')::int,
+        (SELECT count(*)::int FROM jsonb_array_elements(sec.data->'certificates') cert
+         WHERE (cert->>'isExpired')::boolean = true),
+        0
+    ) as expired_cert_count,
+    COALESCE(
+        (sec.data->'certificateSummary'->>'expiringSoonCount')::int,
+        (SELECT count(*)::int FROM jsonb_array_elements(sec.data->'certificates') cert
+         WHERE (cert->>'isExpiringSoon')::boolean = true),
+        0
+    ) as expiring_soon_cert_count,
+    -- Split expired into user-managed vs OS-bundled roots so the UI can de-noise OS rotations
+    COALESCE((sec.data->'certificateSummary'->>'userExpiredCount')::int, 0) as user_expired_cert_count,
+    COALESCE((sec.data->'certificateSummary'->>'osRootExpiredCount')::int, 0) as os_root_expired_cert_count,
 
-    -- Vulnerabilities (summary counts)
-    COALESCE((sec.data->>'cveCount')::int, 0) as cve_count,
-    COALESCE((sec.data->>'criticalCveCount')::int, 0) as critical_cve_count,
+    -- Vulnerabilities: read from the securityCves array (top-level cveCount was never populated by the client)
+    COALESCE((
+        SELECT count(*)::int FROM jsonb_array_elements(sec.data->'securityCves') cve
+        WHERE COALESCE(cve->>'status', '') = 'Unpatched'
+    ), 0) as cve_count,
+    COALESCE((
+        SELECT count(*)::int FROM jsonb_array_elements(sec.data->'securityCves') cve
+        WHERE COALESCE(cve->>'status', '') = 'Unpatched'
+          AND COALESCE(cve->>'severity', '') = 'Critical'
+    ), 0) as critical_cve_count,
+    -- Actively exploited unpatched CVEs (KEV-style)
+    COALESCE((
+        SELECT count(*)::int FROM jsonb_array_elements(sec.data->'securityCves') cve
+        WHERE COALESCE(cve->>'status', '') = 'Unpatched'
+          AND COALESCE((cve->>'activelyExploited')::boolean, false) = true
+    ), 0) as actively_exploited_cve_count,
+
+    -- Phase 2: protection posture
+    COALESCE((sec.data->'lsaProtection'->>'enabled')::boolean, false) as lsa_protection_enabled,
+    sec.data->'lsaProtection'->>'mode' as lsa_protection_mode,
+    (sec.data->'tamperProtection'->>'isTamperProtected')::boolean as tamper_protected,
+    sec.data->'uac'->>'level' as uac_level,
+    COALESCE((sec.data->'pendingReboot'->>'required')::boolean, false) as pending_reboot,
+    COALESCE((
+        SELECT count(*)::int FROM jsonb_array_elements(sec.data->'asrRules') rule
+        WHERE COALESCE(rule->>'state', '') = 'Block'
+    ), 0) as asr_block_rule_count,
+    COALESCE((
+        SELECT count(*)::int FROM jsonb_array_elements(sec.data->'asrRules') rule
+        WHERE COALESCE(rule->>'state', '') = 'Audit'
+    ), 0) as asr_audit_rule_count,
+    sec.data->'defenderVersions'->>'amEngineVersion' as defender_engine_version,
+    sec.data->'defenderVersions'->>'amProductVersion' as defender_product_version,
+    COALESCE((sec.data->'defenderExclusions'->>'totalCount')::int, 0) as defender_exclusions_count,
+    (sec.data->'joinState'->>'azureAdJoined')::boolean as entra_joined,
+    (sec.data->'joinState'->>'domainJoined')::boolean as domain_joined,
+    sec.data->'joinState'->>'tenantName' as entra_tenant_name,
+
+    -- Phase 3: compliance / inventory
+    COALESCE(jsonb_array_length(sec.data->'localAdmins'), 0) as local_admin_count,
+    COALESCE(
+        (sec.data->'laps'->>'windowsLapsConfigured')::boolean
+        OR (sec.data->'laps'->>'legacyLapsInstalled')::boolean,
+        false
+    ) as laps_configured,
+    sec.data->'laps'->>'backupDirectory' as laps_backup_directory,
+    COALESCE((sec.data->'appLocker'->>'policyConfigured')::boolean, false) as applocker_configured,
+    COALESCE((sec.data->'appLocker'->>'wdacEnabled')::boolean, false) as wdac_enabled,
+    sec.data->'smartScreen'->>'windowsState' as smartscreen_state,
+    (sec.data->'smartScreen'->>'edgeEnabled')::boolean as edge_smartscreen_enabled,
+    COALESCE(jsonb_array_length(sec.data->'auditPolicy'->'categories'), 0) as audit_policy_count,
+    COALESCE(jsonb_array_length(sec.data->'edrProducts'), 0) as edr_product_count,
+    COALESCE(
+        (sec.data->'windowsHello'->>'faceSensorPresent')::boolean
+        OR (sec.data->'windowsHello'->>'fingerprintSensorPresent')::boolean,
+        false
+    ) as hello_biometric_present,
+    COALESCE((sec.data->'tpmOwnership'->>'isOwned')::boolean, false) as tpm_owned,
+    COALESCE((sec.data->'tpmOwnership'->>'isReady')::boolean, false) as tpm_ready,
+    (sec.data->'passwordPolicy'->>'minPasswordLength')::int as min_password_length,
+    (sec.data->'passwordPolicy'->>'lockoutThreshold')::int as lockout_threshold,
+    COALESCE((sec.data->'autoLogin'->>'autoAdminLogon')::boolean, false) as auto_admin_logon,
+    COALESCE((sec.data->'autoLogin'->>'hasDefaultPassword')::boolean, false) as default_password_present,
 
     -- Misc
-    sec.data->>'autoLoginUser' as auto_login_user
+    COALESCE(sec.data->'autoLogin'->>'defaultUserName', sec.data->>'autoLoginUser') as auto_login_user
 
 FROM devices d
 LEFT JOIN security sec ON d.serial_number = sec.device_id

@@ -2187,12 +2187,28 @@ async def get_bulk_security(
                  department, fleet,
                  firewall_enabled, encryption_enabled,
                  antivirus_name, antivirus_enabled, antivirus_up_to_date, antivirus_version, antivirus_last_scan,
-                 detection_count,
+                 detection_count, active_threat_count, has_active_threats,
+                 detections_blocked_30d, detections_cleaned_30d, detections_total_30d,
+                 last_threat_detected_at,
                  tpm_present, tpm_enabled, secure_boot_enabled, secure_boot_db_cert_count, secure_boot_kek_cert_count, sip_enabled, gatekeeper_enabled,
                  memory_integrity_enabled, core_isolation_enabled, smart_app_control_state,
                  ssh_status_display, ssh_is_configured, ssh_is_service_running, rdp_enabled,
                  certificate_count, expired_cert_count, expiring_soon_cert_count,
-                 cve_count, critical_cve_count,
+                 user_expired_cert_count, os_root_expired_cert_count,
+                 cve_count, critical_cve_count, actively_exploited_cve_count,
+                 # Phase 2 — protection posture
+                 lsa_protection_enabled, lsa_protection_mode, tamper_protected, uac_level,
+                 pending_reboot, asr_block_rule_count, asr_audit_rule_count,
+                 defender_engine_version, defender_product_version, defender_exclusions_count,
+                 entra_joined, domain_joined, entra_tenant_name,
+                 # Phase 3 — compliance / inventory
+                 local_admin_count, laps_configured, laps_backup_directory,
+                 applocker_configured, wdac_enabled,
+                 smartscreen_state, edge_smartscreen_enabled,
+                 audit_policy_count, edr_product_count,
+                 hello_biometric_present, tpm_owned, tpm_ready,
+                 min_password_length, lockout_threshold,
+                 auto_admin_logon, default_password_present,
                  auto_login_user) = row
                 
                 devices.append({
@@ -2220,8 +2236,15 @@ async def get_bulk_security(
                     'antivirusUpToDate': bool(antivirus_up_to_date),
                     'antivirusVersion': antivirus_version,
                     'antivirusLastScan': antivirus_last_scan,
-                    # Detection (threat alerts count - 0 = clean)
+                    # Detection (raw event count - includes ASR blocks)
                     'detectionCount': int(detection_count or 0),
+                    # Active threats only (excludes ASR rule blocks which are protection working)
+                    'activeThreatCount': int(active_threat_count or 0),
+                    'hasActiveThreats': bool(has_active_threats),
+                    'detectionsBlocked30d': int(detections_blocked_30d or 0),
+                    'detectionsCleaned30d': int(detections_cleaned_30d or 0),
+                    'detectionsTotal30d': int(detections_total_30d or 0),
+                    'lastThreatDetectedAt': last_threat_detected_at,
                     # Tampering
                     'tpmPresent': bool(tpm_present),
                     'tpmEnabled': bool(tpm_enabled),
@@ -2245,9 +2268,43 @@ async def get_bulk_security(
                     'certificateCount': certificate_count or 0,
                     'expiredCertCount': expired_cert_count or 0,
                     'expiringSoonCertCount': expiring_soon_cert_count or 0,
-                    # Vulnerabilities
+                    'userExpiredCertCount': user_expired_cert_count or 0,
+                    'osRootExpiredCertCount': os_root_expired_cert_count or 0,
+                    # Vulnerabilities (unpatched only; total via securityCves array if needed)
                     'cveCount': cve_count or 0,
                     'criticalCveCount': critical_cve_count or 0,
+                    'activelyExploitedCveCount': actively_exploited_cve_count or 0,
+                    # Protection posture (Phase 2)
+                    'lsaProtectionEnabled': bool(lsa_protection_enabled),
+                    'lsaProtectionMode': lsa_protection_mode,
+                    'tamperProtected': tamper_protected,
+                    'uacLevel': uac_level,
+                    'pendingReboot': bool(pending_reboot),
+                    'asrBlockRuleCount': int(asr_block_rule_count or 0),
+                    'asrAuditRuleCount': int(asr_audit_rule_count or 0),
+                    'defenderEngineVersion': defender_engine_version,
+                    'defenderProductVersion': defender_product_version,
+                    'defenderExclusionsCount': int(defender_exclusions_count or 0),
+                    'entraJoined': entra_joined,
+                    'domainJoined': domain_joined,
+                    'entraTenantName': entra_tenant_name,
+                    # Compliance / inventory (Phase 3)
+                    'localAdminCount': int(local_admin_count or 0),
+                    'lapsConfigured': bool(laps_configured),
+                    'lapsBackupDirectory': laps_backup_directory,
+                    'appLockerConfigured': bool(applocker_configured),
+                    'wdacEnabled': bool(wdac_enabled),
+                    'smartScreenState': smartscreen_state,
+                    'edgeSmartScreenEnabled': edge_smartscreen_enabled,
+                    'auditPolicyCount': int(audit_policy_count or 0),
+                    'edrProductCount': int(edr_product_count or 0),
+                    'helloBiometricPresent': bool(hello_biometric_present),
+                    'tpmOwned': bool(tpm_owned),
+                    'tpmReady': bool(tpm_ready),
+                    'minPasswordLength': min_password_length,
+                    'lockoutThreshold': lockout_threshold,
+                    'autoAdminLogon': bool(auto_admin_logon),
+                    'defaultPasswordPresent': bool(default_password_present),
                     # Misc
                     'autoLoginUser': auto_login_user,
                 })
