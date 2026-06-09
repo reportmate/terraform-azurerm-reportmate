@@ -2193,7 +2193,10 @@ async def get_bulk_security(
                  ssh_status_display, ssh_is_configured, ssh_is_service_running, rdp_enabled,
                  certificate_count, expired_cert_count, expiring_soon_cert_count,
                  cve_count, critical_cve_count,
-                 auto_login_user) = row
+                 auto_login_user,
+                 manufacturer, model,
+                 fw_pwd_manufacturer, fw_pwd_source, fw_pwd_admin_set,
+                 fw_pwd_power_on_set, fw_pwd_hdd_set, fw_pwd_status_display) = row
                 
                 devices.append({
                     'id': serial_number,
@@ -2250,6 +2253,20 @@ async def get_bulk_security(
                     'criticalCveCount': critical_cve_count or 0,
                     # Misc
                     'autoLoginUser': auto_login_user,
+                    # Hardware (for OEM cohort splits on the fleet security page)
+                    'manufacturer': manufacturer,
+                    'model': model,
+                    # Firmware password state — used to scope physical-touch lists
+                    # for SecureBoot / BIOS remediation work. Categorical only;
+                    # never carries the actual password value.
+                    'firmwarePassword': {
+                        'manufacturer': fw_pwd_manufacturer,
+                        'source': fw_pwd_source,
+                        'adminPasswordSet': fw_pwd_admin_set,
+                        'powerOnPasswordSet': fw_pwd_power_on_set,
+                        'hddPasswordSet': fw_pwd_hdd_set,
+                        'statusDisplay': fw_pwd_status_display,
+                    },
                 })
             except Exception as e:
                 logger.warning(f"Error processing security for device {row[0]}: {e}")

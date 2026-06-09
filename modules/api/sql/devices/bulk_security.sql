@@ -105,11 +105,29 @@ SELECT DISTINCT ON (d.serial_number)
     COALESCE((sec.data->>'criticalCveCount')::int, 0) as critical_cve_count,
 
     -- Misc
-    sec.data->>'autoLoginUser' as auto_login_user
+    sec.data->>'autoLoginUser' as auto_login_user,
+
+    -- Hardware (manufacturer / model) — surfaced here so the fleet security
+    -- page can split SecureBoot / encryption cohorts by OEM without a separate fetch.
+    -- Both snake_case and camelCase keys checked since hardware payloads have varied.
+    COALESCE(hw.data->>'manufacturer', hw.data->>'Manufacturer') as manufacturer,
+    COALESCE(hw.data->>'model', hw.data->>'Model') as model,
+
+    -- FirmwarePasswordInfo — collected per-OEM by the C# binary
+    -- (Lenovo: Lenovo_BiosPasswordSettings WMI; Dell: DellSmbios:\Security\IsAdminPasswordSet;
+    --  HP: HP CMI; SMBIOS fallback). Used to scope which devices need physical visits
+    -- vs. can be remediated via OEM tooling automation.
+    sec.data->'firmwarePassword'->>'manufacturer' as fw_pwd_manufacturer,
+    sec.data->'firmwarePassword'->>'source' as fw_pwd_source,
+    (sec.data->'firmwarePassword'->>'adminPasswordSet')::boolean as fw_pwd_admin_set,
+    (sec.data->'firmwarePassword'->>'powerOnPasswordSet')::boolean as fw_pwd_power_on_set,
+    (sec.data->'firmwarePassword'->>'hddPasswordSet')::boolean as fw_pwd_hdd_set,
+    sec.data->'firmwarePassword'->>'statusDisplay' as fw_pwd_status_display
 
 FROM devices d
 LEFT JOIN security sec ON d.serial_number = sec.device_id
 LEFT JOIN inventory inv ON d.serial_number = inv.device_id
+LEFT JOIN hardware hw ON d.serial_number = hw.device_id
 WHERE d.serial_number IS NOT NULL
     AND d.serial_number NOT LIKE 'TEST-%%'
     AND d.serial_number != 'localhost'
