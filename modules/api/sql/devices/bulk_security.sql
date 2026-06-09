@@ -27,8 +27,23 @@ SELECT DISTINCT ON (d.serial_number)
     ) as firewall_enabled,
 
     -- Encryption (Windows: bitLocker, Mac: fileVault)
+    -- Guard against the osquery Win11 26100 bug where bitlocker_info reports
+    -- protection_status=1 on unencrypted drives. Trust isEnabled only when at
+    -- least one encrypted volume has a real encryption method ("AES-*", not "None").
+    -- jsonb_typeof guard protects against malformed payloads where encryptedVolumes
+    -- is null/object/scalar — calling jsonb_array_elements on a non-array would
+    -- otherwise break the entire /api/devices/security query.
     COALESCE(
-        (sec.data->'encryption'->'bitLocker'->>'isEnabled')::boolean,
+        CASE
+            WHEN (sec.data->'encryption'->'bitLocker'->>'isEnabled')::boolean = true
+             AND jsonb_typeof(sec.data->'encryption'->'encryptedVolumes') = 'array'
+             AND EXISTS (
+                SELECT 1 FROM jsonb_array_elements(sec.data->'encryption'->'encryptedVolumes') vol
+                WHERE COALESCE(vol->>'encryptionMethod', 'None') NOT IN ('None', '')
+            ) THEN true
+            WHEN (sec.data->'encryption'->'bitLocker'->>'isEnabled')::boolean = true THEN false
+            ELSE NULL
+        END,
         (sec.data->'fileVault'->>'enabled')::boolean,
         false
     ) as encryption_enabled,
