@@ -332,14 +332,17 @@ def get_db_connection():
                 host = host_and_port
                 port = 5432
 
-            logger.info(f"Connecting to database: {host}:{port}/{database}")
+            # SSL is required by Azure Postgres (default). Self-hosted/local
+            # Postgres often has no TLS, so allow opting out via DB_SSL=false.
+            db_ssl = os.getenv('DB_SSL', 'true').lower() not in ('false', '0', 'no', 'disable')
+            logger.info(f"Connecting to database: {host}:{port}/{database} (ssl={db_ssl})")
             conn = pg8000.connect(
                 host=host,
                 port=port,
                 database=database,
                 user=username,
                 password=password,
-                ssl_context=True,
+                ssl_context=True if db_ssl else None,
                 timeout=30
             )
             cursor = conn.cursor()
