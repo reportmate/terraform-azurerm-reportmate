@@ -30,6 +30,23 @@ _ORG_SCOPE = "org"
 _ORG_PRINCIPAL = ""
 _CACHE_NS = "settings"
 
+# Auth methods permitted to perform control-plane writes / discovery. Only the
+# trusted Next.js proxy (which enforces the admin role) uses the internal
+# secret; the device-fleet passphrase and managed identities must NOT be able to
+# rewrite org settings or enumerate inventory values.
+_CONTROL_PLANE_METHODS = {"internal_secret", "auth_disabled"}
+
+
+async def require_internal_secret(auth: dict = Depends(verify_authentication)):
+    """Allow only internal-service callers (the admin-gated proxy). Rejects the
+    fleet passphrase and managed-identity callers used for device ingestion."""
+    if (auth or {}).get("method") not in _CONTROL_PLANE_METHODS:
+        raise HTTPException(
+            status_code=403,
+            detail="This endpoint requires internal service authentication",
+        )
+    return auth
+
 
 # ── Validation models (permissive: unknown keys are preserved) ──────────────
 # The store is JSONB and the document is meant to evolve, so we validate shape
@@ -136,15 +153,25 @@ async def get_settings():
     return result
 
 
-@router.put("/settings", dependencies=[Depends(verify_authentication)], tags=["settings"])
+def _clean_actor(value: Optional[str]) -> Optional[str]:
+    """Sanitize the proxy-supplied updater identity before storing/logging:
+    strip CR/LF (log-injection), trim, and bound the length."""
+    if not value:
+        return None
+    cleaned = value.replace("\r", "").replace("\n", "").strip()
+    return cleaned[:255] or None
+
+
+@router.put("/settings", tags=["settings"])
 async def put_settings(
     request: Request,
+    auth: dict = Depends(require_internal_secret),
     x_updated_by: Optional[str] = Header(None, alias="X-Updated-By"),
 ):
     """Replace the org-scoped settings document.
 
-    Writes are gated by an admin role check in the Next.js proxy before reaching
-    this endpoint; the API trusts the internal secret.
+    Restricted to internal-service callers (the Next.js proxy, which enforces the
+    admin role). The fleet passphrase and managed identities cannot reach this.
     """
     try:
         body = await request.json()
@@ -156,6 +183,7 @@ async def put_settings(
 
     # Persist the (validated) document as-is, preserving any extra fields.
     document = parsed.model_dump(exclude_none=False)
+    actor = _clean_actor(x_updated_by)
 
     try:
         conn = get_db_connection()
@@ -167,7 +195,7 @@ async def put_settings(
                 "principal": _ORG_PRINCIPAL,
                 "value": json.dumps(document),
                 "schema_version": schema_version,
-                "updated_by": x_updated_by,
+                "updated_by": actor,
             },
         )
         row = cursor.fetchone()
@@ -182,7 +210,10 @@ async def put_settings(
     invalidate_caches()
 
     value, saved_version, updated_at, updated_by = row
-    logger.info(f"[SETTINGS] org settings updated by {updated_by or 'unknown'}")
+    logger.info(
+        f"[SETTINGS] org settings updated by {updated_by or 'unknown'} "
+        f"(auth={auth.get('method')}, ip={auth.get('client_ip')})"
+    )
     return {
         "exists": True,
         "value": value,
@@ -192,14 +223,15 @@ async def put_settings(
     }
 
 
-@router.get("/settings/inventory/discover", dependencies=[Depends(verify_authentication)], tags=["settings"])
+@router.get("/settings/inventory/discover", dependencies=[Depends(require_internal_secret)], tags=["settings"])
 async def discover_inventory_keys(
     include_archived: bool = Query(default=False, description="Include archived devices in discovery"),
 ):
     """Discover the inventory keys present across the fleet, with sample values.
 
-    Powers the onboarding wizard's field-mapping step so admins can map whatever
-    keys their Inventory.yaml emits to ReportMate's canonical fields.
+    Restricted to internal-service callers (the admin-gated proxy), since the
+    sample values can expose inventory data. Powers the onboarding wizard's
+    field-mapping step so admins can map whatever keys their Inventory.yaml emits.
     """
     try:
         conn = get_db_connection()
