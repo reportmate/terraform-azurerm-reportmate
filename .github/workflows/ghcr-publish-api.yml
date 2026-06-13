@@ -1,7 +1,7 @@
 name: Publish API image
 
 # Publishes the FastAPI image to GHCR for the self-host stack
-# (github.com/reportmate/self-host). Runs on version tags or manually.
+# (github.com/reportmate/selfhosted-docker-reportmate). Runs on version tags or manually.
 
 on:
   push:
