@@ -70,6 +70,7 @@ _CACHE_TTL: dict = {
     "system": 30,
     "inventory": 30,
     "events": 15,
+    "settings": 30,
 }
 
 
@@ -183,6 +184,9 @@ def preload_sql_queries():
         "admin/check_orphaned",
         "admin/events_stats",
         "admin/table_sizes",
+        "settings/get",
+        "settings/upsert",
+        "settings/inventory_discover",
     ]
 
     loaded = 0
@@ -223,6 +227,14 @@ REPORTMATE_PASSPHRASE = os.getenv('REPORTMATE_PASSPHRASE')
 API_INTERNAL_SECRET = os.getenv('API_INTERNAL_SECRET')
 AZURE_MANAGED_IDENTITY_HEADER = "X-MS-CLIENT-PRINCIPAL-ID"
 DISABLE_AUTH = os.getenv('DISABLE_AUTH', 'false').lower() in ('true', '1', 'yes')
+
+if DISABLE_AUTH:
+    # Surface this prominently — a deployment that ships with auth disabled is a
+    # security hole, and the per-request bypass otherwise only logs at debug.
+    logger.warning(
+        "[SECURITY] DISABLE_AUTH is enabled: ALL API requests bypass authentication. "
+        "This must never be set in production."
+    )
 
 
 async def verify_authentication(

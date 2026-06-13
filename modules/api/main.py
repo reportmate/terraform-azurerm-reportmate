@@ -22,7 +22,7 @@ from dependencies import (
     logger,
     preload_sql_queries,
 )
-from routers import admin, devices, events, fleet, health, statistics
+from routers import admin, devices, events, fleet, health, settings, statistics
 
 # ── Pre-load SQL queries into memory ────────────────────────────
 preload_sql_queries()
@@ -67,6 +67,7 @@ API requests are subject to rate limiting. Contact support for increased limits.
         {"name": "events", "description": "Event logging, retrieval, and real-time notifications"},
         {"name": "statistics", "description": "Fleet analytics, usage statistics, and reporting"},
         {"name": "admin", "description": "Administrative operations and diagnostics"},
+        {"name": "settings", "description": "Server-side org settings: inventory mapping and security rules"},
     ],
 )
 
@@ -94,7 +95,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── Routers ────────────────────────────────────────────────────
 # Canonical versioned prefix (appears in OpenAPI schema)
-for _router_mod in (health, devices, fleet, events, statistics, admin):
+for _router_mod in (health, devices, fleet, events, statistics, admin, settings):
     app.include_router(_router_mod.router, prefix="/api/v1")
 
 # ── Root endpoint (unversioned) ────────────────────────────────
@@ -154,6 +155,17 @@ async def ensure_performance_indexes():
                 users JSONB NOT NULL DEFAULT '[]'::jsonb,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 UNIQUE(device_id, date, app_name)
+            )""",
+            # app_settings table (migration 011) — server-side settings store
+            """CREATE TABLE IF NOT EXISTS app_settings (
+                id BIGSERIAL PRIMARY KEY,
+                scope TEXT NOT NULL DEFAULT 'org',
+                principal TEXT NOT NULL DEFAULT '',
+                value JSONB NOT NULL DEFAULT '{}'::jsonb,
+                schema_version INTEGER NOT NULL DEFAULT 1,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_by TEXT,
+                UNIQUE(scope, principal)
             )""",
             "CREATE INDEX IF NOT EXISTS idx_usage_history_device_date ON usage_history(device_id, date DESC)",
             "CREATE INDEX IF NOT EXISTS idx_usage_history_app_date ON usage_history(app_name, date DESC)",
