@@ -30,12 +30,14 @@ try {
     exit 1
 }
 
-# Run migration files in order
+# Run migration files in order. All listed migrations are idempotent
+# (CREATE ... IF NOT EXISTS), so re-running is safe.
 $migrationFiles = @(
     "001-initial-migration.sql",
-    "002-modules-migration.sql", 
+    "002-modules-migration.sql",
     "003-indexes-migration.sql",
-    "004-usage-history-migration.sql"
+    "004-usage-history-migration.sql",
+    "011-app-settings.sql"
 )
 
 foreach ($migration in $migrationFiles) {
