@@ -32,7 +32,7 @@ SELECT DISTINCT ON (d.serial_number)
     -- least one encrypted volume has a real encryption method ("AES-*", not "None").
     -- jsonb_typeof guard protects against malformed payloads where any expected
     -- JSONB array (encryptedVolumes, detections, certificates, securityCves,
-    -- asrRules, localAdmins, auditPolicy.categories, edrProducts, secureBoot
+    -- asrRules, auditPolicy.categories, edrProducts, secureBoot
     -- certificate lists) is null/object/scalar — calling jsonb_array_length or
     -- jsonb_array_elements on a non-array would otherwise 500 the whole query.
     COALESCE(
@@ -163,11 +163,10 @@ SELECT DISTINCT ON (d.serial_number)
           AND COALESCE((cve->>'activelyExploited')::boolean, false) = true
     ), 0) ELSE 0 END as actively_exploited_cve_count,
 
-    -- Phase 2: protection posture
+    -- Protection posture
     COALESCE((sec.data->'lsaProtection'->>'enabled')::boolean, false) as lsa_protection_enabled,
     sec.data->'lsaProtection'->>'mode' as lsa_protection_mode,
     (sec.data->'tamperProtection'->>'isTamperProtected')::boolean as tamper_protected,
-    sec.data->'uac'->>'level' as uac_level,
     COALESCE((sec.data->'pendingReboot'->>'required')::boolean, false) as pending_reboot,
     CASE WHEN jsonb_typeof(sec.data->'asrRules') = 'array' THEN COALESCE((
         SELECT count(*)::int FROM jsonb_array_elements(sec.data->'asrRules') rule
@@ -180,19 +179,8 @@ SELECT DISTINCT ON (d.serial_number)
     sec.data->'defenderVersions'->>'amEngineVersion' as defender_engine_version,
     sec.data->'defenderVersions'->>'amProductVersion' as defender_product_version,
     COALESCE((sec.data->'defenderExclusions'->>'totalCount')::int, 0) as defender_exclusions_count,
-    (sec.data->'joinState'->>'azureAdJoined')::boolean as entra_joined,
-    (sec.data->'joinState'->>'domainJoined')::boolean as domain_joined,
-    sec.data->'joinState'->>'tenantName' as entra_tenant_name,
 
-    -- Phase 3: compliance / inventory
-    CASE WHEN jsonb_typeof(sec.data->'localAdmins') = 'array'
-         THEN jsonb_array_length(sec.data->'localAdmins') ELSE 0 END as local_admin_count,
-    COALESCE(
-        (sec.data->'laps'->>'windowsLapsConfigured')::boolean
-        OR (sec.data->'laps'->>'legacyLapsInstalled')::boolean,
-        false
-    ) as laps_configured,
-    sec.data->'laps'->>'backupDirectory' as laps_backup_directory,
+    -- Compliance / inventory
     COALESCE((sec.data->'appLocker'->>'policyConfigured')::boolean, false) as applocker_configured,
     COALESCE((sec.data->'appLocker'->>'wdacEnabled')::boolean, false) as wdac_enabled,
     sec.data->'smartScreen'->>'windowsState' as smartscreen_state,
@@ -200,21 +188,10 @@ SELECT DISTINCT ON (d.serial_number)
     CASE WHEN jsonb_typeof(sec.data->'auditPolicy'->'categories') = 'array'
          THEN jsonb_array_length(sec.data->'auditPolicy'->'categories') ELSE 0 END as audit_policy_count,
     CASE WHEN jsonb_typeof(sec.data->'edrProducts') = 'array'
-         THEN jsonb_array_length(sec.data->'edrProducts') ELSE 0 END as edr_product_count,
-    COALESCE(
-        (sec.data->'windowsHello'->>'faceSensorPresent')::boolean
-        OR (sec.data->'windowsHello'->>'fingerprintSensorPresent')::boolean,
-        false
-    ) as hello_biometric_present,
-    COALESCE((sec.data->'tpmOwnership'->>'isOwned')::boolean, false) as tpm_owned,
-    COALESCE((sec.data->'tpmOwnership'->>'isReady')::boolean, false) as tpm_ready,
-    (sec.data->'passwordPolicy'->>'minPasswordLength')::int as min_password_length,
-    (sec.data->'passwordPolicy'->>'lockoutThreshold')::int as lockout_threshold,
-    COALESCE((sec.data->'autoLogin'->>'autoAdminLogon')::boolean, false) as auto_admin_logon,
-    COALESCE((sec.data->'autoLogin'->>'hasDefaultPassword')::boolean, false) as default_password_present,
-
-    -- Misc
-    COALESCE(sec.data->'autoLogin'->>'defaultUserName', sec.data->>'autoLoginUser') as auto_login_user
+         THEN jsonb_array_length(sec.data->'edrProducts') ELSE 0 END as edr_product_count
+    -- Identity-domain signals (UAC, join state, local admins, LAPS, Windows Hello,
+    -- TPM ownership, password policy, auto-login) moved to the Identity module;
+    -- see bulk_identity.sql, which returns the full identity_data blob.
 
 FROM devices d
 LEFT JOIN security sec ON d.serial_number = sec.device_id
