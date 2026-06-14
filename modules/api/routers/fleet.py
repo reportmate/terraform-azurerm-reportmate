@@ -2197,20 +2197,14 @@ async def get_bulk_security(
                  certificate_count, expired_cert_count, expiring_soon_cert_count,
                  user_expired_cert_count, os_root_expired_cert_count,
                  cve_count, critical_cve_count, actively_exploited_cve_count,
-                 # Phase 2 — protection posture
-                 lsa_protection_enabled, lsa_protection_mode, tamper_protected, uac_level,
+                 # Protection posture
+                 lsa_protection_enabled, lsa_protection_mode, tamper_protected,
                  pending_reboot, asr_block_rule_count, asr_audit_rule_count,
                  defender_engine_version, defender_product_version, defender_exclusions_count,
-                 entra_joined, domain_joined, entra_tenant_name,
-                 # Phase 3 — compliance / inventory
-                 local_admin_count, laps_configured, laps_backup_directory,
+                 # Compliance / inventory
                  applocker_configured, wdac_enabled,
                  smartscreen_state, edge_smartscreen_enabled,
-                 audit_policy_count, edr_product_count,
-                 hello_biometric_present, tpm_owned, tpm_ready,
-                 min_password_length, lockout_threshold,
-                 auto_admin_logon, default_password_present,
-                 auto_login_user) = row
+                 audit_policy_count, edr_product_count) = row
                 
                 devices.append({
                     'id': serial_number,
@@ -2280,39 +2274,26 @@ async def get_bulk_security(
                     'cveCount': cve_count or 0,
                     'criticalCveCount': critical_cve_count or 0,
                     'activelyExploitedCveCount': actively_exploited_cve_count or 0,
-                    # Protection posture (Phase 2)
+                    # Protection posture
                     'lsaProtectionEnabled': bool(lsa_protection_enabled),
                     'lsaProtectionMode': lsa_protection_mode,
                     'tamperProtected': tamper_protected,
-                    'uacLevel': uac_level,
                     'pendingReboot': bool(pending_reboot),
                     'asrBlockRuleCount': int(asr_block_rule_count or 0),
                     'asrAuditRuleCount': int(asr_audit_rule_count or 0),
                     'defenderEngineVersion': defender_engine_version,
                     'defenderProductVersion': defender_product_version,
                     'defenderExclusionsCount': int(defender_exclusions_count or 0),
-                    'entraJoined': entra_joined,
-                    'domainJoined': domain_joined,
-                    'entraTenantName': entra_tenant_name,
-                    # Compliance / inventory (Phase 3)
-                    'localAdminCount': int(local_admin_count or 0),
-                    'lapsConfigured': bool(laps_configured),
-                    'lapsBackupDirectory': laps_backup_directory,
+                    # Compliance / inventory
                     'appLockerConfigured': bool(applocker_configured),
                     'wdacEnabled': bool(wdac_enabled),
                     'smartScreenState': smartscreen_state,
                     'edgeSmartScreenEnabled': edge_smartscreen_enabled,
                     'auditPolicyCount': int(audit_policy_count or 0),
                     'edrProductCount': int(edr_product_count or 0),
-                    'helloBiometricPresent': bool(hello_biometric_present),
-                    'tpmOwned': bool(tpm_owned),
-                    'tpmReady': bool(tpm_ready),
-                    'minPasswordLength': min_password_length,
-                    'lockoutThreshold': lockout_threshold,
-                    'autoAdminLogon': bool(auto_admin_logon),
-                    'defaultPasswordPresent': bool(default_password_present),
-                    # Misc
-                    'autoLoginUser': auto_login_user,
+                    # Identity-domain signals (UAC, join state, local admins, LAPS,
+                    # Windows Hello, TPM ownership, password policy, auto-login) are
+                    # served by /api/devices/identity now (identity_data blob).
                 })
             except Exception as e:
                 logger.warning(f"Error processing security for device {row[0]}: {e}")
