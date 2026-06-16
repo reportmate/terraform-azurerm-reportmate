@@ -12,6 +12,7 @@ Handles all device-related operations:
 """
 
 import json
+import re
 import time as _time
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
@@ -356,7 +357,13 @@ async def get_device_by_serial(serial_number: str):
                     modules[table] = module_data
             except Exception as e:
                 logger.warning(f"Failed to get {table} data for {serial_num}: {e}")
-        
+
+        # Extension data (server-joined add-ons) is intentionally NOT merged into
+        # the device's `modules` here yet — the read-model surface (device.extensions
+        # vs merging into device.modules) is still being decided. Read it via the
+        # /device/{serial}/extension/{name} and /extension/{name} endpoints
+        # (routers/extensions.py). Wire the chosen merge here once decided.
+
         conn.close()
         
         # Resolve best device name: inventory.deviceName > network.hostname > stored name > serial
@@ -401,6 +408,11 @@ async def get_device_by_serial(serial_number: str):
     except Exception as e:
         logger.error(f"Failed to get device {serial_number}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve device: {str(e)}")
+
+
+# Server-joined / add-on ingestion moved to routers/extensions.py as the
+# /device/{serial}/extension/{name} surface (+ bulk/fleet/registry). Core module
+# data is ingested via /events; this router only reads/serves device modules.
 
 
 @router.get("/device/{serial_number}/installs/log", dependencies=[Depends(verify_authentication)], tags=["devices"])
