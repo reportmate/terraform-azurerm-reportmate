@@ -358,21 +358,11 @@ async def get_device_by_serial(serial_number: str):
             except Exception as e:
                 logger.warning(f"Failed to get {table} data for {serial_num}: {e}")
 
-        # Extension modules (server-joined integrations or third-party add-ons)
-        # live in the generic module_data table keyed by (device_id, module_id).
-        # Merge them in alongside the dedicated-table modules so the frontend
-        # renders them identically. Dedicated tables win on id collision.
-        try:
-            cursor.execute(
-                "SELECT module_id, data FROM module_data WHERE device_id = %s",
-                (serial_num,),
-            )
-            for ext_id, ext_data in cursor.fetchall():
-                if ext_id in modules:
-                    continue
-                modules[ext_id] = json.loads(ext_data) if isinstance(ext_data, str) else ext_data
-        except Exception as e:
-            logger.warning(f"Failed to load extension modules for {serial_num}: {e}")
+        # Extension data (server-joined add-ons) is intentionally NOT merged into
+        # the device's `modules` here yet — the read-model surface (device.extensions
+        # vs merging into device.modules) is still being decided. Read it via the
+        # /device/{serial}/extension/{name} and /extension/{name} endpoints
+        # (routers/extensions.py). Wire the chosen merge here once decided.
 
         conn.close()
         
@@ -420,102 +410,9 @@ async def get_device_by_serial(serial_number: str):
         raise HTTPException(status_code=500, detail=f"Failed to retrieve device: {str(e)}")
 
 
-_MODULE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
-
-
-@router.post("/device/{serial_number}/module/{module_id}",
-             dependencies=[Depends(verify_authentication)], tags=["devices"])
-async def upsert_device_module(serial_number: str, module_id: str, request: Request):
-    """Attach a single module's data to a device from a server-side source.
-
-    This is the server-joined counterpart to the client `/events` ingestion
-    path: an external integration that already knows a device (joined by serial)
-    can attach a named module to it without a client collecting the data. A
-    core module id (one of VALID_MODULE_NAMES) is written to its dedicated
-    table, exactly as the client path would; any other id is stored in the
-    generic `module_data` table. Either way the GET device endpoint merges it
-    into the device's `modules` object, so the frontend renders server-attached
-    modules identically to client-collected ones.
-
-    Body: ``{"data": {...}, "collectedAt": "<iso8601>", "source": "<id>"}``.
-    A bare object (no ``data`` key) is also accepted as the module payload.
-    Auth is the same fleet/internal/managed-identity gate as device ingestion;
-    this is data-plane, not the control-plane settings write.
-    """
-    module_id = (module_id or "").strip().lower()
-    if not _MODULE_ID_RE.match(module_id):
-        raise HTTPException(status_code=400, detail="Invalid module id")
-
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Request body must be valid JSON")
-
-    if isinstance(body, dict) and "data" in body:
-        data = body.get("data")
-        collected_at = body.get("collectedAt") or body.get("collected_at")
-        source = body.get("source")
-    else:
-        data = body
-        collected_at = None
-        source = None
-    if data is None:
-        raise HTTPException(status_code=400, detail="Missing module data")
-
-    collected_at = collected_at or datetime.now(timezone.utc).isoformat()
-    now = datetime.now(timezone.utc)
-    data_json = json.dumps(data)
-
-    conn = get_db_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM devices WHERE id = %s", (serial_number,))
-        if not cursor.fetchone():
-            raise HTTPException(status_code=404, detail=f"Device {serial_number} not found")
-
-        if module_id in VALID_MODULE_NAMES:
-            cursor.execute(
-                f"""
-                INSERT INTO {module_id} (device_id, data, collected_at, created_at, updated_at)
-                VALUES (%s, %s::jsonb, %s, %s, %s)
-                ON CONFLICT (device_id) DO UPDATE
-                    SET data = EXCLUDED.data,
-                        collected_at = EXCLUDED.collected_at,
-                        updated_at = EXCLUDED.updated_at
-                """,
-                (serial_number, data_json, collected_at, now, now),
-            )
-            target = module_id
-        else:
-            cursor.execute(
-                """
-                INSERT INTO module_data (device_id, module_id, data, source, collected_at, created_at, updated_at)
-                VALUES (%s, %s, %s::jsonb, %s, %s, %s, %s)
-                ON CONFLICT (device_id, module_id) DO UPDATE
-                    SET data = EXCLUDED.data,
-                        source = EXCLUDED.source,
-                        collected_at = EXCLUDED.collected_at,
-                        updated_at = EXCLUDED.updated_at
-                """,
-                (serial_number, module_id, data_json, source, collected_at, now, now),
-            )
-            target = "module_data"
-
-        conn.commit()
-        return {
-            "success": True,
-            "device": serial_number,
-            "module": module_id,
-            "table": target,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Failed to upsert module {module_id} for {serial_number}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to store module data")
-    finally:
-        conn.close()
+# Server-joined / add-on ingestion moved to routers/extensions.py as the
+# /device/{serial}/extension/{name} surface (+ bulk/fleet/registry). Core module
+# data is ingested via /events; this router only reads/serves device modules.
 
 
 @router.get("/device/{serial_number}/installs/log", dependencies=[Depends(verify_authentication)], tags=["devices"])
