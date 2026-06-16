@@ -22,7 +22,7 @@ from dependencies import (
     logger,
     preload_sql_queries,
 )
-from routers import admin, devices, events, fleet, health, settings, statistics
+from routers import admin, devices, events, extensions, fleet, health, settings, statistics
 
 # ── Pre-load SQL queries into memory ────────────────────────────
 preload_sql_queries()
@@ -95,7 +95,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── Routers ────────────────────────────────────────────────────
 # Canonical versioned prefix (appears in OpenAPI schema)
-for _router_mod in (health, devices, fleet, events, statistics, admin, settings):
+for _router_mod in (health, devices, fleet, events, statistics, admin, settings, extensions):
     app.include_router(_router_mod.router, prefix="/api/v1")
 
 # ── Root endpoint (unversioned) ────────────────────────────────
