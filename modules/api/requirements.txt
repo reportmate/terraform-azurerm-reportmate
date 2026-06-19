@@ -1,7 +1,0 @@
-fastapi>=0.104.1
-uvicorn[standard]>=0.24.0
-pydantic>=2.5.0
-pg8000>=1.31.2
-python-multipart>=0.0.6
-azure-messaging-webpubsubservice>=1.0.0
-slowapi>=0.1.9
