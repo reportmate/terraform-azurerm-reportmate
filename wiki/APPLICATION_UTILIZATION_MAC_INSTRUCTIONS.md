@@ -503,7 +503,7 @@ interface ApplicationsData {
 ## Questions / Support
 
 If you encounter issues with:
-- API compatibility: Check `infrastructure/modules/api/main.py`
+- API compatibility: Check the [reportmate-api](https://github.com/reportmate/reportmate-api) repo (`routers/fleet.py`)
 - Windows reference: Check `clients/windows/src/Services/ApplicationUsageService.cs`
 - Frontend display: Check `apps/www/src/components/reports/FleetApplicationsReport.tsx`
 

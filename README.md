@@ -180,7 +180,7 @@ ReportMate provides a complete osquery fleet management platform with:
 
 ### REST API Endpoints
 
-The FastAPI application (`modules/api/main.py`) provides these endpoint categories:
+The FastAPI application (in the [reportmate-api](https://github.com/reportmate/reportmate-api) repo) provides these endpoint categories:
 
 #### Health and Status
 - **GET** `/api/health` - API health status and database connectivity
@@ -215,10 +215,10 @@ The FastAPI application (`modules/api/main.py`) provides these endpoint categori
 
 ### SQL Query Architecture
 
-SQL queries are externalized to `.sql` files for maintainability:
+SQL queries are externalized to `.sql` files for maintainability (in the [reportmate-api](https://github.com/reportmate/reportmate-api) repo):
 
 ```
-modules/api/sql/
+sql/
 ├── devices/           # 20 device query files
 │   ├── bulk_hardware.sql
 │   ├── bulk_installs.sql
@@ -259,7 +259,7 @@ ReportMate processes 11 data modules from client telemetry:
 ReportMate uses Azure Container Apps for both API and frontend:
 
 ### API Container
-- **Image**: Built from `modules/api/Dockerfile`
+- **Image**: `ghcr.io/reportmate/reportmate-api` (built by the [reportmate-api](https://github.com/reportmate/reportmate-api) repo CI), mirrored into Azure Container Registry at deploy
 - **Registry**: Azure Container Registry (reportmateacr.azurecr.io)
 - **Deployment**: `.\scripts\deploy-api.ps1 -ForceBuild`
 
