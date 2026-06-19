@@ -25,7 +25,7 @@
     DEPRECATED: This script is replaced by pipelines/reportmate-deploy-infra.yml
     
     🚨 CRITICAL FIXES IN THIS VERSION:
-    - API code moved to proper infrastructure location (modules/api)
+    - API image pulled from GHCR (github.com/reportmate/reportmate-api)
     - Device ID alignment standardized on serialNumber (UUIDs deprecated)
     - No more UUID confusion throughout stack
     - Database queries use serial_number consistently
@@ -84,7 +84,7 @@ function Write-Warning {
 
 Write-Status "ReportMate API Container Deployment"
 Write-Status "DEVICE ID ALIGNMENT FIX - Version 2.1.0"
-Write-Status "API code now in proper location: infrastructure/modules/api"
+Write-Status "Deploying prebuilt API image from GHCR (github.com/reportmate/reportmate-api)"
 Write-Status ""
 
 # Configuration
@@ -92,7 +92,7 @@ $RegistryName = "reportmateacr"
 $ImageName = "reportmate-api"
 $ContainerAppName = "reportmate-functions-api"
 $ResourceGroup = "ReportMate"
-$APISourcePath = ".\modules\api"
+$APISourcePath = "ghcr.io/reportmate/reportmate-api"
 
 # Generate tag if not provided
 if (-not $Tag) {
@@ -110,14 +110,10 @@ Write-Status "  Container App: $ContainerAppName"
 Write-Status "  API Source: $APISourcePath"
 Write-Status ""
 
-# Validate we're in infrastructure directory and API source exists
-if (-not (Test-Path "modules\api\main.py")) {
-    Write-Host "${Red}[ERROR]${Reset} Must run from infrastructure directory. API source not found at: modules\api\main.py"
-    Write-Host "${Red}[ERROR]${Reset} Current location: $(Get-Location)"
-    exit 1
-}
-
-Write-Success "API source found at correct location: modules\api\main.py"
+# The API source lives in its own repo (github.com/reportmate/reportmate-api),
+# published to GHCR. This script mirrors that prebuilt image into ACR - there is
+# no local API source to validate.
+Write-Status "Using prebuilt API image from GHCR (source: github.com/reportmate/reportmate-api)"
 
 try {
     # Set working directory to infrastructure root
@@ -132,32 +128,22 @@ try {
         }
         Write-Success "ACR authentication successful"
         
-        Write-Host "`nBuilding Docker image..." -ForegroundColor Blue
-        Write-Status "  Image: $FullImageName"
-        
-        # Build the Docker image
-        $buildArgs = @(
-            "build",
-            "--platform", "linux/amd64"
-        )
-        
-        if ($ForceBuild) {
-            $buildArgs += "--no-cache"
-        }
-        
-        $buildArgs += @(
-            "-t", $FullImageName,
-            "-f", "modules/api/Dockerfile",
-            "modules/api"
-        )
-        
-        & docker @buildArgs
-        
+        Write-Host "`nPulling prebuilt API image from GHCR..." -ForegroundColor Blue
+        $GhcrImage = "ghcr.io/reportmate/reportmate-api"
+        $GhcrTag = if ($env:GHCR_TAG) { $env:GHCR_TAG } else { "latest" }
+        Write-Status "  Source: ${GhcrImage}:${GhcrTag}"
+        Write-Status "  Target: $FullImageName"
+
+        & docker pull --platform linux/amd64 "${GhcrImage}:${GhcrTag}"
         if ($LASTEXITCODE -ne 0) {
-            throw "Docker build failed with exit code $LASTEXITCODE"
+            throw "Failed to pull API image from GHCR (${GhcrImage}:${GhcrTag})"
         }
-        
-        Write-Success "Docker image built successfully"
+        & docker tag "${GhcrImage}:${GhcrTag}" $FullImageName
+        if ($LASTEXITCODE -ne 0) {
+            throw "Docker tag failed with exit code $LASTEXITCODE"
+        }
+
+        Write-Success "API image pulled from GHCR and tagged for ACR"
         
         # Push to Azure Container Registry
         Write-Host "`nPushing image to ACR..." -ForegroundColor Blue
