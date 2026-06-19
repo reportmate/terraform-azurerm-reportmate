@@ -396,3 +396,5 @@ scratch.md
 # Include schema files
 !schemas/*.sql
 !schemas/*.prisma
+
+/.worktrees/

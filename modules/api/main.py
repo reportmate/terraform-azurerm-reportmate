@@ -62,17 +62,34 @@ API requests are subject to rate limiting. Contact support for increased limits.
     },
     openapi_tags=[
         {"name": "health", "description": "Health checks and status endpoints"},
-        {"name": "devices", "description": "Device management operations - list, get, archive, delete devices"},
-        {"name": "fleet", "description": "Fleet-wide bulk data endpoints for analytics dashboards"},
-        {"name": "events", "description": "Event logging, retrieval, and real-time notifications"},
-        {"name": "statistics", "description": "Fleet analytics, usage statistics, and reporting"},
+        {
+            "name": "devices",
+            "description": "Device management operations - list, get, archive, delete devices",
+        },
+        {
+            "name": "fleet",
+            "description": "Fleet-wide bulk data endpoints for analytics dashboards",
+        },
+        {
+            "name": "events",
+            "description": "Event logging, retrieval, and real-time notifications",
+        },
+        {
+            "name": "statistics",
+            "description": "Fleet analytics, usage statistics, and reporting",
+        },
         {"name": "admin", "description": "Administrative operations and diagnostics"},
-        {"name": "settings", "description": "Server-side org settings: inventory mapping and security rules"},
+        {
+            "name": "settings",
+            "description": "Server-side org settings: inventory mapping and security rules",
+        },
     ],
 )
 
 # ── Middleware ──────────────────────────────────────────────────
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else []
+CORS_ORIGINS = (
+    os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else []
+)
 CORS_ORIGINS = [o.strip() for o in CORS_ORIGINS if o.strip()]
 
 app.add_middleware(
@@ -113,12 +130,14 @@ async def root():
             "health": "/api/v1/health",
             "devices": "/api/v1/devices",
             "device": "/api/v1/device/{serial_number}",
+            "modules": "/api/v1/{module}",
             "events": "/api/v1/events",
             "events_submit": "/api/v1/events (POST)",
             "negotiate": "/api/v1/negotiate",
             "dashboard": "/api/v1/dashboard",
         },
     }
+
 
 # ── Startup: ensure performance indexes ────────────────────────
 _indexes_ensured = False
@@ -222,7 +241,11 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     label = _HTTP_ERROR_LABELS.get(exc.status_code, "Error")
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": label, "detail": exc.detail or label, "status_code": exc.status_code},
+        content={
+            "error": label,
+            "detail": exc.detail or label,
+            "status_code": exc.status_code,
+        },
     )
 
 
@@ -230,10 +253,15 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def internal_error_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal server error", "detail": str(exc), "status_code": 500},
+        content={
+            "error": "Internal server error",
+            "detail": str(exc),
+            "status_code": 500,
+        },
     )
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
