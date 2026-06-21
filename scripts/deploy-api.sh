@@ -26,7 +26,7 @@ set -euo pipefail
 #     DEPRECATED: This script is replaced by pipelines/reportmate-deploy-infra.yml
 #     
 #     🚨 CRITICAL FIXES IN THIS VERSION:
-#     - API code moved to proper infrastructure location (modules/api)
+#     - API image pulled from GHCR (github.com/reportmate/reportmate-api)
 #     - Device ID alignment standardized on serialNumber (UUIDs deprecated)
 #     - No more UUID confusion throughout stack
 #     - Database queries use serial_number consistently
@@ -120,7 +120,7 @@ fi
 
 write_status "ReportMate API Container Deployment"
 write_status "DEVICE ID ALIGNMENT FIX - Version 2.1.0"
-write_status "API code now in proper location: infrastructure/modules/api"
+write_status "Deploying prebuilt API image from GHCR (github.com/reportmate/reportmate-api)"
 echo ""
 
 # Configuration
@@ -128,7 +128,7 @@ REGISTRY_NAME="reportmateacr"
 IMAGE_NAME="reportmate-api"
 CONTAINER_APP_NAME="reportmate-functions-api"
 RESOURCE_GROUP="ReportMate"
-API_SOURCE_PATH="./modules/api"
+API_SOURCE_PATH="ghcr.io/reportmate/reportmate-api"
 
 # Generate tag if not provided
 if [ -z "$TAG" ]; then
@@ -150,15 +150,10 @@ echo ""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Validate API source exists
-if [ ! -f "$INFRA_DIR/modules/api/main.py" ]; then
-    write_error "API source not found at: $INFRA_DIR/modules/api/main.py"
-    write_error "Script location: $SCRIPT_DIR"
-    write_error "Infrastructure directory: $INFRA_DIR"
-    exit 1
-fi
-
-write_success "API source found at correct location: modules/api/main.py"
+# The API source lives in its own repo (github.com/reportmate/reportmate-api),
+# published to GHCR. This script mirrors that prebuilt image into ACR - there is
+# no local API source to validate.
+write_status "Using prebuilt API image from GHCR (source: github.com/reportmate/reportmate-api)"
 
 # Change to infrastructure directory
 cd "$INFRA_DIR"
@@ -191,31 +186,19 @@ if [ "$SKIP_BUILD" = false ]; then
     fi
     write_success "ACR authentication successful"
     
-    echo -e "\n${BLUE}Building Docker image...${RESET}"
-    write_status "  Image: $FULL_IMAGE_NAME"
-    
-    # Build the Docker image
-    BUILD_ARGS=(
-        "build"
-        "--platform" "linux/amd64"
-    )
-    
-    if [ "$FORCE_BUILD" = true ]; then
-        BUILD_ARGS+=("--no-cache")
-    fi
-    
-    BUILD_ARGS+=(
-        "-t" "$FULL_IMAGE_NAME"
-        "-f" "modules/api/Dockerfile"
-        "modules/api"
-    )
-    
-    if ! docker "${BUILD_ARGS[@]}"; then
-        write_error "Docker build failed"
+    echo -e "\n${BLUE}Pulling prebuilt API image from GHCR...${RESET}"
+    GHCR_IMAGE="ghcr.io/reportmate/reportmate-api"
+    GHCR_TAG="${GHCR_TAG:-latest}"
+    write_status "  Source: $GHCR_IMAGE:$GHCR_TAG"
+    write_status "  Target: $FULL_IMAGE_NAME"
+
+    if ! docker pull --platform linux/amd64 "$GHCR_IMAGE:$GHCR_TAG"; then
+        write_error "Failed to pull API image from GHCR ($GHCR_IMAGE:$GHCR_TAG)"
         exit 1
     fi
-    
-    write_success "Docker image built successfully"
+    docker tag "$GHCR_IMAGE:$GHCR_TAG" "$FULL_IMAGE_NAME"
+
+    write_success "API image pulled from GHCR and tagged for ACR"
     
     # Push to Azure Container Registry
     echo -e "\n${BLUE}Pushing image to ACR...${RESET}"

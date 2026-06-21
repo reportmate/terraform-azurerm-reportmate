@@ -198,7 +198,7 @@ if (matchedApp != null)
 
 ## API Implementation
 
-### File: `infrastructure/modules/api/main.py`
+### File: the [reportmate-api](https://github.com/reportmate/reportmate-api) repo (`routers/fleet.py`)
 
 ### Endpoint: `GET /api/devices/applications/usage`
 
@@ -371,7 +371,7 @@ Get-Content "C:\ProgramData\ManagedReports\cache\applications.json" | ConvertFro
 |-----------|------|---------|
 | Client Service | `clients/windows/src/Services/ApplicationUsageService.cs` | Collects usage from Event Logs |
 | Client Module | `clients/windows/src/Modules/ApplicationsModule.cs` | Orchestrates collection |
-| API Endpoint | `infrastructure/modules/api/main.py` | Fleet utilization API |
+| API Endpoint | the [reportmate-api](https://github.com/reportmate/reportmate-api) repo (`routers/fleet.py`) | Fleet utilization API |
 | Frontend Report | `apps/www/src/components/reports/FleetApplicationsReport.tsx` | UI component |
 | Frontend Hook | `apps/www/src/hooks/useFleetApplicationsReport.ts` | Data fetching |
 
