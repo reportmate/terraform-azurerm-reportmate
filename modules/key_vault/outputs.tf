@@ -83,15 +83,16 @@ output "nextauth_secret_id" {
 output "secret_names" {
   description = "Map of secret names in Key Vault"
   value = {
-    db_password              = azurerm_key_vault_secret.db_password.name
-    postgres_server_name     = azurerm_key_vault_secret.postgres_server_name.name
-    db_username              = azurerm_key_vault_secret.db_username.name
-    db_name                  = azurerm_key_vault_secret.db_name.name
-    azure_ad_client_id       = azurerm_key_vault_secret.azure_ad_client_id.name
-    azure_ad_tenant_id       = azurerm_key_vault_secret.azure_ad_tenant_id.name
-    client_passphrase        = azurerm_key_vault_secret.client_passphrase.name
-    devops_group_object_id   = azurerm_key_vault_secret.devops_group_object_id.name
-    custom_domain_name       = azurerm_key_vault_secret.custom_domain_name.name
-    nextauth_secret          = azurerm_key_vault_secret.nextauth_secret.name
+    db_password            = azurerm_key_vault_secret.db_password.name
+    postgres_server_name   = azurerm_key_vault_secret.postgres_server_name.name
+    db_username            = azurerm_key_vault_secret.db_username.name
+    db_name                = azurerm_key_vault_secret.db_name.name
+    azure_ad_client_id     = azurerm_key_vault_secret.azure_ad_client_id.name
+    azure_ad_tenant_id     = azurerm_key_vault_secret.azure_ad_tenant_id.name
+    client_passphrase      = azurerm_key_vault_secret.client_passphrase.name
+    api_internal_secret    = azurerm_key_vault_secret.api_internal_secret.name
+    devops_group_object_id = azurerm_key_vault_secret.devops_group_object_id.name
+    custom_domain_name     = azurerm_key_vault_secret.custom_domain_name.name
+    nextauth_secret        = azurerm_key_vault_secret.nextauth_secret.name
   }
 }
