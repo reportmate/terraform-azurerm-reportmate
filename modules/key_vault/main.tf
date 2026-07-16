@@ -52,7 +52,7 @@ resource "azurerm_role_assignment" "managed_identity" {
   scope                = azurerm_key_vault.reportmate.id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = var.managed_identity_principal_id
-  
+
   # Only create this if managed identity principal ID is provided
   count = var.managed_identity_principal_id != "" && var.managed_identity_principal_id != null ? 1 : 0
 }
@@ -166,6 +166,21 @@ resource "azurerm_key_vault_secret" "client_passphrase" {
   tags = merge(var.tags, {
     Purpose = "Client Authentication"
     Type    = "Passphrase"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
+# Internal API Authentication Secret (frontend -> API container-to-container)
+resource "azurerm_key_vault_secret" "api_internal_secret" {
+  name         = "api-internal-secret"
+  value        = var.api_internal_secret
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "Shared secret for internal container-to-container API authentication"
+
+  tags = merge(var.tags, {
+    Purpose = "Internal API Authentication"
+    Type    = "SharedSecret"
   })
 
   depends_on = [azurerm_role_assignment.current_user]
