@@ -229,3 +229,10 @@ variable "ssh_password" {
   default     = ""
   sensitive   = true
 }
+
+variable "api_internal_secret" {
+  description = "Shared secret for internal container-to-container API authentication (frontend to API)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
