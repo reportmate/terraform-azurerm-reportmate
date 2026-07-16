@@ -214,6 +214,7 @@ module "key_vault" {
   client_passphrases   = var.client_passphrases
   custom_domain_name   = var.custom_domain_name
   nextauth_secret      = var.nextauth_secret
+  api_internal_secret  = var.api_internal_secret
 
   # Azure Service Connection Strings (for backup/portability)
   # Note: These are from modules that key_vault doesn't depend on
