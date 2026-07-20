@@ -553,6 +553,38 @@ resource "azurerm_container_app" "api_functions" {
         name  = "DB_POOL_MIN"
         value = tostring(var.api_db_pool_min)
       }
+
+      # Liveness on /api/v1/health, which reports unhealthy when the connection
+      # pool cannot reach Postgres. Without a probe a replica whose pool has
+      # filled with dead connections stays in rotation serving 500s forever —
+      # observed repeatedly on 2026-07-20, where the only recovery was a manual
+      # revision restart. Failing the probe hands that recycling to Azure.
+      #
+      # failure_count_threshold of 3 at 20s means a genuinely wedged replica is
+      # replaced in about a minute, while a single slow health check during a
+      # vacuum or a traffic spike is not enough to cycle a working replica.
+      liveness_probe {
+        transport               = "HTTP"
+        path                    = "/api/v1/health"
+        port                    = 8000
+        initial_delay           = 20
+        interval_seconds        = 20
+        timeout                 = 5
+        failure_count_threshold = 3
+      }
+
+      # Readiness gates traffic rather than killing the replica, so a pool that
+      # is briefly unable to reach the database drains out of the load balancer
+      # instead of returning errors to clients.
+      readiness_probe {
+        transport               = "HTTP"
+        path                    = "/api/v1/health"
+        port                    = 8000
+        interval_seconds        = 10
+        timeout                 = 5
+        failure_count_threshold = 2
+        success_count_threshold = 1
+      }
     }
 
     # Scaling configuration (always keep at least 1 instance)
