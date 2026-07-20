@@ -45,6 +45,20 @@ resource "random_id" "db_suffix" {
   byte_length = 4
 }
 
+# Connection ceiling for the server. The API sizes its per-replica pools against
+# this number (see api_db_pool_max in the containers module), so it belongs in
+# code rather than sitting at whatever the server happens to report.
+#
+# max_connections is a static parameter: changing it restarts the server. The
+# default here matches the value already running, so a plan is a no-op until
+# someone deliberately raises it — do that in a maintenance window, not
+# alongside an unrelated apply.
+resource "azurerm_postgresql_flexible_server_configuration" "max_connections" {
+  name      = "max_connections"
+  server_id = azurerm_postgresql_flexible_server.pg.id
+  value     = tostring(var.db_max_connections)
+}
+
 # Firewall rule to allow Azure services
 resource "azurerm_postgresql_flexible_server_firewall_rule" "azure_services" {
   name             = "allow_azure"
