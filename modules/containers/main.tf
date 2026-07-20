@@ -523,6 +523,23 @@ resource "azurerm_container_app" "api_functions" {
         name  = "API_INTERNAL_SECRET"
         value = var.api_internal_secret
       }
+
+      # Federated OIDC bearer auth (provider-agnostic SSO). Inert unless
+      # ENABLE_OIDC_AUTH is true AND issuers/audience are non-empty.
+      env {
+        name  = "ENABLE_OIDC_AUTH"
+        value = tostring(var.enable_oidc_auth)
+      }
+
+      env {
+        name  = "OIDC_ISSUERS"
+        value = var.oidc_issuers
+      }
+
+      env {
+        name  = "OIDC_AUDIENCE"
+        value = var.oidc_audience
+      }
     }
 
     # Scaling configuration (always keep at least 1 instance)
