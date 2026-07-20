@@ -540,15 +540,36 @@ resource "azurerm_container_app" "api_functions" {
         name  = "OIDC_AUDIENCE"
         value = var.oidc_audience
       }
+
+      # Postgres connection pool sizing. Total fleet demand is
+      # api_db_pool_max * api_max_replicas and is bounded against the server's
+      # max_connections by the precondition below.
+      env {
+        name  = "DB_POOL_MAX"
+        value = tostring(var.api_db_pool_max)
+      }
+
+      env {
+        name  = "DB_POOL_MIN"
+        value = tostring(var.api_db_pool_min)
+      }
     }
 
     # Scaling configuration (always keep at least 1 instance)
     min_replicas = 1
-    max_replicas = 5
+    max_replicas = var.api_max_replicas
   }
 
   # Workaround for Azure's API cache returning old resource group casing
   lifecycle {
+    # Every replica opens its own pool, so a fully scaled-out API must still fit
+    # inside max_connections with the reserve intact. Fail the plan rather than
+    # discover the ceiling when autoscale hits it under load.
+    precondition {
+      condition     = var.api_db_pool_max * var.api_max_replicas <= var.db_max_connections - var.db_connection_reserve
+      error_message = "API pool demand (api_db_pool_max * api_max_replicas) exceeds usable Postgres connections (db_max_connections - db_connection_reserve). Lower the pool or replica count, or raise max_connections on the server."
+    }
+
     ignore_changes = [
       container_app_environment_id, # Ignore changes to environment ID due to Azure API cache
       # Image tag is managed by the CI/CD pipeline (deploy-api.ps1 -ForceBuild),

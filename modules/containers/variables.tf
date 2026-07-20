@@ -257,3 +257,45 @@ variable "oidc_audience" {
   description = "Comma-separated accepted audiences for API bearer auth (OIDC_AUDIENCE)."
   default     = ""
 }
+
+# Database connection pool sizing for the API container.
+#
+# The API holds a DBUtils PooledDB per replica, so the fleet-wide demand on
+# Postgres is api_db_pool_max * api_max_replicas. That product must stay under
+# the server's max_connections with room to spare: Postgres reserves slots for
+# superuser and maintenance, and autovacuum holds several during a vacuum pass.
+#
+# Sizing these independently is what caused the 2026-07-20 outage — a pool of 10
+# against max_replicas of 5 demanded exactly all 50 connections, so the API broke
+# itself the moment autoscale reacted to a traffic surge. The precondition on the
+# api_functions resource now enforces the relationship instead of leaving it to
+# whoever edits one of the three numbers next.
+variable "api_db_pool_max" {
+  type        = number
+  description = "Max pooled Postgres connections held by each API replica (DB_POOL_MAX)."
+  default     = 6
+}
+
+variable "api_db_pool_min" {
+  type        = number
+  description = "Warm pooled Postgres connections kept per API replica (DB_POOL_MIN)."
+  default     = 1
+}
+
+variable "api_max_replicas" {
+  type        = number
+  description = "Max API container replicas. Bounds total pool demand together with api_db_pool_max."
+  default     = 5
+}
+
+variable "db_max_connections" {
+  type        = number
+  description = "Postgres max_connections on the ReportMate server. Used to bound total pool demand."
+  default     = 50
+}
+
+variable "db_connection_reserve" {
+  type        = number
+  description = "Connections held back from the API pools for superuser, autovacuum, migrations, and ad-hoc admin access."
+  default     = 15
+}
