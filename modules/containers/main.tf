@@ -540,15 +540,68 @@ resource "azurerm_container_app" "api_functions" {
         name  = "OIDC_AUDIENCE"
         value = var.oidc_audience
       }
+
+      # Postgres connection pool sizing. Total fleet demand is
+      # api_db_pool_max * api_max_replicas and is bounded against the server's
+      # max_connections by the precondition below.
+      env {
+        name  = "DB_POOL_MAX"
+        value = tostring(var.api_db_pool_max)
+      }
+
+      env {
+        name  = "DB_POOL_MIN"
+        value = tostring(var.api_db_pool_min)
+      }
+
+      # Liveness on /api/v1/health, which reports unhealthy when the connection
+      # pool cannot reach Postgres. Without a probe a replica whose pool has
+      # filled with dead connections stays in rotation serving 500s forever —
+      # observed repeatedly on 2026-07-20, where the only recovery was a manual
+      # revision restart. Failing the probe hands that recycling to Azure.
+      #
+      # failure_count_threshold of 3 at 20s means a genuinely wedged replica is
+      # replaced in about a minute, while a single slow health check during a
+      # vacuum or a traffic spike is not enough to cycle a working replica.
+      liveness_probe {
+        transport               = "HTTP"
+        path                    = "/api/v1/health"
+        port                    = 8000
+        initial_delay           = 20
+        interval_seconds        = 20
+        timeout                 = 5
+        failure_count_threshold = 3
+      }
+
+      # Readiness gates traffic rather than killing the replica, so a pool that
+      # is briefly unable to reach the database drains out of the load balancer
+      # instead of returning errors to clients.
+      readiness_probe {
+        transport               = "HTTP"
+        path                    = "/api/v1/health"
+        port                    = 8000
+        interval_seconds        = 10
+        timeout                 = 5
+        failure_count_threshold = 2
+        success_count_threshold = 1
+      }
     }
 
     # Scaling configuration (always keep at least 1 instance)
     min_replicas = 1
-    max_replicas = 5
+    max_replicas = var.api_max_replicas
   }
 
   # Workaround for Azure's API cache returning old resource group casing
   lifecycle {
+    # Every replica opens its own pool, so a fully scaled-out API must still fit
+    # inside max_connections with the reserve intact. Fail the plan rather than
+    # discover the ceiling when autoscale hits it under load.
+    precondition {
+      condition     = var.api_db_pool_max * var.api_max_replicas <= var.db_max_connections - var.db_connection_reserve
+      error_message = "API pool demand (api_db_pool_max * api_max_replicas) exceeds usable Postgres connections (db_max_connections - db_connection_reserve). Lower the pool or replica count, or raise max_connections on the server."
+    }
+
     ignore_changes = [
       container_app_environment_id, # Ignore changes to environment ID due to Azure API cache
       # Image tag is managed by the CI/CD pipeline (deploy-api.ps1 -ForceBuild),

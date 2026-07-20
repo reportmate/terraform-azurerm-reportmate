@@ -54,6 +54,34 @@ variable "db_sku_name" {
   default     = "B_Standard_B1ms"
 }
 
+# Connection budget. db_max_connections is the server ceiling; the API's
+# per-replica pools are sized against it in the containers module, which fails
+# the plan if a fully scaled-out API would not fit. Raising max_connections
+# restarts the Postgres server, so change it in a maintenance window.
+variable "db_max_connections" {
+  type        = number
+  description = "Postgres max_connections on the ReportMate server."
+  default     = 50
+}
+
+variable "api_db_pool_max" {
+  type        = number
+  description = "Max pooled Postgres connections per API replica (DB_POOL_MAX)."
+  default     = 6
+}
+
+variable "api_db_pool_min" {
+  type        = number
+  description = "Warm pooled Postgres connections per API replica (DB_POOL_MIN)."
+  default     = 1
+}
+
+variable "api_max_replicas" {
+  type        = number
+  description = "Max API container replicas."
+  default     = 5
+}
+
 variable "db_storage_mb" {
   type        = number
   description = "PostgreSQL storage size in MB"

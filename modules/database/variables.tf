@@ -56,6 +56,12 @@ variable "api_endpoint" {
   default     = ""
 }
 
+variable "db_max_connections" {
+  type        = number
+  description = "Postgres max_connections. Static parameter: raising it restarts the server. Keep in step with api_db_pool_max * api_max_replicas in the containers module."
+  default     = 50
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to resources"

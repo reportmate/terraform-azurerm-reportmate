@@ -13,8 +13,8 @@ resource "azurerm_postgresql_flexible_server" "pg" {
   public_network_access_enabled = true
 
   # Backup configuration - automatic daily backups with 7 day retention
-  backup_retention_days         = 7
-  geo_redundant_backup_enabled  = false  # Set to true for production geo-redundancy
+  backup_retention_days        = 7
+  geo_redundant_backup_enabled = false # Set to true for production geo-redundancy
 
   authentication {
     password_auth_enabled = true
@@ -24,13 +24,27 @@ resource "azurerm_postgresql_flexible_server" "pg" {
 
   lifecycle {
     prevent_destroy = true
-    ignore_changes = [zone]
+    ignore_changes  = [zone]
   }
 }
 
 # Random suffix to ensure unique database server name
 resource "random_id" "db_suffix" {
   byte_length = 4
+}
+
+# Connection ceiling for the server. The API sizes its per-replica pools against
+# this number (see api_db_pool_max in the containers module), so it belongs in
+# code rather than sitting at whatever the server happens to report.
+#
+# max_connections is a static parameter: changing it restarts the server. The
+# default here matches the value already running, so a plan is a no-op until
+# someone deliberately raises it — do that in a maintenance window, not
+# alongside an unrelated apply.
+resource "azurerm_postgresql_flexible_server_configuration" "max_connections" {
+  name      = "max_connections"
+  server_id = azurerm_postgresql_flexible_server.pg.id
+  value     = tostring(var.db_max_connections)
 }
 
 # Firewall rule to allow Azure services
