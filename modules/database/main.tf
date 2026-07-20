@@ -24,20 +24,7 @@ resource "azurerm_postgresql_flexible_server" "pg" {
 
   lifecycle {
     prevent_destroy = true
-
-    # storage_mb is deliberately unmanaged. Azure Postgres storage can only grow
-    # — shrinking it is not an in-place operation, so any tfvars value below the
-    # server's actual size makes Terraform plan a destroy-and-recreate of the
-    # production database. terraform.tfvars is gitignored and drifts from
-    # reality as storage grows (2026-07-20: config said 128 GB, server was
-    # 256 GB), which turned a routine apply into a plan that tried to replace
-    # the server holding the entire fleet's history. prevent_destroy caught it,
-    # but as a hard plan error that blocked every unrelated change too, and the
-    # obvious way to "unblock" that error is to remove the guard.
-    #
-    # Grow storage through the portal or `az postgres flexible-server update`;
-    # Terraform will not fight the result.
-    ignore_changes = [zone, storage_mb]
+    ignore_changes  = [zone]
   }
 }
 
