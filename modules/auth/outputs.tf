@@ -63,13 +63,13 @@ output "redirect_uris" {
 output "environment_variables" {
   description = "Environment variables needed for the web application"
   value = {
-    NEXTAUTH_SECRET           = random_password.nextauth_secret.result
-    AZURE_AD_CLIENT_ID        = azuread_application.reportmate_web.client_id
-    AZURE_AD_CLIENT_SECRET    = azuread_application_password.reportmate_web.value
-    AZURE_AD_TENANT_ID        = data.azuread_client_config.current.tenant_id
-    AUTH_PROVIDERS            = join(",", var.auth_providers)
-    DEFAULT_AUTH_PROVIDER     = var.default_auth_provider
-    ALLOWED_DOMAINS           = join(",", var.allowed_domains)
+    NEXTAUTH_SECRET            = random_password.nextauth_secret.result
+    AZURE_AD_CLIENT_ID         = azuread_application.reportmate_web.client_id
+    AZURE_AD_CLIENT_SECRET     = azuread_application_password.reportmate_web.value
+    AZURE_AD_TENANT_ID         = data.azuread_client_config.current.tenant_id
+    AUTH_PROVIDERS             = join(",", var.auth_providers)
+    DEFAULT_AUTH_PROVIDER      = var.default_auth_provider
+    ALLOWED_DOMAINS            = join(",", var.allowed_domains)
     REQUIRE_EMAIL_VERIFICATION = tostring(var.require_email_verification)
   }
   sensitive = true
@@ -79,9 +79,9 @@ output "environment_variables" {
 output "key_vault_secret_names" {
   description = "Names of secrets stored in Key Vault"
   value = var.key_vault_id != null ? {
-    client_id     = "auth-client-id"
-    client_secret = "auth-client-secret"
-    tenant_id     = "auth-tenant-id"
+    client_id       = "auth-client-id"
+    client_secret   = "auth-client-secret"
+    tenant_id       = "auth-tenant-id"
     nextauth_secret = "nextauth-secret"
   } : null
 }
@@ -98,15 +98,37 @@ output "app_roles" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# OIDC API bearer auth — values consumed by the API container app
+# ---------------------------------------------------------------------------
+
+output "oidc_api_client_id" {
+  description = "Client (application) ID of the ReportMate API app registration, or null when disabled."
+  value       = var.enable_oidc_api ? azuread_application.reportmate_api[0].client_id : null
+}
+
+output "oidc_issuer" {
+  description = "v2.0 token issuer for this tenant (OIDC_ISSUERS for the API)."
+  value       = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/v2.0"
+}
+
+output "oidc_api_audience" {
+  description = "Accepted audience values for API bearer tokens (App ID URI and bare client id), comma-separated. Empty when disabled."
+  value = var.enable_oidc_api ? join(",", [
+    "api://${azuread_application.reportmate_api[0].client_id}",
+    azuread_application.reportmate_api[0].client_id,
+  ]) : ""
+}
+
 # OAuth Configuration Details
 output "oauth_configuration" {
   description = "OAuth configuration details for documentation"
   value = {
     authorization_endpoint = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/oauth2/v2.0/authorize"
-    token_endpoint        = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/oauth2/v2.0/token"
-    userinfo_endpoint     = "https://graph.microsoft.com/oidc/userinfo"
-    issuer               = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/v2.0"
-    jwks_uri             = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/discovery/v2.0/keys"
+    token_endpoint         = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/oauth2/v2.0/token"
+    userinfo_endpoint      = "https://graph.microsoft.com/oidc/userinfo"
+    issuer                 = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/v2.0"
+    jwks_uri               = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/discovery/v2.0/keys"
   }
 }
 
@@ -152,7 +174,7 @@ output "container_app_env_vars" {
 # Setup Instructions
 output "setup_instructions" {
   description = "Instructions for completing the setup"
-  value = <<-EOT
+  value       = <<-EOT
     
     Entra ID App Registration Created Successfully!
     

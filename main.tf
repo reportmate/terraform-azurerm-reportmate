@@ -167,6 +167,12 @@ module "auth" {
   # Principals (users or groups) granted the Administrator app role
   admin_principal_ids = var.admin_principal_ids
 
+  # OIDC API bearer auth — separate ReportMate API app registration (no-op until enabled)
+  enable_oidc_api           = var.enable_oidc_api
+  oidc_reader_principal_ids = var.oidc_reader_principal_ids
+  oidc_ingest_principal_ids = var.oidc_ingest_principal_ids
+  oidc_admin_principal_ids  = var.oidc_admin_principal_ids
+
   # Authentication Configuration
   auth_providers             = var.auth_providers
   default_auth_provider      = var.default_auth_provider
@@ -276,6 +282,11 @@ module "containers" {
   client_passphrases  = var.client_passphrases
   api_internal_secret = var.api_internal_secret
   allowed_domains     = var.allowed_domains
+
+  # OIDC bearer auth env for the API container (issuer/audience come from the auth module)
+  enable_oidc_auth = var.enable_oidc_api
+  oidc_issuers     = module.auth.oidc_issuer
+  oidc_audience    = module.auth.oidc_api_audience
 
   # Key Vault integration for secrets
   key_vault_uri = var.enable_key_vault ? module.key_vault[0].key_vault_uri : null
