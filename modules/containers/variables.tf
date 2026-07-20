@@ -96,7 +96,7 @@ variable "auth_secrets" {
     client_secret_name   = string
   })
   description = "Authentication secret names in Key Vault"
-  default = null
+  default     = null
 }
 
 variable "client_passphrases" {
@@ -235,5 +235,25 @@ variable "allowed_domains" {
 variable "default_site_url" {
   type        = string
   description = "Default site URL when custom domain is not enabled (derived from container environment)"
-  default     = ""  # Will be computed from container environment if empty
+  default     = "" # Will be computed from container environment if empty
+}
+
+# OIDC bearer auth for the API container (provider-agnostic SSO). Inert unless
+# enable_oidc_auth is true and the issuer/audience are set.
+variable "enable_oidc_auth" {
+  type        = bool
+  description = "Enable OIDC bearer authentication on the API container (sets ENABLE_OIDC_AUTH)."
+  default     = false
+}
+
+variable "oidc_issuers" {
+  type        = string
+  description = "Comma-separated trusted OIDC issuers for API bearer auth (OIDC_ISSUERS)."
+  default     = ""
+}
+
+variable "oidc_audience" {
+  type        = string
+  description = "Comma-separated accepted audiences for API bearer auth (OIDC_AUDIENCE)."
+  default     = ""
 }

@@ -33,7 +33,7 @@ variable "sign_in_audience" {
   validation {
     condition = contains([
       "AzureADMyOrg",
-      "AzureADMultipleOrgs", 
+      "AzureADMultipleOrgs",
       "AzureADandPersonalMicrosoftAccount",
       "PersonalMicrosoftAccount"
     ], var.sign_in_audience)
@@ -169,7 +169,7 @@ variable "auth_providers" {
     condition = alltrue([
       for provider in var.auth_providers : contains([
         "azure-ad",
-        "google", 
+        "google",
         "credentials"
       ], provider)
     ])
@@ -191,6 +191,34 @@ variable "authorized_groups" {
 
 variable "admin_principal_ids" {
   description = "List of Entra ID principal object IDs (users or groups) to assign the Administrator app role. Members can hard-delete devices and perform other privileged operations in the web app."
+  type        = list(string)
+  default     = []
+}
+
+# ---------------------------------------------------------------------------
+# OIDC API bearer auth (separate ReportMate API app registration)
+# ---------------------------------------------------------------------------
+
+variable "enable_oidc_api" {
+  description = "Create the ReportMate API app registration (protected resource) for OIDC bearer authentication. No-op when false; enabling it is what creates the Entra objects."
+  type        = bool
+  default     = false
+}
+
+variable "oidc_reader_principal_ids" {
+  description = "Entra object IDs (users, groups, or service principals) granted the ReportMate.Read API role."
+  type        = list(string)
+  default     = []
+}
+
+variable "oidc_ingest_principal_ids" {
+  description = "Entra object IDs granted the ReportMate.Ingest API role (telemetry submission — e.g. a device/service principal)."
+  type        = list(string)
+  default     = []
+}
+
+variable "oidc_admin_principal_ids" {
+  description = "Entra object IDs granted the ReportMate.Admin API role (full access)."
   type        = list(string)
   default     = []
 }

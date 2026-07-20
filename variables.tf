@@ -447,3 +447,31 @@ variable "admin_principal_ids" {
   description = "Entra ID principal object IDs (users or groups) granted the Administrator app role. Required to perform destructive actions in the web app such as deleting devices."
   default     = []
 }
+
+# ---------------------------------------------------------------------------
+# OIDC API bearer auth (Phase 2 — separate ReportMate API app registration)
+# ---------------------------------------------------------------------------
+
+variable "enable_oidc_api" {
+  type        = bool
+  description = "Create the ReportMate API app registration and wire OIDC bearer auth env into the API container. No-op when false — enabling it creates Entra objects and turns on bearer auth."
+  default     = false
+}
+
+variable "oidc_reader_principal_ids" {
+  type        = list(string)
+  description = "Entra object IDs (users, groups, or service principals) granted the ReportMate.Read API role."
+  default     = []
+}
+
+variable "oidc_ingest_principal_ids" {
+  type        = list(string)
+  description = "Entra object IDs granted the ReportMate.Ingest API role (telemetry submission)."
+  default     = []
+}
+
+variable "oidc_admin_principal_ids" {
+  type        = list(string)
+  description = "Entra object IDs granted the ReportMate.Admin API role (full access)."
+  default     = []
+}
