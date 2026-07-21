@@ -49,8 +49,8 @@ resource "azuread_application" "reportmate_web" {
 
   # Web application configuration
   web {
-    homepage_url  = var.homepage_url
-    logout_url    = var.logout_url
+    homepage_url = var.homepage_url
+    logout_url   = var.logout_url
 
     # Redirect URIs for OAuth flows
     redirect_uris = var.redirect_uris
@@ -129,12 +129,22 @@ resource "azuread_application" "reportmate_web" {
 }
 
 # Update identifier URIs using the application ID (workaround for tenant policy)
+#
+# See the matching resource in api.tf: without `triggers` this fires only at
+# create, so a transient Entra failure is swallowed by on_failure and never
+# retried. Both reportmate_web apps still have empty identifierUris for exactly
+# that reason. The az command is idempotent, so re-running it per apply is safe.
 resource "null_resource" "update_identifier_uris" {
   depends_on = [azuread_application.reportmate_web]
-  
+
+  triggers = {
+    client_id  = azuread_application.reportmate_web.client_id
+    always_run = timestamp()
+  }
+
   provisioner "local-exec" {
-    command     = "az ad app update --id ${azuread_application.reportmate_web.client_id} --identifier-uris api://${azuread_application.reportmate_web.client_id}"
-    on_failure  = continue
+    command    = "az ad app update --id ${azuread_application.reportmate_web.client_id} --identifier-uris api://${azuread_application.reportmate_web.client_id}"
+    on_failure = continue
   }
 }
 
