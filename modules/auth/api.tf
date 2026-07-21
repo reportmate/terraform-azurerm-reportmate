@@ -88,6 +88,18 @@ resource "azuread_application" "reportmate_api" {
   }
 
   tags = var.azuread_tags
+
+  # The identifier URI is owned by the provisioner below, not by this resource.
+  # `identifier_uris` is Optional but NOT Computed, so with no value in config
+  # the provider reads the URI back from Entra, sees config wants none, and
+  # removes it on every apply — then the provisioner re-adds it seconds later.
+  # Two writes to the same Entra property through different paths, with an
+  # eventually-consistent directory deciding the winner: that race is why some
+  # apps ended up with a URI and others did not. Ignoring the attribute here
+  # leaves the provisioner as the single writer.
+  lifecycle {
+    ignore_changes = [identifier_uris]
+  }
 }
 
 # Tenant policy blocks api://<friendly-name> URIs, so pin api://<client_id> the
