@@ -126,6 +126,14 @@ resource "azuread_application" "reportmate_web" {
   }
 
   tags = var.azuread_tags
+
+  # See the matching block in api.tf: identifier_uris is Optional-but-not-
+  # Computed, so leaving it out of config makes the provider strip the URI on
+  # every apply and race the provisioner that sets it. Ignore it here so the
+  # provisioner is the only writer.
+  lifecycle {
+    ignore_changes = [identifier_uris]
+  }
 }
 
 # Update identifier URIs using the application ID (workaround for tenant policy)
