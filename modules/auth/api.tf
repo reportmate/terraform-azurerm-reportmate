@@ -93,9 +93,21 @@ resource "azuread_application" "reportmate_api" {
 # Tenant policy blocks api://<friendly-name> URIs, so pin api://<client_id> the
 # same way reportmate_web does (identifier_uris can't reference the app's own
 # client id at create time).
+#
+# `triggers` re-runs this on every apply. Without it the provisioner fired once
+# at create, and because Entra had not yet replicated the app's ownership to the
+# deploy identity it failed with "Insufficient privileges" — which on_failure
+# swallowed. With no trigger there was no second attempt, so the URI stayed
+# empty on every app this module has ever created. The command is idempotent, so
+# re-running it each apply costs nothing and lets a transient failure self-heal.
 resource "null_resource" "reportmate_api_identifier_uri" {
   count      = var.enable_oidc_api ? 1 : 0
   depends_on = [azuread_application.reportmate_api]
+
+  triggers = {
+    client_id  = azuread_application.reportmate_api[0].client_id
+    always_run = timestamp()
+  }
 
   provisioner "local-exec" {
     command    = "az ad app update --id ${azuread_application.reportmate_api[0].client_id} --identifier-uris api://${azuread_application.reportmate_api[0].client_id}"
