@@ -10,7 +10,7 @@
     3. Optionally deletes old secrets after verification
 
 .PARAMETER VaultName
-    The name of the Azure Key Vault. Default: reportmate-kv
+    The name of the Azure Key Vault. Required; no default
 
 .PARAMETER DryRun
     If specified, only shows what would be done without making changes.
@@ -29,7 +29,8 @@
 #>
 
 param(
-    [string]$VaultName = "reportmate-kv",
+    [Parameter(Mandatory = $true)]
+    [string]$VaultName,
     [switch]$DryRun,
     [switch]$DeleteOld
 )

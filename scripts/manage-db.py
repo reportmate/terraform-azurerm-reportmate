@@ -92,7 +92,7 @@ def get_db_credentials(args):
     password = get_db_password_from_tfvars()
     if password:
         return {
-            'host': os.getenv('DB_SERVER', 'reportmate-database.postgres.database.azure.com'),
+            'host': os.environ['DB_SERVER'],
             'database': os.getenv('DB_NAME', 'reportmate'),
             'user': os.getenv('DB_USER', 'reportmate'),
             'password': password,
@@ -104,7 +104,7 @@ def get_db_credentials(args):
     if password:
         print_info("Using DB_PASSWORD from environment variable")
         return {
-            'host': os.getenv('DB_SERVER', 'reportmate-database.postgres.database.azure.com'),
+            'host': os.environ['DB_SERVER'],
             'database': os.getenv('DB_NAME', 'reportmate'),
             'user': os.getenv('DB_USER', 'reportmate'),
             'password': password,
@@ -115,7 +115,7 @@ def get_db_credentials(args):
     if args.password:
         print_warning("Using password from command-line flag (visible in process list!)")
         return {
-            'host': os.getenv('DB_SERVER', 'reportmate-database.postgres.database.azure.com'),
+            'host': os.environ['DB_SERVER'],
             'database': os.getenv('DB_NAME', 'reportmate'),
             'user': os.getenv('DB_USER', 'reportmate'),
             'password': args.password,
@@ -624,7 +624,7 @@ Credential Priority (most secure to least):
   3. Command flag: --password 'password' (emergency only, visible in process list!)
 
 Environment Variables:
-  DB_SERVER   - Database host (default: reportmate-database.postgres.database.azure.com)
+  DB_SERVER   - Database host (required)
   DB_NAME     - Database name (default: reportmate)
   DB_USER     - Database user (default: reportmate)
   DB_PASSWORD - Database password (fallback if terraform.tfvars not available)

@@ -342,10 +342,10 @@ The client checks `IsAuditLoggingEnabled()` and sets:
 ### Check API Response
 ```powershell
 # Get fleet utilization data
-curl -s "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/devices/applications/usage?period=30d" | ConvertFrom-Json
+curl -s "https://<api-host>/api/devices/applications/usage?period=30d" | ConvertFrom-Json
 
 # Check a specific device's applications
-curl -s "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/device/SERIALNUMBER" | ConvertFrom-Json | Select-Object -ExpandProperty applications
+curl -s "https://<api-host>/api/device/SERIALNUMBER" | ConvertFrom-Json | Select-Object -ExpandProperty applications
 ```
 
 ### Run Client Collection

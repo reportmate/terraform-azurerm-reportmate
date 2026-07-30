@@ -2,7 +2,12 @@
 # Quick health check of all infrastructure components
 
 param(
-    [string]$ResourceGroup = "ReportMate"
+    [Parameter(Mandatory = $true)]
+    [string]$ResourceGroup,
+    [Parameter(Mandatory = $true)]
+    [string]$ApiBaseUrl,
+    [Parameter(Mandatory = $true)]
+    [string]$PostgresServer
 )
 
 Write-Host "Checking ReportMate Infrastructure Status..." -ForegroundColor Green
@@ -15,10 +20,10 @@ try {
     
     # Test API endpoints
     try {
-        $healthResponse = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/v1/health" -TimeoutSec 10
+        $healthResponse = Invoke-RestMethod -Uri "$ApiBaseUrl/api/v1/health" -TimeoutSec 10
         Write-Host "   /api/v1/health: OK" -ForegroundColor Green
         
-        $devicesResponse = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/v1/devices" -TimeoutSec 10
+        $devicesResponse = Invoke-RestMethod -Uri "$ApiBaseUrl/api/v1/devices" -TimeoutSec 10
         $deviceCount = ($devicesResponse | Measure-Object).Count
         Write-Host "   /api/v1/devices: OK ($deviceCount devices)" -ForegroundColor Green
     } catch {
@@ -31,18 +36,18 @@ try {
 # Check Database
 Write-Host "`nDatabase Status:" -ForegroundColor Yellow
 try {
-    $dbStatus = az postgres flexible-server show --name reportmate-database --resource-group $ResourceGroup --query "state" --output tsv
-    Write-Host "   reportmate-database: $dbStatus" -ForegroundColor $(if ($dbStatus -eq "Ready") { "Green" } else { "Red" })
+    $dbStatus = az postgres flexible-server show --name $PostgresServer --resource-group $ResourceGroup --query "state" --output tsv
+    Write-Host "   ${PostgresServer}: $dbStatus" -ForegroundColor $(if ($dbStatus -eq "Ready") { "Green" } else { "Red" })
     
     # Test database connection
     try {
-        $deviceCount = az postgres flexible-server execute --name reportmate-database --admin-user reportmate --admin-password "XXX" --database-name reportmate --querytext "SELECT COUNT(*) as count FROM devices;" --output json | ConvertFrom-Json
+        $deviceCount = az postgres flexible-server execute --name $PostgresServer --admin-user reportmate --admin-password "XXX" --database-name reportmate --querytext "SELECT COUNT(*) as count FROM devices;" --output json | ConvertFrom-Json
         Write-Host "   Connection: OK ($($deviceCount[0].count) devices)" -ForegroundColor Green
     } catch {
         Write-Host "   Connection: Failed" -ForegroundColor Red
     }
 } catch {
-    Write-Host "   reportmate-database: Not found" -ForegroundColor Red
+    Write-Host "   ${PostgresServer}: Not found" -ForegroundColor Red
 }
 
 # Check Container Apps (if they exist)

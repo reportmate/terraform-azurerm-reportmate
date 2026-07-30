@@ -64,7 +64,7 @@ GET /api/devices?includeArchived=true
 
 ```powershell
 $headers = @{ "X-API-PASSPHRASE" = "your-passphrase" }
-$response = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/devices" -Headers $headers
+$response = Invoke-RestMethod -Uri "https://<api-host>/api/devices" -Headers $headers
 $devices = $response.devices
 
 # Filter by location and name pattern
@@ -88,7 +88,7 @@ $failed = 0
 foreach ($serial in $serials) {
     try {
         $result = Invoke-RestMethod `
-            -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/device/$serial/archive" `
+            -Uri "https://<api-host>/api/device/$serial/archive" `
             -Method PATCH `
             -Headers $headers
         
@@ -116,7 +116,7 @@ $serials = @("SERIAL1", "SERIAL2", "SERIAL3")
 
 foreach ($serial in $serials) {
     $result = Invoke-RestMethod `
-        -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/device/$serial/unarchive" `
+        -Uri "https://<api-host>/api/device/$serial/unarchive" `
         -Method PATCH `
         -Headers $headers
     Write-Host "$serial - $($result.message)"
@@ -166,7 +166,7 @@ $serials = @(
 
 foreach ($serial in $serials) {
     $result = Invoke-RestMethod `
-        -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/device/$serial/archive" `
+        -Uri "https://<api-host>/api/device/$serial/archive" `
         -Method PATCH `
         -Headers $headers
     Write-Host "$serial - $($result.message)"

@@ -41,9 +41,9 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Configuration
-$ACR_NAME = "reportmateacr"
+$ACR_NAME = $env:ACR_NAME
 $IMAGE_NAME = "reportmate-maintenance"
-$RESOURCE_GROUP = "ReportMate"
+$RESOURCE_GROUP = $env:RESOURCE_GROUP
 $JOB_NAME = "reportmate-db-maintenance"
 
 Write-Host "========================================" -ForegroundColor Cyan

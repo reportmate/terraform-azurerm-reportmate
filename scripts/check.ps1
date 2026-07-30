@@ -18,6 +18,12 @@
 #>
 
 param(
+    [Parameter(Mandatory = $true)]
+    [string]$ResourceGroup,
+    [Parameter(Mandatory = $true)]
+    [string]$PostgresServer,
+    [Parameter(Mandatory = $true)]
+    [string]$ApiContainerApp,
     [switch]$Verbose
 )
 
@@ -49,12 +55,12 @@ function Test-DatabaseConnectivity {
     
     try {
         # Get database connection details from Terraform output or Azure CLI
-        $dbServer = "reportmate-database.postgres.database.azure.com"
+        $dbServer = "$PostgresServer.postgres.database.azure.com"
         $dbName = "reportmate"
         
         # Test basic connectivity
         Write-Info "Testing connection to PostgreSQL server..."
-        $connectionTest = az postgres flexible-server show --name reportmate-database --resource-group ReportMate --query "state" -o tsv 2>$null
+        $connectionTest = az postgres flexible-server show --name $PostgresServer --resource-group $ResourceGroup --query "state" -o tsv 2>$null
         
         if ($connectionTest -eq "Ready") {
             Write-Success "PostgreSQL server is in 'Ready' state"
@@ -67,7 +73,7 @@ function Test-DatabaseConnectivity {
         
         # Check database exists
         Write-Info "Checking if database exists..."
-        $databases = az postgres flexible-server db list --server-name reportmate-database --resource-group ReportMate --query "[].name" -o tsv 2>$null
+        $databases = az postgres flexible-server db list --server-name $PostgresServer --resource-group $ResourceGroup --query "[].name" -o tsv 2>$null
         if ($databases -contains $dbName) {
             Write-Success "Database '$dbName' exists"
         } else {
@@ -185,7 +191,7 @@ function Test-ContainerApps {
     try {
         # Check API container app
         Write-Info "Checking API container app status..."
-        $apiApp = az containerapp show --name reportmate-functions-api --resource-group ReportMate --query "{name:name,status:properties.runningStatus,replicas:properties.template.scale.maxReplicas}" -o json 2>$null | ConvertFrom-Json
+        $apiApp = az containerapp show --name $ApiContainerApp --resource-group $ResourceGroup --query "{name:name,status:properties.runningStatus,replicas:properties.template.scale.maxReplicas}" -o json 2>$null | ConvertFrom-Json
         
         if ($apiApp -and $apiApp.status -eq "Running") {
             Write-Success "API container app is running - Max replicas: $($apiApp.replicas)"
@@ -196,7 +202,7 @@ function Test-ContainerApps {
         
         # Check frontend container app
         Write-Info "Checking frontend container app status..."
-        $frontendApp = az containerapp show --name reportmate-web-app-prod --resource-group ReportMate --query "{name:name,status:properties.runningStatus,replicas:properties.template.scale.maxReplicas}" -o json 2>$null | ConvertFrom-Json
+        $frontendApp = az containerapp show --name reportmate-web-app-prod --resource-group $ResourceGroup --query "{name:name,status:properties.runningStatus,replicas:properties.template.scale.maxReplicas}" -o json 2>$null | ConvertFrom-Json
         
         if ($frontendApp -and $frontendApp.status -eq "Running") {
             Write-Success "Frontend container app is running - Max replicas: $($frontendApp.replicas)"

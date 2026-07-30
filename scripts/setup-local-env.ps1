@@ -11,7 +11,7 @@
     - infrastructure/terraform.tfvars (for Terraform deployments)
     
 .PARAMETER VaultName
-    The name of the Azure Key Vault. Default: reportmate-kv
+    The name of the Azure Key Vault. Required; no default
 
 .PARAMETER GenerateTfvars
     Also generate terraform.tfvars file. Default: $true
@@ -29,7 +29,7 @@
     .\setup-local-env.ps1
     
 .EXAMPLE
-    .\setup-local-env.ps1 -VaultName "reportmate-kv-dev"
+    .\setup-local-env.ps1 -VaultName "<your-key-vault>-dev"
 
 .PARAMETER NoBackup
     Skip creating .bak backups of existing files. Default: backups are created automatically.
@@ -38,7 +38,7 @@
     .\setup-local-env.ps1
     
 .EXAMPLE
-    .\setup-local-env.ps1 -VaultName "reportmate-kv-dev"
+    .\setup-local-env.ps1 -VaultName "<your-key-vault>-dev"
 
 .EXAMPLE
     .\setup-local-env.ps1 -GenerateTfvars:$false
@@ -48,7 +48,11 @@
 #>
 
 param(
-    [string]$VaultName = "reportmate-kv",
+    [Parameter(Mandatory = $true)]
+    [string]$VaultName,
+    [Parameter(Mandatory = $true)]
+    [string]$ResourceGroup,
+    [string]$Location = "Canada Central",
     [bool]$GenerateTfvars = $true,
     [bool]$GenerateEnvLocal = $true,
     [bool]$GenerateEnvDevelopment = $true,
@@ -155,7 +159,7 @@ $databaseUrl = "postgresql://${dbUser}:${encodedPassword}@${dbServer}.postgres.d
 $apiBaseUrl = if ($secrets["api-base-url"]) { 
     $secrets["api-base-url"] 
 } else { 
-    "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io" 
+    "https://<api-host>" 
 }
 
 # Generate .env.local for Next.js
@@ -270,8 +274,8 @@ if ($GenerateTfvars) {
 # =================================================================
 
 # Azure Configuration
-resource_group_name = "ReportMate"
-location           = "Canada Central"
+resource_group_name = "$ResourceGroup"
+location           = "$Location"
 
 # Database Configuration
 db_password          = "$dbPassword"
@@ -297,7 +301,7 @@ enable_custom_domain = true
 custom_domain_name   = "$($secrets["custom-domain-name"])"
 
 # Container Configuration
-container_image = "reportmateacr.azurecr.io/reportmate:latest"
+container_image = "<registry>.azurecr.io/reportmate:latest"
 
 # Client Authentication
 client_passphrases    = "$($secrets["client-passphrase"])"
