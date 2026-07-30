@@ -41,13 +41,23 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "azure_services" {
   end_ip_address   = "0.0.0.0"
 }
 
+# Client ranges other than the catch-all, which is handled by public_access below.
+# Filtering into a local rather than indexing var.allowed_ips directly matters:
+# Terraform evaluates both sides of &&, so the previous
+# `length(...) > 0 && var.allowed_ips[0] != "0.0.0.0/0"` raised "Invalid index"
+# on an empty list, and a list whose first element was the catch-all silently
+# produced no rules for the remaining entries.
+locals {
+  explicit_client_ips = [for ip in var.allowed_ips : ip if ip != "0.0.0.0/0"]
+}
+
 # Firewall rule to allow specified IP addresses
 resource "azurerm_postgresql_flexible_server_firewall_rule" "allowed_ips" {
-  count            = length(var.allowed_ips) > 0 && var.allowed_ips[0] != "0.0.0.0/0" ? length(var.allowed_ips) : 0
+  count            = length(local.explicit_client_ips)
   name             = "allow_ip_${count.index}"
   server_id        = azurerm_postgresql_flexible_server.pg.id
-  start_ip_address = split("/", var.allowed_ips[count.index])[0]
-  end_ip_address   = split("/", var.allowed_ips[count.index])[0]
+  start_ip_address = split("/", local.explicit_client_ips[count.index])[0]
+  end_ip_address   = split("/", local.explicit_client_ips[count.index])[0]
 }
 
 # Allow all IPs if specified (for public access)
