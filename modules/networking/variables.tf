@@ -52,3 +52,9 @@ variable "enable_auto_sso" {
   type        = bool
   default     = true
 }
+
+variable "endpoint_name" {
+  type        = string
+  description = "Name of the Front Door endpoint."
+  default     = "reportmate-endpoint"
+}

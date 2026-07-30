@@ -261,8 +261,13 @@ variable "container_image" {
 
 variable "allowed_domains" {
   type        = string
-  description = "Comma-separated list of allowed email domains for authentication"
-  default     = "ecuad.ca"
+  description = <<-EOT
+    Comma-separated email domains permitted to sign in, e.g.
+    "example.edu,alumni.example.edu". Required and deliberately without a
+    default: the application treats an empty allow-list as "permit every
+    domain", so a blank default would silently open sign-in to any tenant,
+    and a populated one would hardcode somebody else's organisation.
+  EOT
 }
 
 # Environment Configuration
