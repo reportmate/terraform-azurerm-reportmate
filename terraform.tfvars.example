@@ -77,7 +77,7 @@ auth_client_secret_expiry   = "2026-12-31T23:59:59Z"  # 2 years from now
 
 # Secret Storage
 enable_key_vault = true
-key_vault_name   = "your-reportmate-kv"  # Must be globally unique (3-24 alphanumeric chars)
+key_vault_name   = "your-key-vault-name"  # Must be globally unique (3-24 alphanumeric chars)
 
 # App Ownership and Authorization
 # Get group IDs from Azure AD -> Groups -> Object ID

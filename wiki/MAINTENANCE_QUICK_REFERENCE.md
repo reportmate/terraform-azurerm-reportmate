@@ -6,31 +6,31 @@
 
 ## One-Line Status Check
 ```powershell
-az containerapp job execution list --name reportmate-db-maintenance --resource-group ReportMate --output table
+az containerapp job execution list --name reportmate-db-maintenance --resource-group <resource-group> --output table
 ```
 
 ## Quick Commands
 
 ### Start Manual Execution
 ```powershell
-az containerapp job start --name reportmate-db-maintenance --resource-group ReportMate
+az containerapp job start --name reportmate-db-maintenance --resource-group <resource-group>
 ```
 
 ### View Latest Logs
 ```powershell
-az containerapp job logs show --name reportmate-db-maintenance --resource-group ReportMate --container reportmate-db-maintenance --tail 100
+az containerapp job logs show --name reportmate-db-maintenance --resource-group <resource-group> --container reportmate-db-maintenance --tail 100
 ```
 
 ### Check Schedule
 ```powershell
-az containerapp job show --name reportmate-db-maintenance --resource-group ReportMate --query "properties.configuration.scheduleTriggerConfig" -o json
+az containerapp job show --name reportmate-db-maintenance --resource-group <resource-group> --query "properties.configuration.scheduleTriggerConfig" -o json
 ```
 
 ### Database Stats
 ```powershell
 # Requires psql installed
 $env:PGPASSWORD="$PGPASSWORD"
-psql -h reportmate-database.postgres.database.azure.com -U reportmate -d reportmate -c "
+psql -h <postgres-server>.postgres.database.azure.com -U reportmate -d reportmate -c "
 SELECT 
   pg_size_pretty(pg_database_size('reportmate')) as db_size,
   (SELECT COUNT(*) FROM events) as events,
@@ -88,28 +88,28 @@ SELECT
 ### Job Won't Start
 ```powershell
 # Check job configuration
-az containerapp job show --name reportmate-db-maintenance --resource-group ReportMate -o json
+az containerapp job show --name reportmate-db-maintenance --resource-group <resource-group> -o json
 
 # Verify ACR image exists
-az acr repository show --name reportmateacr --repository reportmate-maintenance
+az acr repository show --name <registry> --repository reportmate-maintenance
 ```
 
 ### Can't See Logs
 ```powershell
 # List recent executions
-az containerapp job execution list --name reportmate-db-maintenance --resource-group ReportMate
+az containerapp job execution list --name reportmate-db-maintenance --resource-group <resource-group>
 
 # Get specific execution logs (replace EXECUTION_NAME)
-az containerapp job logs show --name reportmate-db-maintenance --resource-group ReportMate --execution EXECUTION_NAME --container reportmate-db-maintenance
+az containerapp job logs show --name reportmate-db-maintenance --resource-group <resource-group> --execution EXECUTION_NAME --container reportmate-db-maintenance
 ```
 
 ### Database Connection Failed
 ```powershell
 # Check firewall rules
-az postgres flexible-server firewall-rule list --server-name reportmate-database --resource-group ReportMate
+az postgres flexible-server firewall-rule list --server-name reportmate-database --resource-group <resource-group>
 
 # Verify the allow_azure rule exists
-az postgres flexible-server firewall-rule show --server-name reportmate-database --resource-group ReportMate --rule-name allow_azure
+az postgres flexible-server firewall-rule show --server-name reportmate-database --resource-group <resource-group> --rule-name allow_azure
 ```
 
 ---
@@ -121,10 +121,10 @@ az postgres flexible-server firewall-rule show --server-name reportmate-database
 ### Check Tomorrow Morning
 ```powershell
 # View execution history
-az containerapp job execution list --name reportmate-db-maintenance --resource-group ReportMate --output table
+az containerapp job execution list --name reportmate-db-maintenance --resource-group <resource-group> --output table
 
 # Check latest logs
-az containerapp job logs show --name reportmate-db-maintenance --resource-group ReportMate --container reportmate-db-maintenance --tail 200
+az containerapp job logs show --name reportmate-db-maintenance --resource-group <resource-group> --container reportmate-db-maintenance --tail 200
 ```
 
 ### Expected Results
@@ -150,8 +150,8 @@ az containerapp job logs show --name reportmate-db-maintenance --resource-group 
 - Status: `infrastructure/modules/maintenance/DEPLOYMENT_STATUS.md`
 
 **Container:**
-- Image: `reportmateacr.azurecr.io/reportmate-maintenance:latest`
-- Registry: reportmateacr (Canada Central)
+- Image: `<registry>.azurecr.io/reportmate-maintenance:latest`
+- Registry: <registry> (in the deployment's region)
 - Size: ~100MB
 
 ---

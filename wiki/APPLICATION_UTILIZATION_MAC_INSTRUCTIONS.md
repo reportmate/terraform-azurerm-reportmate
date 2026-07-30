@@ -436,7 +436,7 @@ The `activeSessions` array should NOT contain:
 After transmitting to the API:
 
 ```bash
-curl -s "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/device/YOUR_SERIAL" | jq '.applications.usage'
+curl -s "https://<api-host>/api/device/YOUR_SERIAL" | jq '.applications.usage'
 ```
 
 ---

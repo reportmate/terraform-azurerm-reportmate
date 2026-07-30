@@ -60,7 +60,7 @@ resource "azurerm_container_app_job" "maintenance" {
   template {
     container {
       name   = "maintenance"
-      image  = "reportmateacr.azurecr.io/reportmate-maintenance:latest"
+      image  = "<registry>.azurecr.io/reportmate-maintenance:latest"
       cpu    = 0.25
       memory = "0.5Gi"
     }
@@ -298,8 +298,8 @@ resource "azurerm_container_app_job" "maintenance" {
 ```bash
 # Build and push maintenance container
 cd infrastructure/modules/maintenance
-docker build -t reportmateacr.azurecr.io/reportmate-maintenance:latest .
-docker push reportmateacr.azurecr.io/reportmate-maintenance:latest
+docker build -t <registry>.azurecr.io/reportmate-maintenance:latest .
+docker push <registry>.azurecr.io/reportmate-maintenance:latest
 
 # Update infrastructure
 cd ../..
@@ -310,7 +310,7 @@ terraform apply
 ```bash
 az containerapp job start \
   --name reportmate-db-maintenance \
-  --resource-group ReportMate
+  --resource-group <resource-group>
 ```
 
 ## Summary Comparison

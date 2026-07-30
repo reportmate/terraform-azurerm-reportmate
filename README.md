@@ -143,7 +143,7 @@ terraform apply tfplan
 curl "https://reportmate-functions-api.<your-subdomain>.azurecontainerapps.io/api/init-db?init=true"
 
 # Or manually via psql
-psql "postgresql://reportmate:PASSWORD@reportmate-database.postgres.database.azure.com:5432/reportmate?sslmode=require" -f schemas/database.sql
+psql "postgresql://reportmate:PASSWORD@<postgres-server>.postgres.database.azure.com:5432/reportmate?sslmode=require" -f schemas/database.sql
 ```
 
 ## Deployment Scripts
@@ -260,7 +260,7 @@ ReportMate uses Azure Container Apps for both API and frontend:
 
 ### API Container
 - **Image**: `ghcr.io/reportmate/reportmate-api` (built by the [reportmate-api](https://github.com/reportmate/reportmate-api) repo CI), mirrored into Azure Container Registry at deploy
-- **Registry**: Azure Container Registry (reportmateacr.azurecr.io)
+- **Registry**: Azure Container Registry (<registry>.azurecr.io)
 - **Deployment**: `Run the "ReportMate - Deploy (build + apply)" pipeline`
 
 ### Frontend Container
