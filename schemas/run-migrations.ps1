@@ -2,11 +2,13 @@
 # Run migrations to set up or update the PostgreSQL database
 
 param(
-    [string]$Server = "reportmate-database",
+    [Parameter(Mandatory = $true)]
+    [string]$Server,
     [string]$Database = "reportmate", 
     [string]$Username = "reportmate",
     [string]$Password = $env:DB_PASSWORD,
-    [string]$ResourceGroup = "ReportMate"
+    [Parameter(Mandatory = $true)]
+    [string]$ResourceGroup
 )
 
 $ErrorActionPreference = "Stop"

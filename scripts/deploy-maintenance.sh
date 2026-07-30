@@ -77,9 +77,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Configuration
-ACR_NAME="reportmateacr"
+ACR_NAME="${ACR_NAME:?set ACR_NAME}"
 IMAGE_NAME="reportmate-maintenance"
-RESOURCE_GROUP="ReportMate"
+RESOURCE_GROUP="${RESOURCE_GROUP:?set RESOURCE_GROUP}"
 JOB_NAME="reportmate-db-maintenance"
 
 echo -e "${CYAN}========================================${RESET}"

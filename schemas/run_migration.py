@@ -1,10 +1,11 @@
+import os
 #!/usr/bin/env python3
 """Run database migration script"""
 import pg8000
 
 # Connection parameters
 conn_params = {
-    'host': 'reportmate-database.postgres.database.azure.com',
+    'host': os.environ['DB_HOST'],
     'port': 5432,
     'database': 'reportmate',
     'user': 'reportmate_admin',
