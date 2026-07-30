@@ -6,7 +6,7 @@ resource "random_id" "container_suffix" {
 # Extract image name and tag from container_image variable
 locals {
   # Extract image name and tag from the full image path
-  # e.g., "reportmateacr.azurecr.io/reportmate-web:latest" -> "reportmate-web:latest"
+  # e.g., "myregistry.azurecr.io/reportmate-web:latest" -> "reportmate-web:latest"
   image_name_tag = var.use_custom_registry ? (
     length(split("/", var.container_image)) > 1 ?
     split("/", var.container_image)[length(split("/", var.container_image)) - 1] :

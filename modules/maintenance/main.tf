@@ -18,7 +18,7 @@ resource "azurerm_container_app_job" "maintenance" {
 
   template {
     container {
-      name   = "reportmate-db-maintenance"  # Match Azure CLI created name
+      name   = var.job_name
       image  = "${var.acr_login_server}/reportmate-maintenance:latest"
       cpu    = 0.25
       memory = "0.5Gi"
