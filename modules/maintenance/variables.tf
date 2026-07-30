@@ -69,3 +69,9 @@ variable "schedule_cron" {
   type        = string
   default     = "0 2 * * *"
 }
+
+variable "job_name" {
+  type        = string
+  description = "Name of the database maintenance container app job."
+  default     = "reportmate-db-maintenance"
+}

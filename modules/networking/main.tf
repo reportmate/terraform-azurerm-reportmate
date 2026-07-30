@@ -66,7 +66,7 @@ resource "azurerm_cdn_frontdoor_rule_set" "main" {
 
 # Front Door Endpoint
 resource "azurerm_cdn_frontdoor_endpoint" "main" {
-  name                     = "reportmate-endpoint"
+  name                     = var.endpoint_name
   cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.main.id
   enabled                  = true
 

@@ -25,7 +25,10 @@ terraform {
 
 provider "azurerm" {
   features {}
-  subscription_id = "59d35012-b593-4b2f-bd50-28e666ed12f7"
+  # Left null unless supplied, so the provider falls back to ARM_SUBSCRIPTION_ID
+  # or the CLI's current context. Never hardcode a subscription here: this module
+  # is published, and a literal makes every plan target one specific tenant.
+  subscription_id = var.subscription_id
 }
 
 provider "azuread" {
