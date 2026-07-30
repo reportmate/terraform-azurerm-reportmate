@@ -11,7 +11,7 @@ This directory contains CI/CD pipeline templates for deploying ReportMate infras
 
 ## What These Pipelines Do
 
-Both pipelines replicate the functionality of the development scripts (`deploy-api.ps1` and `deploy-app.ps1`) in a CI/CD context, making **Terraform the single source of truth**.
+The deploy pipeline is the only supported path to production. It builds the frontend image, mirrors the prebuilt API image from GHCR into ACR, applies Terraform, and rolls both container apps. The `deploy-api.ps1` and `deploy-app.ps1` scripts it replaced have been removed.
 
 ### Pipeline Stages
 
@@ -96,9 +96,9 @@ The pipelines replace these development scripts:
 
 | Script | Pipeline Stage |
 |--------|---------------|
-| `deploy-app.ps1` | Build Containers + Deploy Frontend |
-| `deploy-api.ps1` | Build Containers + Deploy API |
-| `deploy-app.ps1 -PurgeOnly` | Purge CDN |
+| _(retired)_ | Frontend build and rollout are steps in the deploy pipeline |
+| _(retired)_ | API mirror and rollout are steps in the deploy pipeline |
+| _(retired)_ | Front Door purge is a step in the deploy pipeline |
 
 The scripts remain available for local development and debugging.
 
