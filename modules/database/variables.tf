@@ -46,8 +46,15 @@ variable "postgres_server_name" {
 
 variable "allowed_ips" {
   type        = list(string)
-  description = "List of IP addresses allowed to access the database"
-  default     = ["0.0.0.0/0"]
+  description = <<-EOT
+    Extra client IP ranges (CIDR) allowed to reach the database, on top of the
+    always-present allow_azure rule that lets Azure-hosted services connect.
+    Empty by default: the database is not reachable from the public internet
+    unless an operator opts in. Passing "0.0.0.0/0" creates an allow_all rule
+    that exposes the server to every address on the internet - only ever do
+    that knowingly, and never in production.
+  EOT
+  default     = []
 }
 
 variable "api_endpoint" {

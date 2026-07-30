@@ -29,7 +29,7 @@ az containerapp job show --name reportmate-db-maintenance --resource-group Repor
 ### Database Stats
 ```powershell
 # Requires psql installed
-$env:PGPASSWORD="RmDb7K9mL3qP2wX8vN4zF6H"
+$env:PGPASSWORD="$PGPASSWORD"
 psql -h reportmate-database.postgres.database.azure.com -U reportmate -d reportmate -c "
 SELECT 
   pg_size_pretty(pg_database_size('reportmate')) as db_size,

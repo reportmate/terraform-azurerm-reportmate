@@ -62,8 +62,15 @@ variable "db_storage_mb" {
 
 variable "allowed_ips" {
   type        = list(string)
-  description = "List of IP addresses allowed to access the database"
-  default     = ["0.0.0.0/0"]
+  description = <<-EOT
+    Extra client IP ranges (CIDR) allowed to reach the database, on top of the
+    always-present allow_azure rule that lets Azure-hosted services connect.
+    Empty by default: the database is not reachable from the public internet
+    unless an operator opts in. Passing "0.0.0.0/0" creates an allow_all rule
+    that exposes the server to every address on the internet - only ever do
+    that knowingly, and never in production.
+  EOT
+  default     = []
 }
 
 # Storage Configuration
@@ -185,7 +192,6 @@ variable "pipeline_service_principal_id" {
 variable "container_registry_name" {
   type        = string
   description = "Name of the Azure Container Registry (will be made globally unique)"
-  default     = "reportmateacr"
 }
 
 variable "use_custom_registry" {
@@ -197,7 +203,6 @@ variable "use_custom_registry" {
 variable "existing_registry_server" {
   type        = string
   description = "Existing container registry server URL (used when use_custom_registry is false)"
-  default     = "reportmateacr.azurecr.io"
 }
 
 variable "container_environment_name" {
@@ -396,7 +401,6 @@ variable "enable_key_vault" {
 variable "key_vault_name" {
   type        = string
   description = "Name of the Azure Key Vault for secret storage"
-  default     = "reportmate-kv"
 }
 
 # Entra ID Configuration
