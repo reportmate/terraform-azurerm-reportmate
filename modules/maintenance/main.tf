@@ -61,15 +61,14 @@ resource "azurerm_container_app_job" "maintenance" {
     value = var.db_password
   }
 
-  secret {
-    name  = "acr-password"
-    value = var.acr_admin_password
-  }
-
   registry {
     server               = var.acr_login_server
     username             = var.acr_admin_username
-    password_secret_name = "acr-password"
+    # Azure generates this secret when the registry is attached, naming it after
+    # the login server with dots stripped, then the username. It cannot be
+    # declared here: `secret` is in ignore_changes below, so a secret block
+    # added by this module is never created and the reference would dangle.
+    password_secret_name = "${replace(var.acr_login_server, ".", "")}-${var.acr_admin_username}"
   }
 
   lifecycle {
