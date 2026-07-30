@@ -78,9 +78,10 @@ resource "azurerm_container_app" "frontend_prod_main" {
   lifecycle {
     ignore_changes = [
       container_app_environment_id, # Ignore case sensitivity changes in Azure resource IDs
-      # Image tag is managed by the CI/CD pipeline (deploy-containers.ps1 -ForceBuild),
-      # which pushes immutable tags directly to the container app. Terraform must
-      # not revert those tags back to the default tfvars value on every plan.
+      # Image tag is owned by the deploy pipeline, which pushes immutable tags
+      # straight to the container app with `az containerapp update`. Terraform must
+      # not revert them to the tfvars value on every plan. Do not remove this:
+      # without it, each apply rolls the running image back.
       template[0].container[0].image,
     ]
   }
@@ -551,9 +552,10 @@ resource "azurerm_container_app" "api_functions" {
   lifecycle {
     ignore_changes = [
       container_app_environment_id, # Ignore changes to environment ID due to Azure API cache
-      # Image tag is managed by the CI/CD pipeline (deploy-api.ps1 -ForceBuild),
-      # which pushes immutable tags directly to the container app. Terraform must
-      # not revert those tags back to the default tfvars value on every plan.
+      # Image tag is owned by the deploy pipeline, which mirrors the API image
+      # into ACR and pushes the tag with `az containerapp update`. Terraform must
+      # not revert it to the tfvars value on every plan. Do not remove this:
+      # without it, each apply rolls the running image back.
       template[0].container[0].image,
     ]
   }

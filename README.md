@@ -85,7 +85,7 @@ The bootstrap script handles:
 
 **Deploy FastAPI Container (API code changes):**
 ```powershell
-.\scripts\deploy-api.ps1 -ForceBuild
+Run the "ReportMate - Deploy (build + apply)" pipeline
 ```
 
 **Deploy Frontend Container (web app changes):**
@@ -153,7 +153,7 @@ ReportMate includes comprehensive deployment scripts in `./scripts/`:
 | Script | Purpose | Usage |
 |--------|---------|-------|
 | `bootstrap.ps1` | Complete initial deployment | `.\scripts\bootstrap.ps1` |
-| `deploy-api.ps1` | Deploy FastAPI container | `.\scripts\deploy-api.ps1 -ForceBuild` |
+| _(retired)_ | Deploying the API is the deploy pipeline's job: it mirrors the image from GHCR into ACR and rolls the container app |
 | `deploy-containers.ps1` | Deploy frontend container | `.\scripts\deploy-containers.ps1 -Environment prod -ForceBuild` |
 | `deploy-maintenance.ps1` | Deploy maintenance jobs | `.\scripts\deploy-maintenance.ps1` |
 | `check.ps1` | Health checks and diagnostics | `.\scripts\check.ps1` |
@@ -261,7 +261,7 @@ ReportMate uses Azure Container Apps for both API and frontend:
 ### API Container
 - **Image**: `ghcr.io/reportmate/reportmate-api` (built by the [reportmate-api](https://github.com/reportmate/reportmate-api) repo CI), mirrored into Azure Container Registry at deploy
 - **Registry**: Azure Container Registry (reportmateacr.azurecr.io)
-- **Deployment**: `.\scripts\deploy-api.ps1 -ForceBuild`
+- **Deployment**: `Run the "ReportMate - Deploy (build + apply)" pipeline`
 
 ### Frontend Container
 - **Image**: `ghcr.io/reportmate/reportmate-app-web:latest` (default)
