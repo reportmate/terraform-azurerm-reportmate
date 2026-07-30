@@ -176,10 +176,10 @@ func azure functionapp publish reportmate-functions --python
 
 ```bash
 # Check status
-az functionapp show --name reportmate-functions --resource-group ReportMate
+az functionapp show --name reportmate-functions --resource-group <resource-group>
 
 # View logs
-az functionapp logs tail --name reportmate-functions --resource-group ReportMate
+az functionapp logs tail --name reportmate-functions --resource-group <resource-group>
 ```
 
 ## Pipeline Integration (Next Step)
@@ -236,7 +236,7 @@ Functions automatically monitored through Application Insights:
 
 **View Logs**:
 ```bash
-az functionapp logs tail --name reportmate-functions --resource-group ReportMate
+az functionapp logs tail --name reportmate-functions --resource-group <resource-group>
 ```
 
 **Query Executions**:
@@ -288,7 +288,7 @@ az monitor app-insights query \
    ```bash
    az functionapp config appsettings set \
      --name reportmate-functions \
-     --resource-group ReportMate \
+     --resource-group <resource-group> \
      --settings TEAMS_WEBHOOK_URL="https://outlook.office.com/webhook/..."
    ```
 

@@ -103,7 +103,7 @@ Or use ZIP deployment:
 ```bash
 cd functions
 func azure functionapp deployment source config-zip \
-  --resource-group ReportMate \
+  --resource-group <resource-group> \
   --name reportmate-functions \
   --src function-app.zip
 ```
@@ -114,13 +114,13 @@ func azure functionapp deployment source config-zip \
 # Check Functions App status
 az functionapp show \
   --name reportmate-functions \
-  --resource-group ReportMate \
+  --resource-group <resource-group> \
   --query "state"
 
 # View function logs
 az functionapp logs tail \
   --name reportmate-functions \
-  --resource-group ReportMate
+  --resource-group <resource-group>
 ```
 
 ## Variables
@@ -197,7 +197,7 @@ Functions are automatically monitored through Application Insights:
 # Check timer trigger status
 az functionapp function show \
   --name reportmate-functions \
-  --resource-group ReportMate \
+  --resource-group <resource-group> \
   --function-name reportmate_storage_alerts
 ```
 
@@ -234,7 +234,7 @@ curl -X POST https://reportmate-functions.azurewebsites.net/api/reportmate_stora
 
 3. **Monitor execution**:
    ```bash
-   az functionapp logs tail --name reportmate-functions --resource-group ReportMate
+   az functionapp logs tail --name reportmate-functions --resource-group <resource-group>
    ```
 
 ## References

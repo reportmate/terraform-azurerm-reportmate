@@ -269,8 +269,8 @@ az afd origin update --resource-group Reportmate \
   --profile-name reportmate-frontdoor \
   --origin-group-name reportmate-api-origin-group \
   --origin-name reportmate-api-origin \
-  --host-name "reportmate-container-prod.blackdune-79551938.canadacentral.azurecontainerapps.io" \
-  --origin-host-header "reportmate-container-prod.blackdune-79551938.canadacentral.azurecontainerapps.io"
+  --host-name "<frontend-host>" \
+  --origin-host-header "<frontend-host>"
 ```
 
 ### Recovery Procedures
@@ -293,15 +293,15 @@ az containerapp revision activate --resource-group Reportmate \
 
 ```bash
 # Test with cache bypass
-curl -s "https://reportmate.example.edu/api/devices?nocache=$(date +%s)" | jq '.success'
+curl -s "https://<your-site>/api/devices?nocache=$(date +%s)" | jq '.success'
 ```
 
 ## Monitoring
 
 ### Key Endpoints to Monitor
 
-1. **Health Check**: `https://reportmate.example.edu/api/version`
-2. **Data API**: `https://reportmate.example.edu/api/devices`
+1. **Health Check**: `https://<your-site>/api/version`
+2. **Data API**: `https://<your-site>/api/devices`
 3. **Direct Container**: `https://<container-fqdn>/api/version`
 
 ### Log Analysis

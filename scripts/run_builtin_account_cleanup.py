@@ -11,7 +11,7 @@ import sys
 
 import pg8000.native
 
-DB_HOST = os.environ.get("DB_HOST", "reportmate-database.postgres.database.azure.com")
+DB_HOST = os.environ["DB_HOST"]
 DB_USER = os.environ.get("DB_USER", "reportmate")
 DB_NAME = os.environ.get("DB_NAME", "reportmate")
 DB_PASS = os.environ.get("DB_PASS", "")

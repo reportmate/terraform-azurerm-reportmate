@@ -12,7 +12,7 @@ from typing import Tuple
 
 # Configuration
 EVENT_RETENTION_DAYS = int(os.getenv('EVENT_RETENTION_DAYS', '30'))
-DB_HOST = os.getenv('DB_HOST', 'reportmate-database.postgres.database.azure.com')
+DB_HOST = os.environ['DB_HOST']
 DB_NAME = os.getenv('DB_NAME', 'reportmate')
 DB_USER = os.getenv('DB_USER', 'reportmate')
 DB_PASS = os.getenv('DB_PASS')

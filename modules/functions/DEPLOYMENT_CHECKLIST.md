@@ -19,7 +19,7 @@ Quick reference checklist for deploying ReportMate Azure Functions.
 - [ ] Run `terraform apply -auto-approve`
 - [ ] Verify Functions App created:
   ```bash
-  az functionapp show --name reportmate-functions --resource-group ReportMate
+  az functionapp show --name reportmate-functions --resource-group <resource-group>
   ```
 
 ## Function Code Deployment
@@ -40,7 +40,7 @@ Quick reference checklist for deploying ReportMate Azure Functions.
   ```
 - [ ] Verify deployment:
   ```bash
-  az functionapp function list --name reportmate-functions --resource-group ReportMate
+  az functionapp function list --name reportmate-functions --resource-group <resource-group>
   ```
 
 ## Configuration
@@ -49,25 +49,25 @@ Quick reference checklist for deploying ReportMate Azure Functions.
   ```bash
   az functionapp config appsettings set \
     --name reportmate-functions \
-    --resource-group ReportMate \
+    --resource-group <resource-group> \
     --settings TEAMS_WEBHOOK_URL="your-webhook-url"
   ```
 - [ ] Verify environment variables:
   ```bash
   az functionapp config appsettings list \
     --name reportmate-functions \
-    --resource-group ReportMate
+    --resource-group <resource-group>
   ```
 
 ## Verification
 
 - [ ] Check function status:
   ```bash
-  az functionapp show --name reportmate-functions --resource-group ReportMate --query "state"
+  az functionapp show --name reportmate-functions --resource-group <resource-group> --query "state"
   ```
 - [ ] View function list:
   ```bash
-  az functionapp function list --name reportmate-functions --resource-group ReportMate
+  az functionapp function list --name reportmate-functions --resource-group <resource-group>
   ```
 - [ ] Test manual trigger (optional):
   ```bash
@@ -75,7 +75,7 @@ Quick reference checklist for deploying ReportMate Azure Functions.
   ```
 - [ ] View logs:
   ```bash
-  az functionapp logs tail --name reportmate-functions --resource-group ReportMate
+  az functionapp logs tail --name reportmate-functions --resource-group <resource-group>
   ```
 
 ## Monitoring Setup
@@ -100,7 +100,7 @@ Quick reference checklist for deploying ReportMate Azure Functions.
   ```bash
   az functionapp function show \
     --name reportmate-functions \
-    --resource-group ReportMate \
+    --resource-group <resource-group> \
     --function-name reportmate_storage_alerts \
     --query "config.schedule"
   ```

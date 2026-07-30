@@ -67,20 +67,20 @@ func azure functionapp publish reportmate-functions --python
 # Check Functions App status
 az functionapp show \
   --name reportmate-functions \
-  --resource-group ReportMate \
+  --resource-group <resource-group> \
   --query "{name:name, state:state, defaultHostName:defaultHostName}"
 
 # List functions
 az functionapp function list \
   --name reportmate-functions \
-  --resource-group ReportMate \
+  --resource-group <resource-group> \
   --query "[].{name:name, status:config.disabled}" \
   --output table
 
 # View recent logs
 az functionapp logs tail \
   --name reportmate-functions \
-  --resource-group ReportMate
+  --resource-group <resource-group>
 ```
 
 ## Environment Variables
@@ -118,7 +118,7 @@ terraform apply
 ```bash
 az functionapp config appsettings set \
   --name reportmate-functions \
-  --resource-group ReportMate \
+  --resource-group <resource-group> \
   --settings TEAMS_WEBHOOK_URL="https://outlook.office.com/webhook/..."
 ```
 
@@ -221,7 +221,7 @@ To change schedule:
 ```bash
 az functionapp logs tail \
   --name reportmate-functions \
-  --resource-group ReportMate \
+  --resource-group <resource-group> \
   --follow
 ```
 
@@ -269,7 +269,7 @@ az monitor app-insights query \
 ```bash
 az functionapp function show \
   --name reportmate-functions \
-  --resource-group ReportMate \
+  --resource-group <resource-group> \
   --function-name reportmate_storage_alerts \
   --query "config"
 ```
@@ -278,7 +278,7 @@ az functionapp function show \
 ```bash
 az functionapp config appsettings list \
   --name reportmate-functions \
-  --resource-group ReportMate \
+  --resource-group <resource-group> \
   --query "[?name=='REPORTMATE_API_URL' || name=='REPORTMATE_PASSPHRASE'].{name:name, value:value}"
 ```
 
@@ -295,7 +295,7 @@ python test_storage_single.py TESTSERIAL0001
 # Should match value in Terraform variables
 az functionapp config appsettings list \
   --name reportmate-functions \
-  --resource-group ReportMate \
+  --resource-group <resource-group> \
   --query "[?name=='REPORTMATE_PASSPHRASE'].value" -o tsv
 ```
 
@@ -305,12 +305,12 @@ az functionapp config appsettings list \
 ```bash
 az functionapp deployment list \
   --name reportmate-functions \
-  --resource-group ReportMate
+  --resource-group <resource-group>
 
 # Get latest deployment details
 az functionapp deployment show \
   --name reportmate-functions \
-  --resource-group ReportMate \
+  --resource-group <resource-group> \
   --deployment-id <id-from-list>
 ```
 
@@ -402,6 +402,6 @@ func azure functionapp publish reportmate-functions --python
 ## Support
 
 For issues or questions:
-1. Check logs: `az functionapp logs tail --name reportmate-functions --resource-group ReportMate`
+1. Check logs: `az functionapp logs tail --name reportmate-functions --resource-group <resource-group>`
 2. Review test results: `/functions/STORAGE_ALERTS_TEST_RESULTS.md`
 3. Test locally: `cd functions && func start --python`

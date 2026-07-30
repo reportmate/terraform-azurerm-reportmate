@@ -1,5 +1,12 @@
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$ApiBaseUrl,
+    [Parameter(Mandatory = $true)]
+    [string]$SqlPath
+)
+
 # Run database migration via API admin endpoint
-$sql = Get-Content "c:\Users\adoe\DevOps\ReportMate\infrastructure\azure\schemas\MANUAL_ADD_PLATFORM_COLUMN.sql" -Raw
+$sql = Get-Content $SqlPath -Raw
 
 $body = @{
     sql = $sql
@@ -18,7 +25,7 @@ $headers = @{
 Write-Host "Running migration via API..." -ForegroundColor Cyan
 
 try {
-    $result = Invoke-RestMethod -Uri "https://reportmate-functions-api.blackdune-79551938.canadacentral.azurecontainerapps.io/api/admin/execute-sql" -Method Post -Headers $headers -Body $body
+    $result = Invoke-RestMethod -Uri "$ApiBaseUrl/api/admin/execute-sql" -Method Post -Headers $headers -Body $body
     
     Write-Host "✓ Migration executed successfully!" -ForegroundColor Green
     Write-Host "Result:" -ForegroundColor Yellow

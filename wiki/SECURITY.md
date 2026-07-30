@@ -414,20 +414,20 @@ NEW_PASSWORD=$(openssl rand -base64 32)
 
 # 2. Update database
 az postgres flexible-server update \
-  --resource-group ReportMate \
-  --name reportmate-database \
+  --resource-group <resource-group> \
+  --name <postgres-server> \
   --admin-password "$NEW_PASSWORD"
 
 # 3. Update Key Vault
 az keyvault secret set \
-  --vault-name reportmate-kv \
+  --vault-name <key-vault> \
   --name database-password \
   --value "$NEW_PASSWORD"
 
 # 4. Restart Container Apps
 az containerapp restart \
   --name reportmate-container-prod \
-  --resource-group ReportMate
+  --resource-group <resource-group>
 
 # 5. Verify health
 curl https://reportmate-api/health
