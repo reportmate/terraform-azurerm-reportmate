@@ -156,7 +156,7 @@ foreach ($serial in $serials) {
 
 **Command Used:**
 ```powershell
-$headers = @{ "X-API-PASSPHRASE" = "XmZ8Kp3NwQ7YtR9vC2LzH6FgDj4BlMnE" }
+$headers = @{ "X-API-PASSPHRASE" = "$REPORTMATE_CLIENT_PASSPHRASE" }
 $serials = @(
     "53FCFF3", "53FDFF3", "53FFFF3", "53G4FF3", "53G5FF3", 
     "53G6FF3", "53G7FF3", "53G9FF3", "53GBFF3", "53GCFF3", 

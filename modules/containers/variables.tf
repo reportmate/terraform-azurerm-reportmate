@@ -13,7 +13,6 @@ variable "location" {
 variable "container_registry_name" {
   type        = string
   description = "Name of the Azure Container Registry (will be made globally unique)"
-  default     = "reportmateacr"
 }
 
 variable "use_custom_registry" {
@@ -194,7 +193,6 @@ variable "container_environment_name" {
 variable "existing_registry_server" {
   type        = string
   description = "Existing container registry server URL (used when use_custom_registry is false)"
-  default     = "reportmateacr.azurecr.io"
 }
 
 # Container App Names
