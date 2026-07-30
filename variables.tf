@@ -163,6 +163,24 @@ variable "teams_webhooks" {
   sensitive   = true
 }
 
+variable "function_app_additional_settings" {
+  type        = map(string)
+  description = <<-EOT
+    Extra application settings for the Function App, merged over the ones this
+    module sets. Use it for anything a function needs that the module has no
+    opinion about — an integration's endpoint, a per-adopter feature flag.
+
+    Values may be Key Vault references (`@Microsoft.KeyVault(SecretUri=...)`)
+    rather than literals, which is how a secret reaches a function without being
+    written here or into state. The Function App's identity needs read access to
+    the referenced secret, or the setting resolves empty at runtime.
+
+    Terraform owns app_settings outright, so a setting added by hand with `az` is
+    erased by the next apply. This variable is the durable way to add one.
+  EOT
+  default     = {}
+}
+
 variable "api_base_url_override" {
   type        = string
   description = "Override for API base URL (if not using container API URL)"

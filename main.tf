@@ -84,6 +84,11 @@ module "functions" {
   teams_webhook_url  = var.teams_webhook_url
   teams_webhooks     = var.teams_webhooks
 
+  # Adopter-specific settings the module has no opinion about. The functions
+  # module has always accepted these; the root module never passed them through,
+  # so the only way to add one was `az`, which the next apply then erased.
+  additional_app_settings = var.function_app_additional_settings
+
   # Monitoring
   app_insights_connection_string = module.monitoring.app_insights_connection_string
 
