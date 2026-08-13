@@ -12,9 +12,15 @@ resource "azurerm_postgresql_flexible_server" "pg" {
   sku_name                      = var.db_sku_name
   public_network_access_enabled = true
 
-  # Backup configuration - automatic daily backups with 7 day retention
-  backup_retention_days         = 7
-  geo_redundant_backup_enabled  = false  # Set to true for production geo-redundancy
+  # Grow storage automatically rather than hitting the read-only lock Azure
+  # applies at capacity. At the observed ~1.0 GiB/day this server reaches 95% of
+  # 256 GB around 2027-01-26 -- two months before the April reporting window --
+  # and every fleet write stops. This was enabled by hand during the 2026-07-16
+  # remediation but never committed, so a later apply turned it back off.
+  auto_grow_enabled = true
+
+  backup_retention_days        = var.db_backup_retention_days
+  geo_redundant_backup_enabled = var.db_geo_redundant_backup
 
   authentication {
     password_auth_enabled = true
@@ -24,7 +30,13 @@ resource "azurerm_postgresql_flexible_server" "pg" {
 
   lifecycle {
     prevent_destroy = true
-    ignore_changes = [zone]
+
+    # Once auto-grow owns the storage size, Azure moves it without Terraform.
+    # Without this the next plan reads the grown size as drift and tries to
+    # shrink it back to db_storage_mb, which the service rejects outright --
+    # PostgreSQL flexible server storage can only ever increase. db_storage_mb
+    # therefore sets the floor at create time and is inert afterwards.
+    ignore_changes = [zone, storage_mb]
   }
 }
 
