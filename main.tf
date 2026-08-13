@@ -13,12 +13,14 @@ module "database" {
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
 
-  postgres_server_name = var.postgres_server_name
-  db_username          = var.db_username
-  db_password          = var.db_password
-  db_name              = var.db_name
-  db_sku_name          = var.db_sku_name
-  db_storage_mb        = var.db_storage_mb
+  postgres_server_name     = var.postgres_server_name
+  db_username              = var.db_username
+  db_password              = var.db_password
+  db_name                  = var.db_name
+  db_sku_name              = var.db_sku_name
+  db_storage_mb            = var.db_storage_mb
+  db_backup_retention_days = var.db_backup_retention_days
+  db_geo_redundant_backup  = var.db_geo_redundant_backup
 
   allowed_ips = var.allowed_ips
   tags        = var.tags
