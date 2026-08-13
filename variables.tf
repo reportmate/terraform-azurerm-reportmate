@@ -56,8 +56,25 @@ variable "db_sku_name" {
 
 variable "db_storage_mb" {
   type        = number
-  description = "PostgreSQL storage size in MB"
-  default     = 32768
+  description = "PostgreSQL storage floor in MB. Only sets the size at create time -- auto-grow owns it afterwards and the resource ignores changes to it. The default matches the live server (256 GB); a lower value would read as an attempt to shrink, which the service rejects."
+  default     = 262144
+}
+
+variable "db_backup_retention_days" {
+  type        = number
+  description = "Point-in-time restore window. Seven days is shorter than the feedback loop on most data-quality problems here -- the 2026-07-16 storage incident ran longer than that from onset to diagnosis -- and shorter than a statutory long weekend plus a slow ticket."
+  default     = 35
+
+  validation {
+    condition     = var.db_backup_retention_days >= 7 && var.db_backup_retention_days <= 35
+    error_message = "Azure allows a retention window between 7 and 35 days."
+  }
+}
+
+variable "db_geo_redundant_backup" {
+  type        = bool
+  description = "Replicate backups to the paired region. Costs roughly the backup storage again and can only be set when the server is created, so flipping it on an existing server is a rebuild, not an update."
+  default     = false
 }
 
 variable "allowed_ips" {
