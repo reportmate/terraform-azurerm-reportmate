@@ -19,6 +19,7 @@ module "database" {
   db_name                  = var.db_name
   db_sku_name              = var.db_sku_name
   db_storage_mb            = var.db_storage_mb
+  db_max_connections       = var.db_max_connections
   db_backup_retention_days = var.db_backup_retention_days
   db_geo_redundant_backup  = var.db_geo_redundant_backup
 
@@ -284,6 +285,12 @@ module "containers" {
 
   # Web PubSub connection
   web_pubsub_connection = module.messaging.web_pubsub_connection_string
+
+  # Database connection pool budget (bounded against db_max_connections)
+  api_db_pool_max    = var.api_db_pool_max
+  api_db_pool_min    = var.api_db_pool_min
+  api_max_replicas   = var.api_max_replicas
+  db_max_connections = var.db_max_connections
 
   # Client authentication
   client_passphrases  = var.client_passphrases
