@@ -280,6 +280,26 @@ variable "api_db_pool_min" {
   default     = 1
 }
 
+# Replicas the API is never scaled below.
+#
+# Kept at 1. Container Apps polls every 30s and holds a 300s cooldown, so a
+# scale-out cannot answer a burst that is over inside a minute -- which is
+# precisely the shape the fleet used to arrive in, and why uploads were being
+# dropped at the ingress. That burst is fixed at the source: the clients now
+# stagger their collection schedules instead of every machine firing on the
+# hour, so there is no longer a spike for a warm second replica to catch.
+#
+# Raise this to 2 if aborted uploads persist after the staggered clients have
+# rolled out. It buys a replica that is already warm when load arrives, and it
+# bills continuously whether load arrives or not, which is why it is a knob
+# rather than a default. Total pool demand is bounded by api_max_replicas, so
+# raising the floor does not affect the Postgres precondition.
+variable "api_min_replicas" {
+  type        = number
+  description = "Replicas the API is never scaled below. Raising this keeps a warm replica for bursts, at continuous cost."
+  default     = 1
+}
+
 variable "api_max_replicas" {
   type        = number
   description = "Max API container replicas. Bounds total pool demand together with api_db_pool_max."

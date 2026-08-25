@@ -76,6 +76,12 @@ variable "api_db_pool_min" {
   default     = 2
 }
 
+variable "api_min_replicas" {
+  type        = number
+  description = "Replicas the API is never scaled below. Raising this keeps a warm replica for bursts, at continuous cost. See the containers module for when that is worth paying."
+  default     = 1
+}
+
 variable "api_max_replicas" {
   type        = number
   description = "Max API container replicas."
