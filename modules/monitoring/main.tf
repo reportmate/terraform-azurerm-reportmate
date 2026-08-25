@@ -6,6 +6,14 @@ resource "azurerm_log_analytics_workspace" "main" {
   sku                 = "PerGB2018"
   retention_in_days   = var.log_retention_days
 
+  # Backstop against a logging regression billing without limit. The workspace
+  # ran uncapped while a single container emitted 19.17 GB per 30 days -- 9.59
+  # million lines in 7 days, 61% of them the Azure SDK printing one line per
+  # HTTP header. Ingestion pauses for the rest of the UTC day once the quota is
+  # reached, so this is sized to sit well above normal volume and only trip on
+  # a genuine runaway, not to shape ordinary logging.
+  daily_quota_gb = var.log_daily_quota_gb
+
   tags = var.tags
 }
 
