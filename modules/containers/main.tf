@@ -543,8 +543,9 @@ resource "azurerm_container_app" "api_functions" {
       }
 
       # How much the API writes to stdout. Every line is billed as Log
-      # Analytics ingestion (ContainerAppConsoleLogs_CL), so production runs
-      # at WARNING; the code defaults to INFO when the variable is absent.
+      # Analytics ingestion (ContainerAppConsoleLogs_CL), which is 18.8 GB of
+      # the 21 GB this workspace bills in 30 days. Set explicitly so the level
+      # is a decision rather than whatever the image happens to default to.
       env {
         name  = "LOG_LEVEL"
         value = var.api_log_level
