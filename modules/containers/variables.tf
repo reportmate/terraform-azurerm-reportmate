@@ -306,6 +306,45 @@ variable "api_max_replicas" {
   default     = 5
 }
 
+# Compute for each API replica. Container Apps consumption allows a fixed set
+# of pairs (0.25/0.5Gi, 0.5/1Gi, 0.75/1.5Gi, 1/2Gi, 1.25/2.5Gi, 1.5/3Gi,
+# 1.75/3.5Gi, 2/4Gi) and bills vCPU-seconds and GiB-seconds separately, so
+# the pair is the cost lever. Size it from the working set, not the CPU: over
+# the seven days to 2026-08-25 the API averaged 0.016 cores but its working
+# set peaked at 2.9 GB, with 14 hourly buckets above 1.5 GB and 6 above 2 GB
+# -- the full-fleet /installs/full payload (52 MB+) built in one request. A
+# replica sized below that peak is OOM-killed mid-request, which drops the
+# check-ins it was holding; shrink the peak first, then the pair.
+variable "api_cpu" {
+  type        = number
+  description = "vCPU per API replica. Must pair with api_memory per the Container Apps consumption table."
+  default     = 2.0
+}
+
+variable "api_memory" {
+  type        = string
+  description = "Memory per API replica, e.g. \"4Gi\". Must pair with api_cpu; size from the observed working-set peak, not the average."
+  default     = "4Gi"
+}
+
+# Concurrent in-flight requests per replica before another replica is added.
+# The platform default (and the value the module carried until now) is 10,
+# which for this workload scales out on slow check-in uploads while the CPU
+# sits at 1%: seven-day mean 1.64 replicas, peak 5. Each replica runs a
+# 40-thread request pool (api_db_pool_max), so 10 leaves three quarters of a
+# replica idle before the next one starts billing.
+variable "api_http_concurrent_requests" {
+  type        = number
+  description = "HTTP scale rule threshold: concurrent requests per replica before scaling out. The Container Apps default is 10."
+  default     = 10
+}
+
+variable "api_log_level" {
+  type        = string
+  description = "Python logging level for the API process (LOG_LEVEL). Console lines are billed Log Analytics ingestion, so production runs at WARNING."
+  default     = "WARNING"
+}
+
 variable "db_max_connections" {
   type        = number
   description = "Postgres max_connections on the ReportMate server. Used to bound total pool demand."

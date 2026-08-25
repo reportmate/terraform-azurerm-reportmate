@@ -486,13 +486,21 @@ resource "azurerm_container_app" "api_functions" {
     container {
       name   = "api"
       image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/${var.api_image_name}:${var.api_image_tag}" : "${var.existing_registry_server}/${var.api_image_name}:${var.api_image_tag}"
-      cpu    = 2.0
-      memory = "4Gi"
+      cpu    = var.api_cpu
+      memory = var.api_memory
 
       # Database connection from secure secret
       env {
         name        = "DATABASE_URL"
         secret_name = "db-url"
+      }
+
+      # How much the API writes to stdout. Every line is billed as Log
+      # Analytics ingestion (ContainerAppConsoleLogs_CL), so production runs
+      # at WARNING; the code defaults to INFO when the variable is absent.
+      env {
+        name  = "LOG_LEVEL"
+        value = var.api_log_level
       }
 
       # Application Insights connection
@@ -606,7 +614,7 @@ resource "azurerm_container_app" "api_functions" {
     # already formed.
     http_scale_rule {
       name                = "http-concurrency"
-      concurrent_requests = "10"
+      concurrent_requests = tostring(var.api_http_concurrent_requests)
     }
   }
 
