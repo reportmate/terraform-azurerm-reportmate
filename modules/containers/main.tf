@@ -589,8 +589,25 @@ resource "azurerm_container_app" "api_functions" {
     }
 
     # Scaling configuration (always keep at least 1 instance)
-    min_replicas = 1
+    min_replicas = var.api_min_replicas
     max_replicas = var.api_max_replicas
+
+    # Declared rather than left to the platform default. With no rule at all
+    # Container Apps applies its own HTTP rule at 10 concurrent requests, which
+    # is invisible in the plan, absent from every review, and free to change
+    # under us on a platform upgrade. The value here is deliberately the same
+    # 10, so this changes nothing about how the API scales today -- it only
+    # makes the number one that has to be edited on purpose.
+    #
+    # Concurrency is what this workload actually queues on: a check-in holds a
+    # worker for as long as its body takes to arrive and its modules take to
+    # write, and the Postgres server behind it is IOPS-bound before it is
+    # CPU-bound. A CPU or memory rule would scale out after the queue had
+    # already formed.
+    http_scale_rule {
+      name                = "http-concurrency"
+      concurrent_requests = "10"
+    }
   }
 
   # Workaround for Azure's API cache returning old resource group casing
