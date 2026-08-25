@@ -341,31 +341,6 @@ variable "api_memory" {
   default     = "4Gi"
 }
 
-# Concurrent in-flight requests per replica before another replica is added.
-# The platform default (and the value the module carried until now) is 10,
-# which for this workload scales out on slow check-in uploads while the CPU
-# sits at 1%: over the seven days to 2026-08-25 the hourly replica maximum was
-# 5 in 120 of 188 buckets and 1 in only 3, against a mean of 1.64 and an
-# average CPU of 0.016 of the 2 cores each of those replicas is billed for.
-#
-# Each replica already carries a 40-connection pool (api_db_pool_max), sized
-# to the API's 40-thread request pool so a full house of handlers can each
-# hold a connection. Adding a replica at 10 in-flight requests therefore
-# starts billing a second one while three quarters of the first replica's own
-# capacity is unused. Matching the threshold to the pool makes the scale-out
-# mean what it says: another replica appears when this one is genuinely full,
-# not when it is a quarter full.
-#
-# The plan precondition still bounds api_db_pool_max * api_max_replicas
-# against Postgres max_connections, so raising this cannot oversubscribe the
-# database -- it only changes when the replicas that were already permitted
-# get created.
-variable "api_http_concurrent_requests" {
-  type        = number
-  description = "HTTP scale rule threshold: concurrent requests per replica before scaling out. The Container Apps default is 10; here it tracks api_db_pool_max, the real per-replica ceiling."
-  default     = 40
-}
-
 # Console lines are billed Log Analytics ingestion: 1.47 million lines a day
 # measured over a clean 24 hours to 2026-08-25, 18.8 GB of the 21 GB the
 # workspace bills in 30 days. Almost all of it was structural rather than

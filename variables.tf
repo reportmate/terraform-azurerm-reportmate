@@ -100,12 +100,6 @@ variable "api_memory" {
   default     = "4Gi"
 }
 
-variable "api_http_concurrent_requests" {
-  type        = number
-  description = "Concurrent requests per API replica before another replica is added. Container Apps default is 10; here it tracks api_db_pool_max, the real per-replica ceiling."
-  default     = 40
-}
-
 variable "api_log_level" {
   type        = string
   description = "LOG_LEVEL for the API process. Console output is billed Log Analytics ingestion; the API is quiet at INFO by construction, so noisy emitters get fixed rather than this raised."
@@ -197,6 +191,12 @@ variable "log_retention_days" {
   type        = number
   description = "Log retention period in days"
   default     = 30
+}
+
+variable "log_daily_quota_gb" {
+  description = "Daily ingestion cap in GB for the Log Analytics workspace. Runaway backstop only -- ingestion pauses for the rest of the UTC day once reached. -1 disables it."
+  type        = number
+  default     = 2
 }
 
 variable "app_insights_daily_cap" {

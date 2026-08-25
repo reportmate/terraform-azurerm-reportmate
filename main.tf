@@ -65,6 +65,7 @@ module "monitoring" {
   app_insights_name      = var.app_insights_name
   log_analytics_name     = var.log_analytics_name
   log_retention_days     = var.log_retention_days
+  log_daily_quota_gb     = var.log_daily_quota_gb
   app_insights_daily_cap = var.app_insights_daily_cap
 
   tags = var.tags
@@ -293,11 +294,10 @@ module "containers" {
   api_max_replicas   = var.api_max_replicas
   db_max_connections = var.db_max_connections
 
-  # Per-replica compute, scale-out threshold and log verbosity
-  api_cpu                      = var.api_cpu
-  api_memory                   = var.api_memory
-  api_http_concurrent_requests = var.api_http_concurrent_requests
-  api_log_level                = var.api_log_level
+  # Per-replica compute and log verbosity
+  api_cpu       = var.api_cpu
+  api_memory    = var.api_memory
+  api_log_level = var.api_log_level
 
   # Client authentication
   client_passphrases  = var.client_passphrases
