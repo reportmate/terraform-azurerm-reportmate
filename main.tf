@@ -289,6 +289,7 @@ module "containers" {
   # Database connection pool budget (bounded against db_max_connections)
   api_db_pool_max    = var.api_db_pool_max
   api_db_pool_min    = var.api_db_pool_min
+  api_min_replicas   = var.api_min_replicas
   api_max_replicas   = var.api_max_replicas
   db_max_connections = var.db_max_connections
 
