@@ -65,6 +65,7 @@ module "monitoring" {
   app_insights_name      = var.app_insights_name
   log_analytics_name     = var.log_analytics_name
   log_retention_days     = var.log_retention_days
+  log_daily_quota_gb     = var.log_daily_quota_gb
   app_insights_daily_cap = var.app_insights_daily_cap
 
   tags = var.tags
