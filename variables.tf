@@ -102,8 +102,8 @@ variable "api_memory" {
 
 variable "api_http_concurrent_requests" {
   type        = number
-  description = "Concurrent requests per API replica before another replica is added. Container Apps default is 10."
-  default     = 10
+  description = "Concurrent requests per API replica before another replica is added. Container Apps default is 10; here it tracks api_db_pool_max, the real per-replica ceiling."
+  default     = 40
 }
 
 variable "api_log_level" {

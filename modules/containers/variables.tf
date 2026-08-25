@@ -309,12 +309,26 @@ variable "api_max_replicas" {
 # Compute for each API replica. Container Apps consumption allows a fixed set
 # of pairs (0.25/0.5Gi, 0.5/1Gi, 0.75/1.5Gi, 1/2Gi, 1.25/2.5Gi, 1.5/3Gi,
 # 1.75/3.5Gi, 2/4Gi) and bills vCPU-seconds and GiB-seconds separately, so
-# the pair is the cost lever. Size it from the working set, not the CPU: over
-# the seven days to 2026-08-25 the API averaged 0.016 cores but its working
-# set peaked at 2.9 GB, with 14 hourly buckets above 1.5 GB and 6 above 2 GB
-# -- the full-fleet /installs/full payload (52 MB+) built in one request. A
-# replica sized below that peak is OOM-killed mid-request, which drops the
-# check-ins it was holding; shrink the peak first, then the pair.
+# the pair is the cost lever, and because memory is always exactly twice the
+# vCPU there is no way to keep 4 GiB on less than 2 vCPU. Size it from the
+# working set, not the CPU: over the seven days to 2026-08-25 the API averaged
+# 0.016 cores but its working set peaked at 2.9 GB, with 19 hourly buckets
+# above 1.5 GB and 9 above 2 GB -- the full-fleet /installs/full payload
+# (52 MB+) built in one request.
+#
+# Split by pod, that peak is one replica at a time: in the 16:00-19:00 UTC
+# window on 2026-08-18, one pod ran 1.06, 2.91 and 2.46 GB across three
+# consecutive hours while every other pod alive at the same moment sat between
+# 0.15 and 0.21 GB. So the steady state fits inside 1 GiB an order of
+# magnitude over, and the peak does not fit inside anything smaller than what
+# is set here. A replica sized below the peak is OOM-killed mid-request, which
+# drops the check-ins it was holding.
+#
+# The order is therefore: page the full-fleet reads (the scheduled alert jobs,
+# the heaviest callers, now walk those lists 500 at a time), re-measure over a
+# full week, and only then drop the pair. If the peak lands under ~700 MB,
+# 0.5/1Gi is the target and takes roughly three quarters off this app's
+# compute bill.
 variable "api_cpu" {
   type        = number
   description = "vCPU per API replica. Must pair with api_memory per the Container Apps consumption table."
@@ -330,13 +344,26 @@ variable "api_memory" {
 # Concurrent in-flight requests per replica before another replica is added.
 # The platform default (and the value the module carried until now) is 10,
 # which for this workload scales out on slow check-in uploads while the CPU
-# sits at 1%: seven-day mean 1.64 replicas, peak 5. Each replica runs a
-# 40-thread request pool (api_db_pool_max), so 10 leaves three quarters of a
-# replica idle before the next one starts billing.
+# sits at 1%: over the seven days to 2026-08-25 the hourly replica maximum was
+# 5 in 120 of 188 buckets and 1 in only 3, against a mean of 1.64 and an
+# average CPU of 0.016 of the 2 cores each of those replicas is billed for.
+#
+# Each replica already carries a 40-connection pool (api_db_pool_max), sized
+# to the API's 40-thread request pool so a full house of handlers can each
+# hold a connection. Adding a replica at 10 in-flight requests therefore
+# starts billing a second one while three quarters of the first replica's own
+# capacity is unused. Matching the threshold to the pool makes the scale-out
+# mean what it says: another replica appears when this one is genuinely full,
+# not when it is a quarter full.
+#
+# The plan precondition still bounds api_db_pool_max * api_max_replicas
+# against Postgres max_connections, so raising this cannot oversubscribe the
+# database -- it only changes when the replicas that were already permitted
+# get created.
 variable "api_http_concurrent_requests" {
   type        = number
-  description = "HTTP scale rule threshold: concurrent requests per replica before scaling out. The Container Apps default is 10."
-  default     = 10
+  description = "HTTP scale rule threshold: concurrent requests per replica before scaling out. The Container Apps default is 10; here it tracks api_db_pool_max, the real per-replica ceiling."
+  default     = 40
 }
 
 variable "api_log_level" {
