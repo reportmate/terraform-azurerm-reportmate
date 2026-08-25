@@ -108,8 +108,8 @@ variable "api_http_concurrent_requests" {
 
 variable "api_log_level" {
   type        = string
-  description = "LOG_LEVEL for the API process. Console output is billed Log Analytics ingestion; production runs at WARNING."
-  default     = "WARNING"
+  description = "LOG_LEVEL for the API process. Console output is billed Log Analytics ingestion; the API is quiet at INFO by construction, so noisy emitters get fixed rather than this raised."
+  default     = "INFO"
 }
 
 variable "db_storage_mb" {

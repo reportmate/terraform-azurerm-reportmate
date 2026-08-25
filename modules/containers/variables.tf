@@ -366,10 +366,22 @@ variable "api_http_concurrent_requests" {
   default     = 40
 }
 
+# Console lines are billed Log Analytics ingestion: 1.47 million lines a day
+# measured over a clean 24 hours to 2026-08-25, 18.8 GB of the 21 GB the
+# workspace bills in 30 days. Almost all of it was structural rather than
+# verbose -- the SDK's HTTP logging policy at 55.6%, and eleven INFO lines per
+# check-in on the ingest path at 25.1% -- so it is fixed in the API's own
+# logging setup, not by turning the level down.
+#
+# INFO, deliberately, not WARNING. WARNING would remove a further 3.3% and
+# about CAD 2 a month, at the cost of making the app's quietness depend on
+# this variable being right. With the emitters fixed the app is quiet at INFO,
+# which keeps real outcomes visible by default; if it ever gets loud again the
+# answer is the emitter, not this knob.
 variable "api_log_level" {
   type        = string
-  description = "Python logging level for the API process (LOG_LEVEL). Console lines are billed Log Analytics ingestion, so production runs at WARNING."
-  default     = "WARNING"
+  description = "Python logging level for the API process (LOG_LEVEL). The API is quiet at INFO by construction; lower it only to diagnose, and fix noisy emitters rather than raising it."
+  default     = "INFO"
 }
 
 variable "db_max_connections" {
