@@ -33,11 +33,6 @@ variable "storage_account_id" {
   description = "ID of the storage account"
 }
 
-variable "web_pubsub_id" {
-  type        = string
-  description = "ID of the Web PubSub service"
-}
-
 variable "app_insights_id" {
   type        = string
   description = "ID of the Application Insights instance"

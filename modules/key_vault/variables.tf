@@ -134,13 +134,6 @@ variable "storage_connection_string" {
   sensitive   = true
 }
 
-variable "web_pubsub_connection_string" {
-  description = "Azure Web PubSub connection string (optional)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
 variable "app_insights_connection_string" {
   description = "Application Insights connection string (optional)"
   type        = string

@@ -259,22 +259,6 @@ resource "azurerm_key_vault_secret" "storage_connection_string" {
   depends_on = [azurerm_role_assignment.current_user]
 }
 
-# Web PubSub Connection String
-resource "azurerm_key_vault_secret" "web_pubsub_connection_string" {
-  count        = var.web_pubsub_connection_string != null ? 1 : 0
-  name         = "webpubsub-connection-string"
-  value        = var.web_pubsub_connection_string
-  key_vault_id = azurerm_key_vault.reportmate.id
-  content_type = "Azure Web PubSub connection string for real-time events"
-
-  tags = merge(var.tags, {
-    Purpose = "Real-time Messaging"
-    Type    = "ConnectionString"
-  })
-
-  depends_on = [azurerm_role_assignment.current_user]
-}
-
 # Application Insights Connection String
 resource "azurerm_key_vault_secret" "app_insights_connection_string" {
   count        = var.app_insights_connection_string != null ? 1 : 0

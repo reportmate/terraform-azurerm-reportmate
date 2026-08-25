@@ -42,19 +42,6 @@ module "storage" {
   tags = var.tags
 }
 
-# Messaging Module
-module "messaging" {
-  source = "./modules/messaging"
-
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
-
-  web_pubsub_name = var.web_pubsub_name
-  web_pubsub_sku  = var.web_pubsub_sku
-
-  tags = var.tags
-}
-
 # Monitoring Module
 module "monitoring" {
   source = "./modules/monitoring"
@@ -138,7 +125,6 @@ module "identity" {
 
   # Dependencies
   storage_account_id = module.storage.storage_account_id
-  web_pubsub_id      = module.messaging.web_pubsub_id
   app_insights_id    = module.monitoring.app_insights_id
 
   tags = var.tags
@@ -233,7 +219,6 @@ module "key_vault" {
   # Azure Service Connection Strings (for backup/portability)
   # Note: These are from modules that key_vault doesn't depend on
   storage_connection_string      = module.storage.storage_connection_string
-  web_pubsub_connection_string   = module.messaging.web_pubsub_connection_string
   app_insights_connection_string = module.monitoring.app_insights_connection_string
 
   # URLs are NOT stored here to avoid circular dependencies
@@ -241,7 +226,7 @@ module "key_vault" {
 
   tags = var.tags
 
-  depends_on = [module.storage, module.messaging, module.monitoring]
+  depends_on = [module.storage, module.monitoring]
 }
 
 # Containers Module
@@ -273,7 +258,6 @@ module "containers" {
   managed_identity_principal_id  = module.identity.managed_identity_principal_id
   managed_identity_client_id     = module.identity.managed_identity_client_id
   database_url                   = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${module.database.postgres_fqdn}:5432/${var.db_name}?sslmode=require"
-  web_pubsub_hostname            = module.messaging.web_pubsub_hostname
   app_insights_connection_string = module.monitoring.app_insights_connection_string
   log_analytics_workspace_id     = module.monitoring.log_analytics_id
 
@@ -282,9 +266,6 @@ module "containers" {
   database_name     = var.db_name
   database_username = var.db_username
   database_password = var.db_password
-
-  # Web PubSub connection
-  web_pubsub_connection = module.messaging.web_pubsub_connection_string
 
   # Database connection pool budget (bounded against db_max_connections)
   api_db_pool_max    = var.api_db_pool_max

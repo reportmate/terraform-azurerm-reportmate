@@ -143,19 +143,6 @@ variable "storage_replication" {
   default     = "LRS"
 }
 
-# Messaging Configuration
-variable "web_pubsub_name" {
-  type        = string
-  description = "Name of the Web PubSub service"
-  default     = "reportmate-signalr"
-}
-
-variable "web_pubsub_sku" {
-  type        = string
-  description = "Web PubSub SKU"
-  default     = "Standard_S1"
-}
-
 # Monitoring Configuration
 variable "app_insights_name" {
   type        = string

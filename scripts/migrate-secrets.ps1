@@ -66,7 +66,6 @@ $secretMapping = @{
     "reportmate-custom-domain-name" = "custom-domain-name"
     "reportmate-nextauth-secret" = "nextauth-secret"
     "reportmate-storage-connection-string" = "storage-connection-string"
-    "reportmate-webpubsub-connection-string" = "webpubsub-connection-string"
     "reportmate-appinsights-connection-string" = "appinsights-connection-string"
     "reportmate-auth-client-id" = "auth-client-id"
     "reportmate-auth-client-secret" = "auth-client-secret"

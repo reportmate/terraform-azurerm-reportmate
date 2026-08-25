@@ -103,16 +103,6 @@ resource "azurerm_container_app" "frontend_prod_main" {
         value = var.database_url
       }
 
-      env {
-        name  = "NEXT_PUBLIC_WPS_URL"
-        value = "wss://${var.web_pubsub_hostname}/client/hubs/fleet"
-      }
-
-      env {
-        name  = "NEXT_PUBLIC_ENABLE_SIGNALR"
-        value = "true"
-      }
-
       # Internal API URL for server-side calls (container-to-container within same environment)
       # Uses internal DNS: http://<container-app-name> - traffic stays within Container Apps environment
       env {
@@ -452,7 +442,7 @@ resource "azurerm_container_app" "api_functions" {
       percentage      = 100
     }
 
-    # CORS configuration for browser-side API calls (SignalR negotiate, etc.)
+    # CORS configuration for browser-side API calls
     # Required for frontend to make direct browser requests to API
     # Note: Frontend URL constructed from environment default domain to avoid circular dependency
     cors {
@@ -499,12 +489,6 @@ resource "azurerm_container_app" "api_functions" {
       env {
         name  = "APPLICATIONINSIGHTS_CONNECTION_STRING"
         value = var.app_insights_connection_string
-      }
-
-      # Web PubSub connection for SignalR
-      env {
-        name  = "EVENTS_CONNECTION"
-        value = var.web_pubsub_connection
       }
 
       # Client passphrase for Windows client authentication
