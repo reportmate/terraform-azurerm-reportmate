@@ -86,6 +86,25 @@ resource "azurerm_container_app" "frontend_prod_main" {
     ]
   }
 
+  # The frontend carried the same three values in plain `env` as the API did,
+  # including the full Postgres connection string with the password in it --
+  # `az containerapp show` on this app printed database credentials to anyone
+  # with Reader on the resource group. Same fix, same reasoning as on the API.
+  secret {
+    name  = "db-url"
+    value = var.database_url
+  }
+
+  secret {
+    name  = "client-passphrase"
+    value = var.client_passphrases
+  }
+
+  secret {
+    name  = "api-internal-secret"
+    value = var.api_internal_secret
+  }
+
   template {
     container {
       name   = "container"
@@ -99,8 +118,8 @@ resource "azurerm_container_app" "frontend_prod_main" {
       }
 
       env {
-        name  = "DATABASE_URL"
-        value = var.database_url
+        name        = "DATABASE_URL"
+        secret_name = "db-url"
       }
 
       # Internal API URL for server-side calls (container-to-container within same environment)
@@ -118,8 +137,8 @@ resource "azurerm_container_app" "frontend_prod_main" {
 
       # Shared secret for internal container-to-container API authentication
       env {
-        name  = "API_INTERNAL_SECRET"
-        value = var.api_internal_secret
+        name        = "API_INTERNAL_SECRET"
+        secret_name = "api-internal-secret"
       }
 
       env {
@@ -235,8 +254,8 @@ resource "azurerm_container_app" "frontend_prod_main" {
       }
 
       env {
-        name  = "REPORTMATE_PASSPHRASE"
-        value = var.client_passphrases
+        name        = "REPORTMATE_PASSPHRASE"
+        secret_name = "client-passphrase"
       }
 
       env {
@@ -472,6 +491,29 @@ resource "azurerm_container_app" "api_functions" {
     value = "postgresql://${var.database_username}:${urlencode(var.database_password)}@${var.database_host}:5432/${var.database_name}?sslmode=require"
   }
 
+  # These three were plain `env` values, which means `az containerapp show`
+  # printed a Web PubSub access key, the client passphrase and the internal
+  # service secret in full to anyone holding Reader on the resource group.
+  # db-url above had the pattern right and the other three simply never
+  # adopted it. Reading a secret now needs a separate, separately-authorised
+  # call rather than falling out of a routine resource dump.
+  #
+  # Container Apps secrets rather than Key Vault references: all three values
+  # are already Terraform variables, and the vault is itself populated from
+  # those same variables, so a reference would add indirection without keeping
+  # anything extra out of state. It is worth doing once the vault stops being
+  # conditional on enable_key_vault -- but the exposure being closed here is
+  # the resource dump, and that closes either way.
+  secret {
+    name  = "client-passphrase"
+    value = var.client_passphrases
+  }
+
+  secret {
+    name  = "api-internal-secret"
+    value = var.api_internal_secret
+  }
+
   template {
     container {
       name   = "api"
@@ -493,8 +535,8 @@ resource "azurerm_container_app" "api_functions" {
 
       # Client passphrase for Windows client authentication
       env {
-        name  = "REPORTMATE_PASSPHRASE"
-        value = var.client_passphrases
+        name        = "REPORTMATE_PASSPHRASE"
+        secret_name = "client-passphrase"
       }
 
       # Environment indicator
@@ -505,8 +547,8 @@ resource "azurerm_container_app" "api_functions" {
 
       # Internal API secret for container-to-container authentication (frontend to API)
       env {
-        name  = "API_INTERNAL_SECRET"
-        value = var.api_internal_secret
+        name        = "API_INTERNAL_SECRET"
+        secret_name = "api-internal-secret"
       }
 
       # Federated OIDC bearer auth (provider-agnostic SSO). Inert unless
@@ -539,22 +581,36 @@ resource "azurerm_container_app" "api_functions" {
         value = tostring(var.api_db_pool_min)
       }
 
-      # Liveness on /api/v1/health, which reports unhealthy when the connection
-      # pool cannot reach Postgres. Without a probe a replica whose pool has
-      # filled with dead connections stays in rotation serving 500s forever —
-      # observed repeatedly on 2026-07-20, where the only recovery was a manual
-      # revision restart. Failing the probe hands that recycling to Azure.
+      # Both probes previously targeted /api/v1/health, which borrows a pooled
+      # connection and runs SELECT 1 on every call. The API exposes two
+      # purpose-built endpoints instead, and they are what these should have
+      # been using:
       #
-      # failure_count_threshold of 3 at 20s means a genuinely wedged replica is
-      # replaced in about a minute, while a single slow health check during a
-      # vacuum or a traffic spike is not enough to cycle a working replica.
+      #   /api/v1/health/live   no dependencies, async, answered on the event
+      #                         loop -- cannot queue behind busy worker threads
+      #   /api/v1/health/ready  checks the database, 503 when unreachable
+      #
+      # Liveness keeps the protection added after 2026-07-20, when replicas
+      # whose pools had filled with dead connections stayed in rotation serving
+      # 500s until someone restarted the revision by hand: a process that is up
+      # but cannot answer at all still fails this and is recycled. What it no
+      # longer does is kill a healthy replica because the database was briefly
+      # slow. That case belongs to readiness, which drains rather than kills.
+      #
+      # Timeouts go to 10s from 5s, and readiness tolerates 3 failures rather
+      # than 2. At the old budget a replica was pulled from rotation unless it
+      # answered within 5s twice running, which produced 4,241 ReplicaUnhealthy
+      # events in 3 days and 2,568 container starts in 7 -- an in-flight ingest
+      # blocked the event loop for longer than the probe would wait. The API
+      # change removes the blocking; this removes the hair trigger that turned
+      # any slow moment into a rescale.
       liveness_probe {
         transport               = "HTTP"
-        path                    = "/api/v1/health"
+        path                    = "/api/v1/health/live"
         port                    = 8000
         initial_delay           = 20
         interval_seconds        = 20
-        timeout                 = 5
+        timeout                 = 10
         failure_count_threshold = 3
       }
 
@@ -563,11 +619,11 @@ resource "azurerm_container_app" "api_functions" {
       # instead of returning errors to clients.
       readiness_probe {
         transport               = "HTTP"
-        path                    = "/api/v1/health"
+        path                    = "/api/v1/health/ready"
         port                    = 8000
         interval_seconds        = 10
-        timeout                 = 5
-        failure_count_threshold = 2
+        timeout                 = 10
+        failure_count_threshold = 3
         success_count_threshold = 1
       }
     }
@@ -577,20 +633,29 @@ resource "azurerm_container_app" "api_functions" {
     max_replicas = var.api_max_replicas
 
     # Declared rather than left to the platform default. With no rule at all
-    # Container Apps applies its own HTTP rule at 10 concurrent requests, which
-    # is invisible in the plan, absent from every review, and free to change
-    # under us on a platform upgrade. The value here is deliberately the same
-    # 10, so this changes nothing about how the API scales today -- it only
-    # makes the number one that has to be edited on purpose.
+    # Container Apps applies its own HTTP rule, which is invisible in the plan,
+    # absent from every review, and free to change under us on a platform
+    # upgrade. Naming it makes the number one that has to be edited on purpose.
     #
-    # Concurrency is what this workload actually queues on: a check-in holds a
-    # worker for as long as its body takes to arrive and its modules take to
-    # write, and the Postgres server behind it is IOPS-bound before it is
-    # CPU-bound. A CPU or memory rule would scale out after the queue had
-    # already formed.
+    # That default is 10 concurrent requests per replica, and it was reached
+    # almost immediately once requests started taking seconds rather than
+    # milliseconds: the app sat at max_replicas in most hours while CPU averaged
+    # 0.83% of its allocation, paying for five replicas' worth of allocated vCPU
+    # to do nothing but wait.
+    #
+    # The value is tied to api_db_pool_max rather than written as a literal,
+    # because that is the actual capacity constraint. A replica can work that
+    # many handlers at once, each holding one pooled connection, so it is
+    # precisely the point at which a replica is genuinely full and a second one
+    # earns its cost. Tying the two together also stops them drifting apart.
+    #
+    # Concurrency is what this workload queues on: a check-in holds a worker for
+    # as long as its body takes to arrive and its modules take to write, and the
+    # Postgres server behind it is IOPS-bound before it is CPU-bound. A CPU or
+    # memory rule would scale out after the queue had already formed.
     http_scale_rule {
       name                = "http-concurrency"
-      concurrent_requests = "10"
+      concurrent_requests = tostring(var.api_db_pool_max)
     }
   }
 

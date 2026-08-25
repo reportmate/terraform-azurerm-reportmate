@@ -162,6 +162,12 @@ variable "log_retention_days" {
   default     = 30
 }
 
+variable "log_daily_quota_gb" {
+  description = "Daily ingestion cap in GB for the Log Analytics workspace. Runaway backstop only -- ingestion pauses for the rest of the UTC day once reached. -1 disables it."
+  type        = number
+  default     = 2
+}
+
 variable "app_insights_daily_cap" {
   type        = number
   description = "Application Insights daily data cap in GB"
