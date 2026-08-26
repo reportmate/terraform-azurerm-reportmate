@@ -220,6 +220,20 @@ variable "teams_webhooks" {
   sensitive   = true
 }
 
+variable "function_app_external_secret_vault_ids" {
+  type        = list(string)
+  default     = []
+  description = <<-EOT
+    Resource IDs of RBAC-enabled Key Vaults, owned outside this deployment, whose
+    secrets the Function App's identity may read.
+
+    Same reasoning as function_app_additional_settings: a grant made with `az` is
+    invisible to the next plan, which then reverts it. A cross-stack vault grant
+    is exactly the kind of thing that gets clicked in once and silently lost, so
+    it is declared here instead.
+  EOT
+}
+
 variable "function_app_additional_settings" {
   type        = map(string)
   description = <<-EOT
