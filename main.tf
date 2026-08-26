@@ -99,6 +99,9 @@ module "functions" {
   # Key Vault access (optional)
   key_vault_id = var.enable_key_vault ? module.key_vault[0].key_vault_id : null
 
+  # Vaults owned by another stack that this app's identity must read from.
+  external_secret_vault_ids = var.function_app_external_secret_vault_ids
+
   tags = var.tags
 
   depends_on = [module.monitoring, module.containers]

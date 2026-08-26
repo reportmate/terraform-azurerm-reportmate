@@ -117,3 +117,13 @@ resource "azurerm_key_vault_access_policy" "functions" {
     "List"
   ]
 }
+
+# Read access to Key Vaults owned elsewhere (RBAC, not access policy)
+resource "azurerm_role_assignment" "functions_external_secrets" {
+  for_each = toset(var.external_secret_vault_ids)
+
+  scope                = each.value
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_function_app_flex_consumption.main.identity[0].principal_id
+  principal_type       = "ServicePrincipal"
+}

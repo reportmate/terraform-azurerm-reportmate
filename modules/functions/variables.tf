@@ -79,3 +79,22 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "external_secret_vault_ids" {
+  description = <<-EOT
+    Resource IDs of RBAC-enabled Key Vaults, owned outside this deployment, whose
+    secrets this Function App's identity may read.
+
+    `key_vault_id` above grants against the vault this stack creates, and does it
+    with an access policy. A vault someone else owns is typically RBAC-enabled, on
+    which access policies are inert, so it needs a Key Vault Secrets User role
+    assignment instead -- this is that. Pass full resource IDs; the caller is the
+    only one that knows them.
+
+    The apply principal needs rights to create role assignments at the target
+    scope, which for a vault in another resource group is not implied by owning
+    this one.
+  EOT
+  type        = list(string)
+  default     = []
+}
