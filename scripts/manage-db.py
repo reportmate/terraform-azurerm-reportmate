@@ -162,7 +162,7 @@ def cleanup_hostnames(cursor, conn, dry_run=False, auto_confirm=False):
     - ^[A-Z]+-[A-Z]+$ : Name patterns (TOLUWANI-AGBI, AWI-JUMP, NICOLE-ALMEIDA)
     - ^[A-Z]+\\-[A-Z0-9]+\\-[A-Z0-9]+$ : DESKTOP-ABC123 patterns
     - ^WIN-[A-Z0-9]+$ : Windows default hostnames (WIN-GM0MB0JR)
-    - ^[A-Z]+-[A-Z]+-[A-Z]+-[0-9]+$ : Lab/Room patterns (ANIM-STD-LAB-11)
+    - ^[A-Z]+-[A-Z]+-[A-Z]+-[0-9]+$ : Lab/Room patterns (DEPT-ROOM-LAB-11)
     - ^[A-Z]{4,}-[0-9]{4}$ : Username-Device patterns (JMCVEITY-0322)
     - ^[A-Z]{2,}\\d{2,}$ : Numbered hostnames (DESKTOP01, TESTDEV001)
     - Only letters/hyphens : Serial numbers should contain numbers
@@ -379,7 +379,7 @@ def validate_serial_patterns(cursor):
         ("Name patterns (FIRSTNAME-LASTNAME)", r"^[A-Z]+-[A-Z]+$", None),
         ("Windows hostnames (WIN-*)", r"^WIN-[A-Z0-9]+$", None),
         ("Desktop/Laptop patterns", r"^(DESKTOP|LAPTOP|WORKSTATION|PC)-[A-Z0-9]+$", None),
-        ("Lab/Room patterns (ANIM-STD-LAB-11)", r"^[A-Z]+-[A-Z]+-[A-Z]+-[0-9]+$", None),
+        ("Lab/Room patterns (DEPT-ROOM-LAB-11)", r"^[A-Z]+-[A-Z]+-[A-Z]+-[0-9]+$", None),
         ("Username-Device patterns (JMCVEITY-0322)", r"^[A-Z]{4,}-[0-9]{4}$", None),
         ("Numbered hostnames (DESKTOP01)", r"^[A-Z]{2,}[0-9]{2,}$", None),
         ("Only letters (no numbers)", r"^[A-Z\-]+$", r"serial_number !~ '[0-9]'"),
