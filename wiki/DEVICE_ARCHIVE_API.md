@@ -69,7 +69,7 @@ $devices = $response.devices
 
 # Filter by location and name pattern
 $filtered = $devices | Where-Object { 
-    $_.location -eq 'A3080' -and $_.deviceName -like '*-LE*' 
+    $_.location -eq 'EXAMPLE-ROOM' -and $_.deviceName -like '*-LE*' 
 }
 
 # Display results
@@ -127,41 +127,57 @@ foreach ($serial in $serials) {
 
 ## Archive Operation Log: December 7, 2025
 
-**Purpose:** Archive 20 A3080 location devices with `-LE` suffix (Studio Lab loaner equipment)
+**Purpose:** Archive a batch of loaner devices from one location, identified by a name suffix
 
 **Devices Archived:**
 
 | Serial | Device Name |
 |--------|-------------|
-| 53FFFF3 | Studio Lab 01-LE |
-| 53GCFF3 | Studio Lab 02-LE |
-| 53J4FF3 | Studio Lab 03-LE |
-| 53HCFF3 | Studio Lab 04-LE |
-| 53FDFF3 | Studio Lab 05-LE |
-| 53H4FF3 | Studio Lab 06-LE |
-| 53GBFF3 | Studio Lab 07-LE |
-| 53FCFF3 | Studio Lab 08-LE |
-| 53H6FF3 | Studio Lab 09-LE |
-| 53G9FF3 | Studio Lab 10-LE |
-| 53G4FF3 | Studio Lab 12-LE |
-| 53HFFF3 | Studio Lab 13-LE |
-| 53G6FF3 | Studio Lab 14-LE |
-| 53H5FF3 | Studio Lab 15-LE |
-| 53G7FF3 | Studio Lab 16-LE |
-| 53H7FF3 | Studio Lab 17-LE |
-| 53H8FF3 | Studio Lab 18-LE |
-| 53H9FF3 | Studio Lab 19-LE |
-| 53G5FF3 | Studio Lab 20-LE |
-| 53HBFF3 | Studio Lab Instructor-LE |
+| EXAMPLE001 | Example Lab 01 |
+| EXAMPLE002 | Example Lab 02 |
+| EXAMPLE003 | Example Lab 03 |
+| EXAMPLE004 | Example Lab 04 |
+| EXAMPLE005 | Example Lab 05 |
+| EXAMPLE006 | Example Lab 06 |
+| EXAMPLE007 | Example Lab 07 |
+| EXAMPLE008 | Example Lab 08 |
+| EXAMPLE009 | Example Lab 09 |
+| EXAMPLE010 | Example Lab 10 |
+| EXAMPLE011 | Example Lab 11 |
+| EXAMPLE012 | Example Lab 12 |
+| EXAMPLE013 | Example Lab 13 |
+| EXAMPLE014 | Example Lab 14 |
+| EXAMPLE015 | Example Lab 15 |
+| EXAMPLE016 | Example Lab 16 |
+| EXAMPLE017 | Example Lab 17 |
+| EXAMPLE018 | Example Lab 18 |
+| EXAMPLE019 | Example Lab 19 |
+| EXAMPLE020 | Example Lab 20 |
 
 **Command Used:**
 ```powershell
 $headers = @{ "X-API-PASSPHRASE" = "$REPORTMATE_CLIENT_PASSPHRASE" }
 $serials = @(
-    "53FCFF3", "53FDFF3", "53FFFF3", "53G4FF3", "53G5FF3", 
-    "53G6FF3", "53G7FF3", "53G9FF3", "53GBFF3", "53GCFF3", 
-    "53H4FF3", "53H5FF3", "53H6FF3", "53H7FF3", "53H8FF3", 
-    "53H9FF3", "53HBFF3", "53HCFF3", "53HFFF3", "53J4FF3"
+    "EXAMPLE001",
+    "EXAMPLE002",
+    "EXAMPLE003",
+    "EXAMPLE004",
+    "EXAMPLE005",
+    "EXAMPLE006",
+    "EXAMPLE007",
+    "EXAMPLE008",
+    "EXAMPLE009",
+    "EXAMPLE010",
+    "EXAMPLE011",
+    "EXAMPLE012",
+    "EXAMPLE013",
+    "EXAMPLE014",
+    "EXAMPLE015",
+    "EXAMPLE016",
+    "EXAMPLE017",
+    "EXAMPLE018",
+    "EXAMPLE019",
+    "EXAMPLE020"
 )
 
 foreach ($serial in $serials) {
@@ -177,4 +193,4 @@ foreach ($serial in $serials) {
 
 **Verification:**
 - Total device count dropped from 363 to 343
-- A3080 devices with `-LE` suffix no longer appear in `/api/devices` response
+- Devices at that location with the `-LE` suffix no longer appear in `/api/devices` response
