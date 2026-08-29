@@ -186,6 +186,21 @@ resource "azurerm_key_vault_secret" "api_internal_secret" {
   depends_on = [azurerm_role_assignment.current_user]
 }
 
+# Kiosk viewer tokens (read-only display sessions minted by /kiosk)
+resource "azurerm_key_vault_secret" "kiosk_tokens" {
+  name         = "kiosk-tokens"
+  value        = var.kiosk_tokens
+  key_vault_id = azurerm_key_vault.reportmate.id
+  content_type = "Comma-separated label:token pairs for kiosk viewer sessions"
+
+  tags = merge(var.tags, {
+    Purpose = "Kiosk Viewer Sessions"
+    Type    = "SharedSecret"
+  })
+
+  depends_on = [azurerm_role_assignment.current_user]
+}
+
 # Security Group Object ID
 resource "azurerm_key_vault_secret" "devops_group_object_id" {
   name         = "devops-group-object-id"

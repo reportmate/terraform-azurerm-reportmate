@@ -233,6 +233,7 @@ module "key_vault" {
   custom_domain_name   = var.custom_domain_name
   nextauth_secret      = var.nextauth_secret
   api_internal_secret  = var.api_internal_secret
+  kiosk_tokens         = var.kiosk_tokens
 
   # Azure Service Connection Strings (for backup/portability)
   # Note: These are from modules that key_vault doesn't depend on
@@ -300,6 +301,7 @@ module "containers" {
   # Client authentication
   client_passphrases  = var.client_passphrases
   api_internal_secret = var.api_internal_secret
+  kiosk_tokens        = var.kiosk_tokens
   allowed_domains     = var.allowed_domains
 
   # OIDC bearer auth env for the API container (issuer/audience come from the auth module)

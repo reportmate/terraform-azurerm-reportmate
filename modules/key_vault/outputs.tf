@@ -91,6 +91,7 @@ output "secret_names" {
     azure_ad_tenant_id     = azurerm_key_vault_secret.azure_ad_tenant_id.name
     client_passphrase      = azurerm_key_vault_secret.client_passphrase.name
     api_internal_secret    = azurerm_key_vault_secret.api_internal_secret.name
+    kiosk_tokens           = azurerm_key_vault_secret.kiosk_tokens.name
     devops_group_object_id = azurerm_key_vault_secret.devops_group_object_id.name
     custom_domain_name     = azurerm_key_vault_secret.custom_domain_name.name
     nextauth_secret        = azurerm_key_vault_secret.nextauth_secret.name
