@@ -105,6 +105,11 @@ resource "azurerm_container_app" "frontend_prod_main" {
     value = var.api_internal_secret
   }
 
+  secret {
+    name  = "kiosk-tokens"
+    value = var.kiosk_tokens
+  }
+
   template {
     container {
       name   = "container"
@@ -149,6 +154,12 @@ resource "azurerm_container_app" "frontend_prod_main" {
       env {
         name        = "API_INTERNAL_SECRET"
         secret_name = "api-internal-secret"
+      }
+
+      # Kiosk viewer tokens: /kiosk exchanges one for a read-only display session
+      env {
+        name        = "KIOSK_TOKENS"
+        secret_name = "kiosk-tokens"
       }
 
       env {

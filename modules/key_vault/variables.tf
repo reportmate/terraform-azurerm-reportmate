@@ -236,3 +236,10 @@ variable "api_internal_secret" {
   default     = ""
   sensitive   = true
 }
+
+variable "kiosk_tokens" {
+  description = "Comma-separated kiosk viewer tokens for read-only display sessions"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

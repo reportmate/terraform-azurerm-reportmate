@@ -397,6 +397,13 @@ variable "api_internal_secret" {
   sensitive   = true
 }
 
+variable "kiosk_tokens" {
+  type        = string
+  description = "Comma-separated kiosk viewer tokens (label:token) that /kiosk exchanges for a read-only session. Empty disables kiosk sessions."
+  sensitive   = true
+  default     = ""
+}
+
 variable "enable_machine_groups" {
   type        = bool
   description = "Enable per-machine-group passphrase authentication"

@@ -110,6 +110,13 @@ variable "api_internal_secret" {
   sensitive   = true
 }
 
+variable "kiosk_tokens" {
+  type        = string
+  description = "Comma-separated kiosk viewer tokens for read-only display sessions"
+  sensitive   = true
+  default     = ""
+}
+
 variable "enable_custom_domain" {
   type        = bool
   description = "Enable custom domain configuration"
