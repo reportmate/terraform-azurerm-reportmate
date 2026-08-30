@@ -222,15 +222,10 @@ resource "time_sleep" "wait_for_rbac" {
   create_duration = "60s"
 }
 
-resource "azurerm_key_vault_secret" "nextauth_secret" {
-  count        = var.enable_key_vault ? 1 : 0
-  depends_on   = [time_sleep.wait_for_rbac]
-  name         = "nextauth-secret"
-  value        = random_password.nextauth_secret.result
-  key_vault_id = var.key_vault_id
-
-  tags = var.tags
-}
+# The nextauth-secret vault entry is owned by the key_vault module. A second
+# writer here rotated it on every apply: each run found the other resource's
+# value as the latest version and wrote its own back, so every deploy changed
+# NEXTAUTH_SECRET and invalidated every signed-in session.
 
 # Assign authorized groups to the application for sign-in access
 # This assigns the group to the "User" role which allows general access
