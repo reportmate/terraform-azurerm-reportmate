@@ -347,3 +347,13 @@ module "networking" {
   tags = var.tags
 }
 
+# The auth module used to write its own copy of the nextauth-secret vault
+# entry alongside the key_vault module's. Drop it from state without deleting
+# the vault secret, which the key_vault module still manages.
+removed {
+  from = module.auth.azurerm_key_vault_secret.nextauth_secret
+
+  lifecycle {
+    destroy = false
+  }
+}
