@@ -278,7 +278,6 @@ module "containers" {
   managed_identity_principal_id  = module.identity.managed_identity_principal_id
   managed_identity_client_id     = module.identity.managed_identity_client_id
   database_url                   = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${module.database.postgres_fqdn}:5432/${var.db_name}?sslmode=require"
-  web_pubsub_hostname            = module.messaging.web_pubsub_hostname
   app_insights_connection_string = module.monitoring.app_insights_connection_string
   log_analytics_workspace_id     = module.monitoring.log_analytics_id
 

@@ -128,11 +128,6 @@ resource "azurerm_container_app" "frontend_prod_main" {
       }
 
       env {
-        name  = "NEXT_PUBLIC_WPS_URL"
-        value = "wss://${var.web_pubsub_hostname}/client/hubs/fleet"
-      }
-
-      env {
         name  = "NEXT_PUBLIC_ENABLE_SIGNALR"
         value = "true"
       }
