@@ -67,11 +67,6 @@ variable "database_url" {
   sensitive   = true
 }
 
-variable "web_pubsub_hostname" {
-  type        = string
-  description = "Web PubSub hostname"
-}
-
 variable "app_insights_connection_string" {
   type        = string
   description = "Application Insights connection string"
