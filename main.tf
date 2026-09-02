@@ -297,6 +297,11 @@ module "containers" {
   api_max_replicas   = var.api_max_replicas
   db_max_connections = var.db_max_connections
 
+  # Per-replica compute and log verbosity
+  api_cpu       = var.api_cpu
+  api_memory    = var.api_memory
+  api_log_level = var.api_log_level
+
   # Client authentication
   client_passphrases  = var.client_passphrases
   api_internal_secret = var.api_internal_secret

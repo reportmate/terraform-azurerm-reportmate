@@ -308,6 +308,59 @@ variable "api_max_replicas" {
   default     = 5
 }
 
+# Compute for each API replica. Container Apps consumption allows a fixed set
+# of pairs (0.25/0.5Gi, 0.5/1Gi, 0.75/1.5Gi, 1/2Gi, 1.25/2.5Gi, 1.5/3Gi,
+# 1.75/3.5Gi, 2/4Gi) and bills vCPU-seconds and GiB-seconds separately, so
+# the pair is the cost lever, and because memory is always exactly twice the
+# vCPU there is no way to keep 4 GiB on less than 2 vCPU. Size it from the
+# working set, not the CPU: over the seven days to 2026-08-25 the API averaged
+# 0.016 cores but its working set peaked at 2.9 GB, with 19 hourly buckets
+# above 1.5 GB and 9 above 2 GB -- the full-fleet /installs/full payload
+# (52 MB+) built in one request.
+#
+# Split by pod, that peak is one replica at a time: in the 16:00-19:00 UTC
+# window on 2026-08-18, one pod ran 1.06, 2.91 and 2.46 GB across three
+# consecutive hours while every other pod alive at the same moment sat between
+# 0.15 and 0.21 GB. So the steady state fits inside 1 GiB an order of
+# magnitude over, and the peak does not fit inside anything smaller than what
+# is set here. A replica sized below the peak is OOM-killed mid-request, which
+# drops the check-ins it was holding.
+#
+# The order is therefore: page the full-fleet reads (the scheduled alert jobs,
+# the heaviest callers, now walk those lists 500 at a time), re-measure over a
+# full week, and only then drop the pair. If the peak lands under ~700 MB,
+# 0.5/1Gi is the target and takes roughly three quarters off this app's
+# compute bill.
+variable "api_cpu" {
+  type        = number
+  description = "vCPU per API replica. Must pair with api_memory per the Container Apps consumption table."
+  default     = 2.0
+}
+
+variable "api_memory" {
+  type        = string
+  description = "Memory per API replica, e.g. \"4Gi\". Must pair with api_cpu; size from the observed working-set peak, not the average."
+  default     = "4Gi"
+}
+
+# Console lines are billed Log Analytics ingestion: 1.47 million lines a day
+# measured over a clean 24 hours to 2026-08-25, 18.8 GB of the 21 GB the
+# workspace bills in 30 days. Almost all of it was structural rather than
+# verbose -- the SDK's HTTP logging policy at 55.6%, and eleven INFO lines per
+# check-in on the ingest path at 25.1% -- so it is fixed in the API's own
+# logging setup, not by turning the level down.
+#
+# INFO, deliberately, not WARNING. WARNING would remove a further 3.3% and
+# about CAD 2 a month, at the cost of making the app's quietness depend on
+# this variable being right. With the emitters fixed the app is quiet at INFO,
+# which keeps real outcomes visible by default; if it ever gets loud again the
+# answer is the emitter, not this knob.
+variable "api_log_level" {
+  type        = string
+  description = "Python logging level for the API process (LOG_LEVEL). The API is quiet at INFO by construction; lower it only to diagnose, and fix noisy emitters rather than raising it."
+  default     = "INFO"
+}
+
 variable "db_max_connections" {
   type        = number
   description = "Postgres max_connections on the ReportMate server. Used to bound total pool demand."

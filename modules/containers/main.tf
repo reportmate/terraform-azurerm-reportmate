@@ -539,13 +539,22 @@ resource "azurerm_container_app" "api_functions" {
     container {
       name   = "api"
       image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/${var.api_image_name}:${var.api_image_tag}" : "${var.existing_registry_server}/${var.api_image_name}:${var.api_image_tag}"
-      cpu    = 2.0
-      memory = "4Gi"
+      cpu    = var.api_cpu
+      memory = var.api_memory
 
       # Database connection from secure secret
       env {
         name        = "DATABASE_URL"
         secret_name = "db-url"
+      }
+
+      # How much the API writes to stdout. Every line is billed as Log
+      # Analytics ingestion (ContainerAppConsoleLogs_CL), which is 18.8 GB of
+      # the 21 GB this workspace bills in 30 days. Set explicitly so the level
+      # is a decision rather than whatever the image happens to default to.
+      env {
+        name  = "LOG_LEVEL"
+        value = var.api_log_level
       }
 
       # Application Insights connection
