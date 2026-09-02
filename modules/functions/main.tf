@@ -39,6 +39,16 @@ resource "azurerm_storage_container" "deployments" {
   storage_account_id = azurerm_storage_account.functions.id
 }
 
+# Durable copy of usage_history. Every other table is a current-state snapshot
+# a device re-reports on its next check-in; usage_history is the one record
+# that cannot be re-collected, and the database keeps 35 days of backups. The
+# archive function exports each closed month here as gzip CSV, plus a rolling
+# snapshot of the open month, so losing the server loses at most a day of it.
+resource "azurerm_storage_container" "usage_archive" {
+  name               = "usage-archive"
+  storage_account_id = azurerm_storage_account.functions.id
+}
+
 # Function App (Flex Consumption, Python 3.11)
 resource "azurerm_function_app_flex_consumption" "main" {
   name                = var.function_app_name
@@ -88,6 +98,9 @@ resource "azurerm_function_app_flex_consumption" "main" {
 
       # Render alerts table (used by render_alerts_receive / render_alerts_digest)
       "RENDER_ALERTS_TABLE" = azurerm_storage_table.render_alerts.name
+      # Blob container the usage_history archive function writes to (same
+      # account as AzureWebJobsStorage, so no extra credential is needed).
+      "USAGE_ARCHIVE_CONTAINER" = azurerm_storage_container.usage_archive.name
 
       "APPLICATIONINSIGHTS_DISABLE_DEPENDENCY_TRACKING" = "true"
     },
