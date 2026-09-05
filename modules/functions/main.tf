@@ -117,18 +117,16 @@ resource "azurerm_function_app_flex_consumption" "main" {
   tags = var.tags
 }
 
-# Grant Functions App access to Key Vault (if provided)
-resource "azurerm_key_vault_access_policy" "functions" {
+# Grant Functions App access to Key Vault (if provided).
+# The vault is RBAC-authorized, so this must be a role assignment: an access
+# policy on an RBAC vault grants nothing.
+resource "azurerm_role_assignment" "functions_secrets" {
   count = var.key_vault_id != null ? 1 : 0
 
-  key_vault_id = var.key_vault_id
-  tenant_id    = azurerm_function_app_flex_consumption.main.identity[0].tenant_id
-  object_id    = azurerm_function_app_flex_consumption.main.identity[0].principal_id
-
-  secret_permissions = [
-    "Get",
-    "List"
-  ]
+  scope                = var.key_vault_id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_function_app_flex_consumption.main.identity[0].principal_id
+  principal_type       = "ServicePrincipal"
 }
 
 # Read access to Key Vaults owned elsewhere (RBAC, not access policy)

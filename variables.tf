@@ -196,8 +196,8 @@ variable "function_app_name" {
 
 variable "function_app_sku" {
   type        = string
-  description = "Azure Functions SKU (Y1 for Consumption, others for Premium/Dedicated)"
-  default     = "Y1"
+  description = "App Service Plan SKU for the Functions App. The functions module deploys a Flex Consumption function app, so FC1 is the supported configuration; other tiers are accepted by the module but are not used by this root module."
+  default     = "FC1"
 }
 
 variable "enable_functions" {
