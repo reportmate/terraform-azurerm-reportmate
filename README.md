@@ -341,10 +341,12 @@ See [variables.tf](./variables.tf) for complete list.
 
 | Name | Description |
 |------|-------------|
-| `frontend_url` | URL of the deployed web application |
-| `api_url` | URL of the FastAPI container |
-| `database_fqdn` | PostgreSQL server FQDN |
-| `container_registry_url` | Container registry login server |
+| `function_app_name` | Name of the Azure Functions App (null unless `enable_functions = true`) |
+| `function_app_url` | Default hostname of the Functions App (null unless `enable_functions = true`) |
+| `function_app_identity_principal_id` | Principal ID of the Functions App managed identity (null unless `enable_functions = true`) |
+| `maintenance_job_name` | Name of the database maintenance Container App Job |
+| `maintenance_job_id` | ID of the Container App Job for maintenance |
+| `maintenance_schedule` | Cron schedule for the maintenance job |
 
 ## Requirements
 
