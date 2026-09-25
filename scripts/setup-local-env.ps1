@@ -119,7 +119,6 @@ $secretNames = @(
     "nextauth-secret",
     "devops-group-object-id",
     "storage-connection-string",
-    "webpubsub-connection-string",
     "appinsights-connection-string",
     "api-base-url",
     "frontend-url"
@@ -184,10 +183,6 @@ NEXT_PUBLIC_DOMAIN=localhost:3000
 API_BASE_URL=$apiBaseUrl
 NEXT_PUBLIC_API_BASE_URL=$apiBaseUrl
 
-# SignalR/WebPubSub Configuration
-NEXT_PUBLIC_ENABLE_SIGNALR=true
-NEXT_PUBLIC_WPS_URL=wss://reportmate-signalr.webpubsub.azure.com/client/hubs/fleet
-
 # Database Configuration
 DATABASE_URL=$databaseUrl
 
@@ -232,10 +227,6 @@ NEXT_PUBLIC_DOMAIN=localhost:3000
 # Backend API Configuration (FastAPI container)
 API_BASE_URL=$apiBaseUrl
 NEXT_PUBLIC_API_BASE_URL=$apiBaseUrl
-
-# SignalR/WebPubSub Configuration
-NEXT_PUBLIC_ENABLE_SIGNALR=true
-NEXT_PUBLIC_WPS_URL=wss://reportmate-signalr.webpubsub.azure.com/client/hubs/fleet
 
 # Database Configuration
 DATABASE_URL=$databaseUrl

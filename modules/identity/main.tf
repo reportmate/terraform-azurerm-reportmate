@@ -14,9 +14,9 @@ resource "azurerm_user_assigned_identity" "main" {
 
 # Storage Account RBAC assignments
 resource "azurerm_role_assignment" "storage_blob_contributor" {
-  scope                            = var.storage_account_id
-  role_definition_name             = "Storage Blob Data Contributor"
-  principal_id                     = azurerm_user_assigned_identity.main.principal_id
+  scope                = var.storage_account_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
 
   lifecycle {
     create_before_destroy = true
@@ -24,20 +24,9 @@ resource "azurerm_role_assignment" "storage_blob_contributor" {
 }
 
 resource "azurerm_role_assignment" "storage_queue_contributor" {
-  scope                            = var.storage_account_id
-  role_definition_name             = "Storage Queue Data Contributor"
-  principal_id                     = azurerm_user_assigned_identity.main.principal_id
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# Web PubSub RBAC assignment
-resource "azurerm_role_assignment" "web_pubsub_service_owner" {
-  scope                            = var.web_pubsub_id
-  role_definition_name             = "Web PubSub Service Owner"
-  principal_id                     = azurerm_user_assigned_identity.main.principal_id
+  scope                = var.storage_account_id
+  role_definition_name = "Storage Queue Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
 
   lifecycle {
     create_before_destroy = true
@@ -46,9 +35,9 @@ resource "azurerm_role_assignment" "web_pubsub_service_owner" {
 
 # Application Insights RBAC assignment
 resource "azurerm_role_assignment" "monitoring_contributor" {
-  scope                            = var.app_insights_id
-  role_definition_name             = "Monitoring Contributor"
-  principal_id                     = azurerm_user_assigned_identity.main.principal_id
+  scope                = var.app_insights_id
+  role_definition_name = "Monitoring Contributor"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
 
   lifecycle {
     create_before_destroy = true
