@@ -165,12 +165,6 @@ variable "database_password" {
   sensitive   = true
 }
 
-variable "web_pubsub_connection" {
-  type        = string
-  description = "Web PubSub connection string"
-  sensitive   = true
-}
-
 # Authentication Configuration
 variable "auth_client_id" {
   type        = string

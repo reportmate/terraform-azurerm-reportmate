@@ -4,7 +4,7 @@
 ![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.12-purple)
 ![Azure](https://img.shields.io/badge/Azure-Cloud-blue)
 
-A comprehensive Terraform module for deploying ReportMate infrastructure on Azure. This module provisions a complete osquery fleet management platform with web interface, API, real-time messaging, and monitoring.
+A comprehensive Terraform module for deploying ReportMate infrastructure on Azure. This module provisions a complete osquery fleet management platform with web interface, API, and monitoring.
 
 ## Directory Structure
 
@@ -34,7 +34,6 @@ infrastructure/azure/
 │   ├── identity/           # Managed Identity module
 │   ├── key_vault/          # Key Vault module
 │   ├── maintenance/        # Database maintenance jobs
-│   ├── messaging/          # Web PubSub module
 │   ├── monitoring/         # Application Insights module
 │   ├── networking/         # Front Door module
 │   └── storage/            # Azure Storage module
@@ -173,7 +172,6 @@ ReportMate provides a complete osquery fleet management platform with:
 - **Web Application**: Next.js frontend with real-time dashboard and modular architecture
 - **REST API**: FastAPI container with external SQL queries and comprehensive endpoints
 - **Database**: PostgreSQL for storing osquery results and configurations
-- **Real-time Messaging**: Azure Web PubSub for live fleet updates
 - **Container Platform**: Azure Container Apps for scalable hosting
 - **Monitoring**: Application Insights for observability and analytics
 - **Security**: Machine group authentication and managed identities

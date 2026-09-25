@@ -127,11 +127,6 @@ resource "azurerm_container_app" "frontend_prod_main" {
         secret_name = "db-url"
       }
 
-      env {
-        name  = "NEXT_PUBLIC_ENABLE_SIGNALR"
-        value = "true"
-      }
-
       # Internal API URL for server-side calls (container-to-container within same environment)
       # Uses internal DNS: http://<container-app-name> - traffic stays within Container Apps environment
       env {
@@ -477,7 +472,7 @@ resource "azurerm_container_app" "api_functions" {
       percentage      = 100
     }
 
-    # CORS configuration for browser-side API calls (SignalR negotiate, etc.)
+    # CORS configuration for browser-side API calls
     # Required for frontend to make direct browser requests to API
     # Note: Frontend URL constructed from environment default domain to avoid circular dependency
     cors {
@@ -521,11 +516,6 @@ resource "azurerm_container_app" "api_functions" {
   # conditional on enable_key_vault -- but the exposure being closed here is
   # the resource dump, and that closes either way.
   secret {
-    name  = "events-connection"
-    value = var.web_pubsub_connection
-  }
-
-  secret {
     name  = "client-passphrase"
     value = var.client_passphrases
   }
@@ -552,12 +542,6 @@ resource "azurerm_container_app" "api_functions" {
       env {
         name  = "APPLICATIONINSIGHTS_CONNECTION_STRING"
         value = var.app_insights_connection_string
-      }
-
-      # Web PubSub connection for SignalR
-      env {
-        name        = "EVENTS_CONNECTION"
-        secret_name = "events-connection"
       }
 
       # Client passphrase for Windows client authentication
