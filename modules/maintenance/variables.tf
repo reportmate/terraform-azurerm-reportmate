@@ -24,15 +24,9 @@ variable "acr_login_server" {
   type        = string
 }
 
-variable "acr_admin_username" {
-  description = "ACR admin username"
+variable "managed_identity_id" {
+  description = "User-assigned managed identity with permission to pull registry images"
   type        = string
-}
-
-variable "acr_admin_password" {
-  description = "ACR admin password"
-  type        = string
-  sensitive   = true
 }
 
 variable "db_host" {

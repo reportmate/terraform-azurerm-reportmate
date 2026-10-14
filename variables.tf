@@ -567,3 +567,8 @@ variable "oidc_admin_principal_ids" {
   description = "Entra object IDs granted the ReportMate.Admin API role (full access)."
   default     = []
 }
+variable "auth_secret_rotation_version" {
+  description = "Change this version to replace the web application's Entra client credential"
+  type        = string
+  default     = "initial"
+}
