@@ -53,8 +53,8 @@ resource "azurerm_role_assignment" "managed_identity" {
   role_definition_name = "Key Vault Secrets User"
   principal_id         = var.managed_identity_principal_id
 
-  # Only create this if managed identity principal ID is provided
-  count = var.managed_identity_principal_id != "" && var.managed_identity_principal_id != null ? 1 : 0
+  # Keep resource count known when an identity is being replaced.
+  count = var.enable_managed_identity_access ? 1 : 0
 }
 
 # Grant access to DevOps Resource InfraSec group

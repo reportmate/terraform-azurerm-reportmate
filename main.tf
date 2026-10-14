@@ -204,7 +204,8 @@ module "key_vault" {
   environment    = var.environment
 
   # Grant access to managed identity
-  managed_identity_principal_id = module.identity.managed_identity_principal_id
+  managed_identity_principal_id  = module.identity.managed_identity_principal_id
+  enable_managed_identity_access = true
 
   # Grant access to DevOps Resource InfraSec group
   devops_resource_infrasec_group_object_id = var.devops_resource_infrasec_group_object_id

@@ -236,3 +236,9 @@ variable "kiosk_tokens" {
   default     = ""
   sensitive   = true
 }
+
+variable "enable_managed_identity_access" {
+  description = "Create a vault secrets reader grant for the supplied managed identity"
+  type        = bool
+  default     = false
+}
