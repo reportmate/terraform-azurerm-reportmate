@@ -170,6 +170,9 @@ resource "azuread_application_password" "reportmate_web" {
   application_id = azuread_application.reportmate_web.id
   display_name   = "ReportMate Web App Secret"
   end_date       = var.client_secret_expiry
+  rotate_when_changed = {
+    version = var.secret_rotation_version
+  }
 }
 
 # Optional: Grant admin consent for required permissions

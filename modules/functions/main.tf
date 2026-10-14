@@ -90,8 +90,8 @@ resource "azurerm_function_app_flex_consumption" "main" {
 
       # ReportMate API Configuration
       "REPORTMATE_API_URL"    = var.api_base_url
-      "REPORTMATE_PASSPHRASE" = var.client_passphrases
-      "REPORTMATE_API_KEY"    = var.client_passphrases
+      "REPORTMATE_PASSPHRASE" = trimspace(split(",", var.client_passphrases)[0])
+      "REPORTMATE_API_KEY"    = trimspace(split(",", var.client_passphrases)[0])
 
       # Default Teams webhook (optional - set if you want alerts)
       "TEAMS_WEBHOOK_URL" = var.teams_webhook_url

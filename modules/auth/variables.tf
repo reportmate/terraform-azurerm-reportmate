@@ -222,3 +222,9 @@ variable "oidc_admin_principal_ids" {
   type        = list(string)
   default     = []
 }
+
+variable "secret_rotation_version" {
+  description = "Change this version to replace the application's client credential"
+  type        = string
+  default     = "initial"
+}

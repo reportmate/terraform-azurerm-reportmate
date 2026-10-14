@@ -61,20 +61,19 @@ resource "azurerm_container_app_job" "maintenance" {
     value = var.db_password
   }
 
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [var.managed_identity_id]
+  }
+
   registry {
-    server               = var.acr_login_server
-    username             = var.acr_admin_username
-    # Azure generates this secret when the registry is attached, naming it after
-    # the login server with dots stripped, then the username. It cannot be
-    # declared here: `secret` is in ignore_changes below, so a secret block
-    # added by this module is never created and the reference would dangle.
-    password_secret_name = "${replace(var.acr_login_server, ".", "")}-${var.acr_admin_username}"
+    server   = var.acr_login_server
+    identity = var.managed_identity_id
   }
 
   lifecycle {
     ignore_changes = [
-      container_app_environment_id,  # Ignore resource group casing differences  
-      secret,                        # Ignore secret value changes
+      container_app_environment_id, # Ignore resource group casing differences  
       tags                          # Job created without tags
     ]
   }

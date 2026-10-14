@@ -102,13 +102,13 @@ module "maintenance" {
   location                     = data.azurerm_resource_group.rg.location
   container_app_environment_id = module.containers.container_app_environment_id
 
-  # ACR credentials
-  acr_login_server   = module.containers.acr_login_server
-  acr_admin_username = module.containers.acr_admin_username
-  acr_admin_password = module.containers.acr_admin_password
+  acr_login_server    = module.containers.acr_login_server
+  managed_identity_id = module.identity.managed_identity_id
 
   # Database connection
   db_host     = module.database.postgres_fqdn
+  db_user     = var.db_username
+  db_name     = var.db_name
   db_password = var.db_password
 
   # Configuration
@@ -178,9 +178,10 @@ module "auth" {
   require_email_verification = var.require_email_verification
 
   # Secret Management (if Key Vault is enabled)
-  enable_key_vault     = var.enable_key_vault
-  key_vault_id         = var.enable_key_vault ? module.key_vault[0].key_vault_id : null
-  client_secret_expiry = var.auth_client_secret_expiry
+  enable_key_vault        = var.enable_key_vault
+  key_vault_id            = var.enable_key_vault ? module.key_vault[0].key_vault_id : null
+  client_secret_expiry    = var.auth_client_secret_expiry
+  secret_rotation_version = var.auth_secret_rotation_version
 
   # Environment and Tagging
   environment  = var.environment

@@ -6,10 +6,10 @@ import pg8000
 # Connection parameters
 conn_params = {
     'host': os.environ['DB_HOST'],
-    'port': 5432,
-    'database': 'reportmate',
-    'user': 'reportmate_admin',
-    'password': 'ReportMateDB2024!',
+    'port': int(os.environ.get('DB_PORT', '5432')),
+    'database': os.environ['DB_NAME'],
+    'user': os.environ['DB_USER'],
+    'password': os.environ['DB_PASS'],
     'ssl_context': True
 }
 
