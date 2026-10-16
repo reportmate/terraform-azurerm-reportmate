@@ -17,7 +17,7 @@ Successfully created Terraform infrastructure module for Azure Functions and int
 **Files**:
 - ✅ `main.tf` - Core infrastructure resources
   - Storage Account for Functions App internal storage
-  - App Service Plan (Consumption Y1 SKU)
+  - App Service Plan (Flex Consumption FC1 SKU)
   - Linux Function App with Python 3.11 runtime
   - Managed identity for secure Azure access
   - Environment variables pre-configured
@@ -71,7 +71,7 @@ module "functions" {
 
 Added Functions-specific variables:
 - `function_app_name` - Functions App name (default: "reportmate-functions")
-- `function_app_sku` - SKU for scaling (default: "Y1" Consumption)
+- `function_app_sku` - SKU for scaling (default: "FC1" Flex Consumption)
 - `teams_webhook_url` - Microsoft Teams webhook URL (optional, sensitive)
 - `api_base_url_override` - Override API URL if not using container URL
 
@@ -80,7 +80,7 @@ Added Functions-specific variables:
 Added default values:
 ```hcl
 function_app_name = "reportmate-functions"
-function_app_sku  = "Y1"
+function_app_sku  = "FC1"
 # teams_webhook_url set via environment variable
 ```
 
@@ -130,7 +130,7 @@ When deployed, Terraform creates:
 
 ### App Service Plan
 - **Name**: `{function_app_name}-plan`
-- **SKU**: Y1 (Consumption - pay per execution)
+- **SKU**: FC1 (Flex Consumption - pay per execution)
 - **OS**: Linux
 - **Scaling**: Automatic based on demand
 
@@ -342,7 +342,7 @@ ReportMate Infrastructure (Terraform)
 ├── Monitoring Module (Application Insights, Log Analytics)
 ├── Functions Module ← NEW
 │   ├── Storage Account (function code)
-│   ├── App Service Plan (Consumption Y1)
+│   ├── App Service Plan (Flex Consumption FC1)
 │   └── Function App (Python 3.11)
 │       └── reportmate_storage_alerts (daily at 7AM PST)
 ├── Maintenance Module (Cleanup Job)
