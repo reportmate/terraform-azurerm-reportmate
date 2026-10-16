@@ -88,6 +88,24 @@ variable "api_max_replicas" {
   default     = 5
 }
 
+variable "api_cpu" {
+  type        = number
+  description = "vCPU per API replica; pairs with api_memory per the Container Apps consumption table. See the containers module for how to size it."
+  default     = 2.0
+}
+
+variable "api_memory" {
+  type        = string
+  description = "Memory per API replica, e.g. \"4Gi\"; pairs with api_cpu."
+  default     = "4Gi"
+}
+
+variable "api_log_level" {
+  type        = string
+  description = "LOG_LEVEL for the API process. Console output is billed Log Analytics ingestion; the API is quiet at INFO by construction, so noisy emitters get fixed rather than this raised."
+  default     = "INFO"
+}
+
 variable "db_storage_mb" {
   type        = number
   description = "PostgreSQL storage floor in MB. Only sets the size at create time -- auto-grow owns it afterwards and the resource ignores changes to it. The default matches the live server (256 GB); a lower value would read as an attempt to shrink, which the service rejects."
