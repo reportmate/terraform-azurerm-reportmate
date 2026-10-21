@@ -89,6 +89,9 @@ module "functions" {
   # Vaults owned by another stack that this app's identity must read from.
   external_secret_vault_ids = var.function_app_external_secret_vault_ids
 
+  # Blob data access for the deployment's administrators group.
+  storage_data_owners_group_object_id = var.devops_resource_infrasec_group_object_id
+
   tags = var.tags
 
   depends_on = [module.monitoring, module.containers]
