@@ -12,6 +12,25 @@ resource "azurerm_storage_account" "functions" {
   tags = var.tags
 }
 
+# Blob data access for the deployment's administrators group. Management-plane
+# ownership of the account does not imply data-plane access, so both roles are
+# granted explicitly.
+resource "azurerm_role_assignment" "storage_blob_data_contributor" {
+  count                = var.storage_data_owners_group_object_id != null ? 1 : 0
+  scope                = azurerm_storage_account.functions.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_type       = "Group"
+  principal_id         = var.storage_data_owners_group_object_id
+}
+
+resource "azurerm_role_assignment" "storage_blob_data_owner" {
+  count                = var.storage_data_owners_group_object_id != null ? 1 : 0
+  scope                = azurerm_storage_account.functions.id
+  role_definition_name = "Storage Blob Data Owner"
+  principal_type       = "Group"
+  principal_id         = var.storage_data_owners_group_object_id
+}
+
 # Table Storage for render farm alert aggregation
 # render_alerts_receive upserts per-machine rows here; render_alerts_digest
 # reads them at 04:15 UTC to build the daily Teams message.

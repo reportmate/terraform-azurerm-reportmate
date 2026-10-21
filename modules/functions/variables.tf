@@ -98,3 +98,14 @@ variable "external_secret_vault_ids" {
   type        = list(string)
   default     = []
 }
+
+variable "storage_data_owners_group_object_id" {
+  description = <<-EOT
+    Object ID of an Entra group granted Storage Blob Data Contributor and Storage
+    Blob Data Owner on the Function App's storage account, so the people who
+    administer the deployment can read and repair its blob data without a
+    portal-side grant. Null grants nothing.
+  EOT
+  type        = string
+  default     = null
+}
