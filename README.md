@@ -62,46 +62,21 @@ az account set --subscription "<your-subscription-id>"
 az account show  # Verify your account
 ```
 
-### Bootstrap Deployment (Recommended)
+### Deploy with the sample pipeline
 
-For a fresh deployment, use the canonical bootstrap script:
+The [`pipelines/`](./pipelines/README.md) directory holds sample Azure DevOps pipelines derived from a production deployment: one mirrors the published images into your registry, applies Terraform and rolls both container apps; the other runs a read-only plan as a pull request check. Adapt the variables in each before use.
 
-```powershell
-# Complete bootstrap (infrastructure + database + containers)
-.\scripts\bootstrap.ps1
+### Operational scripts
 
-# With auto-approval for CI/CD pipelines
-.\scripts\bootstrap.ps1 -AutoApprove -Validate
-```
-
-The bootstrap script handles:
-- Terraform backend configuration validation
-- Infrastructure provisioning
-- Database schema initialization
-- Container deployments
-
-### Individual Component Deployment
-
-**Deploy FastAPI Container (API code changes):**
-```powershell
-Run the "ReportMate - Deploy (build + apply)" pipeline
-```
-
-**Deploy Frontend Container (web app changes):**
-```powershell
-.\scripts\deploy-containers.ps1 -Environment prod -ForceBuild
-```
-
-**Deploy Database Maintenance Jobs:**
+Deploy the database maintenance jobs:
 ```powershell
 .\scripts\deploy-maintenance.ps1
 ```
 
-**Check System Status:**
+Check system health and component status:
 ```powershell
-.\scripts\check.ps1              # Basic health check
-.\scripts\check.ps1 -FixIssues   # Attempt to fix issues
-.\scripts\status.ps1             # Detailed component status
+.\scripts\check.ps1
+.\scripts\status.ps1
 ```
 
 ### Manual Terraform Deployment
@@ -145,25 +120,19 @@ curl "https://reportmate-functions-api.<your-subdomain>.azurecontainerapps.io/ap
 psql "postgresql://reportmate:PASSWORD@<postgres-server>.postgres.database.azure.com:5432/reportmate?sslmode=require" -f schemas/database.sql
 ```
 
-## Deployment Scripts
+## Scripts and Pipelines
 
-ReportMate includes comprehensive deployment scripts in `./scripts/`:
+The scripts in [`scripts/`](./scripts/README.md) and the pipelines in [`pipelines/`](./pipelines/README.md) are samples to adapt to your environment, not turnkey tooling.
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `bootstrap.ps1` | Complete initial deployment | `.\scripts\bootstrap.ps1` |
-| _(retired)_ | Deploying the API is the deploy pipeline's job: it mirrors the image from GHCR into ACR and rolls the container app |
-| `deploy-containers.ps1` | Deploy frontend container | `.\scripts\deploy-containers.ps1 -Environment prod -ForceBuild` |
-| `deploy-maintenance.ps1` | Deploy maintenance jobs | `.\scripts\deploy-maintenance.ps1` |
-| `check.ps1` | Health checks and diagnostics | `.\scripts\check.ps1` |
-| `status.ps1` | Detailed component status | `.\scripts\status.ps1` |
-
-**Key Features:**
-- Cross-platform PowerShell scripts (Windows, macOS, Linux)
-- Auto-detects environment and provides intelligent deployment options
-- Comprehensive error handling and validation
-- Supports `-ForceBuild` for clean rebuilds without Docker cache
-- Automated health checks and verification
+| File | Purpose |
+|------|---------|
+| `pipelines/deploy.azure-pipelines.yaml` | Mirror images, Terraform apply, roll container apps, purge Front Door |
+| `pipelines/plan.azure-pipelines.yaml` | Read-only Terraform plan for pull request validation |
+| `scripts/deploy-maintenance.ps1` | Deploy database maintenance jobs |
+| `scripts/check.ps1` | Health checks and diagnostics |
+| `scripts/status.ps1` | Detailed component status |
+| `scripts/setup-local-env.ps1` | Restore local env files from Key Vault |
+| `scripts/migrate-secrets.ps1` | Rename Key Vault secrets and update container app references |
 
 ## Architecture
 
@@ -259,12 +228,12 @@ ReportMate uses Azure Container Apps for both API and frontend:
 ### API Container
 - **Image**: `ghcr.io/reportmate/reportmate-api` (built by the [reportmate-api](https://github.com/reportmate/reportmate-api) repo CI), mirrored into Azure Container Registry at deploy
 - **Registry**: Azure Container Registry (<registry>.azurecr.io)
-- **Deployment**: `Run the "ReportMate - Deploy (build + apply)" pipeline`
+- **Deployment**: [deploy pipeline sample](./pipelines/deploy.azure-pipelines.yaml)
 
 ### Frontend Container
 - **Image**: `ghcr.io/reportmate/reportmate-app-web:latest` (default)
 - **Registry**: GitHub Container Registry or custom ACR
-- **Deployment**: `.\scripts\deploy-containers.ps1 -Environment prod -ForceBuild`
+- **Deployment**: [deploy pipeline sample](./pipelines/deploy.azure-pipelines.yaml)
 
 ### Custom Container Registry (Optional)
 For enterprise environments requiring custom modifications:

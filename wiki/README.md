@@ -7,7 +7,7 @@ This module deploys ReportMate's hosted service on Azure. It provisions the Post
 - [Project setup and module usage](../README.md)
 - [Input variables](../variables.tf) and [example values](../terraform.tfvars.example)
 - [Backend configuration example](../backend.tf.example)
-- [Deploy pipeline](../pipelines/README.md)
+- [Sample deploy and plan pipelines](../pipelines/README.md)
 - [Database schemas and migrations](../schemas/README.md)
 
 ## Architecture
@@ -24,7 +24,7 @@ Each module owns one part of the service:
 - `storage`, `monitoring` and `functions` supply the storage account, Application Insights and the Function App for scheduled tasks. See the [functions module notes](../modules/functions/README.md).
 - `maintenance` runs the database cleanup as a scheduled Container Apps job. See the [maintenance module notes](../modules/maintenance/README.md).
 
-The API image is built by the `reportmate-api` repository and the dashboard image by `reportmate-app-web`. The deploy pipeline mirrors the API image from GitHub Container Registry into the deployment's registry, applies Terraform and rolls both container apps.
+The API image is built by the `reportmate-api` repository and the dashboard image by `reportmate-app-web`. The [sample deploy pipeline](../pipelines/deploy.azure-pipelines.yaml) mirrors both images from GitHub Container Registry into the deployment's registry, applies Terraform and rolls both container apps; adapt its variables to your environment.
 
 Database structure is versioned as numbered SQL files in [schemas](../schemas), with a complete schema for fresh installs and incremental migrations for existing databases.
 

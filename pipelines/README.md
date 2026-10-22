@@ -1,120 +1,40 @@
-# ReportMate Infrastructure Pipelines
+# ReportMate Pipelines (samples)
 
-This directory contains CI/CD pipeline templates for deploying ReportMate infrastructure and containers.
+These are sample Azure DevOps pipelines derived from a working production deployment of this module. They are starting points: copy them into your own repository and replace every `<placeholder>` and default name with your values before running them.
 
-## Pipeline Options
+| File                                                           | Purpose                                                                                                                                        |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`deploy.azure-pipelines.yaml`](./deploy.azure-pipelines.yaml) | Mirrors the published images into your ACR, applies Terraform, rolls both container apps, purges Front Door and checks health. Manual trigger. |
+| [`plan.azure-pipelines.yaml`](./plan.azure-pipelines.yaml)     | Init, validate and a read-only `terraform plan`. Use it as a pull request check. Never applies.                                                |
 
-| File | Platform | Description |
-|------|----------|-------------|
-| `infra-deployment-github.yaml` | GitHub Actions | Full CI/CD for GitHub repositories |
-| `infra-deployment-devops.yaml` | Azure DevOps | Full CI/CD for Azure DevOps repositories |
+## What the deploy pipeline does
 
-## What These Pipelines Do
+1. **Mirror images** - `az acr import` copies `ghcr.io/reportmate/reportmate-app-web` and `ghcr.io/reportmate/reportmate-api` into your registry with a timestamped tag. No Docker daemon is needed on the agent.
+2. **Terraform plan and apply** - runs against your remote state with `-var="frontend_image_tag=..."` and `-var="api_image_tag=..."`.
+3. **Roll container apps** - the containers module ignores image changes on purpose, so the pipeline pushes the new tags with `az containerapp update`.
+4. **Health checks** - polls the API `/api/v1/health` endpoint, purges Front Door and polls the custom domain.
 
-The deploy pipeline is the only supported path to production. It builds the frontend image, mirrors the prebuilt API image from GHCR into ACR, applies Terraform, and rolls both container apps. The `deploy-api.ps1` and `deploy-app.ps1` scripts it replaced have been removed.
+## Setup
 
-### Pipeline Stages
+1. Create an Azure Resource Manager service connection that uses workload identity federation. The identity needs Contributor on the ReportMate resource group, AcrPush on the registry, and Storage Blob Data Contributor on the Terraform state container.
+2. Create a variable group named `reportmate-secrets` with secret variables `DbPassword`, `ClientPassphrase`, `NextAuthSecret`, `ApiInternalSecret` and `KioskTokens`. Terraform writes them into Key Vault on apply.
+3. Create the non-secret var file the pipelines read (`reportmate.prod.tfvars` by default), starting from [`terraform.tfvars.example`](../terraform.tfvars.example). This repository ignores `*.tfvars`, so in your own private repository either un-ignore that one file or keep it in a secure file.
+4. Edit the `variables` block in each YAML: service connection name, resource group, registry, container app names, API URL, Front Door names, custom domain and Terraform backend.
+5. Create one pipeline per YAML in Azure DevOps. To gate pull requests, add a build-validation branch policy on `main` that runs the plan pipeline; Azure Repos ignores YAML `pr` triggers.
 
-1. **Terraform Plan** - Validates infrastructure changes, comments on PRs
-2. **Build Containers** - Builds frontend and API Docker images with proper tags
-3. **Terraform Apply** - Applies infrastructure changes
-4. **Deploy Containers** - Updates container apps with new images
-5. **Purge CDN** - Clears Azure Front Door cache
-6. **Health Check** - Validates deployment success
+## Terraform backend
 
-### Triggers
+Both pipelines pass a partial backend configuration at `terraform init`:
 
-- **Push to main**: Full deployment
-- **Pull Request**: Plan only (no apply)
-- **Manual dispatch**: Choose what to deploy
-
-## Setup Instructions
-
-### GitHub Actions
-
-1. Copy `infra-deployment-github.yaml` to `.github/workflows/`
-2. Create repository secrets:
-   - `AZURE_CREDENTIALS` - Service principal JSON with contributor access
-
-```json
-{
-  "clientId": "<app-id>",
-  "clientSecret": "<password>",
-  "subscriptionId": "<subscription-id>",
-  "tenantId": "<tenant-id>"
-}
-```
-
-3. Create environment named `production` with required reviewers (optional)
-
-### Azure DevOps
-
-1. Create a new pipeline pointing to `infrastructure/pipelines/infra-deployment-devops.yaml`
-2. Create service connection named `ReportMate-ServiceConnection`
-3. Create environment named `Production` with approval gates (optional)
-
-## Key Features
-
-### Build Tags
-Both pipelines generate consistent tags:
-- **Frontend**: `YYYYMMDDHHMMSS-<git-hash>`
-- **API**: `device-id-fix-YYYYMMDDHHMMSS-<git-hash>`
-
-### Environment Variables Updated
-Frontend container receives build metadata:
-- `CONTAINER_IMAGE_TAG`
-- `BUILD_TIME`
-- `BUILD_ID`
-- `NEXT_PUBLIC_VERSION`
-- `NEXT_PUBLIC_BUILD_ID`
-- `NEXT_PUBLIC_BUILD_TIME`
-
-### Terraform Backend
-Both pipelines use a shared backend configuration:
-- Resource Group: `<your-terraform-backend-rg>`
-- Storage Account: `<your-terraform-backend-storage>`
+- Resource group: `<your-terraform-state-rg>`
+- Storage account: `<your-terraform-state-storage>`
 - Container: `terraform-state`
 - Key: `reportmate.tfstate`
 
-> **Note:** Replace the placeholders above with your actual Terraform backend configuration values.
-
-## Manual Deployment Options
-
-### Force Rebuild (no cache)
-Use when you need a clean build:
-- GitHub: Set `force_build: true` in workflow dispatch
-- DevOps: Check "Force Rebuild (no cache)" parameter
-
-### Selective Deployment
-Deploy only frontend or API:
-- GitHub: Set `deploy_frontend` or `deploy_api` to false
-- DevOps: Uncheck the respective checkbox
-
-## Migrating from Scripts
-
-The pipelines replace these development scripts:
-
-| Script | Pipeline Stage |
-|--------|---------------|
-| _(retired)_ | Frontend build and rollout are steps in the deploy pipeline |
-| _(retired)_ | API mirror and rollout are steps in the deploy pipeline |
-| _(retired)_ | Front Door purge is a step in the deploy pipeline |
-
-The scripts remain available for local development and debugging.
+Keep these values identical in both pipelines and in your local `backend.tf`.
 
 ## Troubleshooting
 
-### Container Build Fails
-- Check Dockerfile paths are correct
-- Verify ACR login succeeds
-- Check build args are properly passed
-
-### Terraform Apply Fails
-- Review plan output for unexpected changes
-- Check state file isn't locked
-- Verify service principal has required permissions
-
-### Health Check Fails
-- Containers may need more warmup time
-- Check container logs in Azure portal
-- Verify DNS propagation for custom domain
+- **Image import fails** - check the source tag exists in GHCR and the identity has AcrPush on the registry.
+- **Terraform init fails with an authorization error** - the identity needs a data-plane role on the state container, not only Contributor on the storage account.
+- **Health check fails** - container apps can need more warmup time; check the revision logs in the Azure portal and DNS for the custom domain.

@@ -1,0 +1,82 @@
+# ReportMate - Terraform plan validation (SAMPLE, plan only, never applies)
+#
+# Runs init against the remote backend, validate, and a read-only plan against
+# live state using the same var file the deploy pipeline applies. Use it as a
+# pull request check.
+#
+# In Azure Repos, YAML `pr` triggers are ignored: gate pull requests with a
+# build-validation branch policy on main that points at this pipeline. In
+# GitHub-hosted repos you can set a `pr` trigger instead.
+#
+# This is a sample derived from a working production pipeline. Adapt every
+# value under `variables` to match the deploy pipeline before use.
+
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: reportmate-secrets
+  - name: azureSubscription
+    value: '<your-service-connection-name>'
+  - name: terraformVersion
+    value: '1.12.2'
+  - name: terraformDir
+    value: '.'
+  # Plan and apply must read the same file, or the plan validates something
+  # the deploy never runs.
+  - name: varFile
+    value: 'reportmate.prod.tfvars'
+  - name: terraformBackendRG
+    value: '<your-terraform-state-rg>'
+  - name: terraformBackendSA
+    value: '<your-terraform-state-storage>'
+  - name: terraformBackendContainer
+    value: 'terraform-state'
+  - name: terraformBackendKey
+    value: 'reportmate.tfstate'
+
+steps:
+  - checkout: self
+    fetchDepth: 0
+
+  - task: TerraformInstaller@1
+    displayName: 'Install Terraform $(terraformVersion)'
+    inputs:
+      terraformVersion: $(terraformVersion)
+
+  # The azurerm provider and backend reject "az CLI logged in as a service
+  # principal", so authenticate them with OIDC directly. ARM_USE_AZUREAD makes
+  # the state backend use the same identity (it needs Storage Blob Data access
+  # on the state container).
+  - task: AzureCLI@2
+    displayName: 'Terraform Init + Validate + Plan (read-only, no lock)'
+    inputs:
+      azureSubscription: $(azureSubscription)
+      addSpnToEnvironment: true
+      scriptType: bash
+      scriptLocation: inlineScript
+      workingDirectory: $(terraformDir)
+      inlineScript: |
+        set -euo pipefail
+        export ARM_USE_OIDC=true ARM_USE_AZUREAD=true
+        export ARM_CLIENT_ID="$servicePrincipalId"
+        export ARM_TENANT_ID="$tenantId"
+        export ARM_OIDC_TOKEN="$idToken"
+        export ARM_SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
+        terraform init -input=false \
+          -backend-config="resource_group_name=$(terraformBackendRG)" \
+          -backend-config="storage_account_name=$(terraformBackendSA)" \
+          -backend-config="container_name=$(terraformBackendContainer)" \
+          -backend-config="key=$(terraformBackendKey)"
+        terraform validate
+        terraform plan -input=false -lock=false -var-file="$(varFile)" -out=tfplan
+        terraform show -no-color tfplan | grep -E "^Plan:|No changes|# .* will be|# .* must be" | head -60 || true
+    env:
+      TF_VAR_db_password: $(DbPassword)
+      TF_VAR_client_passphrases: $(ClientPassphrase)
+      TF_VAR_nextauth_secret: $(NextAuthSecret)
+      TF_VAR_api_internal_secret: $(ApiInternalSecret)
+      TF_VAR_kiosk_tokens: $(KioskTokens)
