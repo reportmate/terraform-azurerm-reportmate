@@ -1,31 +1,35 @@
 # ReportMate - deploy (SAMPLE)
 #
-# Mirrors the published ReportMate images into your Azure Container Registry,
-# applies this Terraform module, rolls both container apps to the new tags,
+# Stage 1 (Plan) checks the run is on main, validates the requested image tags
+# and shows the Terraform plan. Stage 2 (Deploy) is a deployment job against a
+# protected environment: after approval it mirrors the published images into
+# your Azure Container Registry, applies Terraform, rolls both container apps,
 # purges Front Door and checks health. Manual trigger only.
 #
 # This is a sample derived from a working production pipeline. Adapt every
 # value under `variables` before use. Authentication is secretless: an Azure
-# Resource Manager service connection using workload identity federation
-# (a managed identity or app registration with federated credentials).
+# Resource Manager service connection using workload identity federation.
 #
 # Terraform does not roll either image: the containers module sets
 # ignore_changes on the container image, so the pipeline owns the running tag
-# and pushes it with `az containerapp update`. The -var overrides still matter
-# so a from-scratch apply creates the apps with the right tag.
+# and pushes it with `az containerapp update`. The image tag variables still
+# matter so a from-scratch apply creates the apps with the right tag.
+#
+# Image tags are required at queue time and must be explicit release tags.
+# They reach scripts only through environment variables and are validated
+# before use. Each run imports them under a new, unique ACR tag
+# (<source-tag>-<build-id>); nothing is overwritten and no :latest is written.
 
 trigger: none
 pr: none
 
 parameters:
   - name: frontendSourceTag
-    displayName: 'Frontend image tag to mirror from GHCR'
+    displayName: 'Frontend release tag in GHCR (explicit version, not latest)'
     type: string
-    default: 'latest'
   - name: apiSourceTag
-    displayName: 'API image tag to mirror from GHCR'
+    displayName: 'API release tag in GHCR (explicit version, not latest)'
     type: string
-    default: 'latest'
 
 pool:
   vmImage: ubuntu-latest
@@ -33,11 +37,14 @@ pool:
 # Secrets come from a variable group (here `reportmate-secrets`) holding
 # DbPassword, ClientPassphrase, NextAuthSecret, ApiInternalSecret and
 # KioskTokens. Terraform writes them into Key Vault; nothing secret lives in
-# this YAML or in the var file.
+# this YAML or in the var file. Restrict the group's pipeline permissions to
+# this pipeline only.
 variables:
   - group: reportmate-secrets
   - name: azureSubscription
-    value: '<your-service-connection-name>'
+    value: '<your-deploy-service-connection-name>'
+  - name: deployEnvironment
+    value: 'reportmate-production'
   - name: terraformVersion
     value: '1.12.2'
   - name: terraformDir
@@ -77,145 +84,202 @@ variables:
   - name: terraformBackendKey
     value: 'reportmate.tfstate'
 
-steps:
-  - checkout: self
-    fetchDepth: 0
+stages:
+  - stage: Plan
+    jobs:
+      - job: Plan
+        steps:
+          - checkout: self
+            fetchDepth: 1
 
-  - task: AzureCLI@2
-    displayName: 'Mirror images (GHCR -> ACR)'
-    inputs:
-      azureSubscription: $(azureSubscription)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -euo pipefail
-        # `az acr import` copies server-side, so the agent needs no Docker
-        # daemon. The GHCR packages are public, so no source credential is needed.
-        TS="$(date +%Y%m%d%H%M%S)"
-        FRONTEND_TAG="${TS}-${{ parameters.frontendSourceTag }}"
-        API_TAG="${TS}-${{ parameters.apiSourceTag }}"
-        echo "##vso[task.setvariable variable=frontendTag]$FRONTEND_TAG"
-        echo "##vso[task.setvariable variable=apiTag]$API_TAG"
-        az acr import --name $(registry) \
-          --source "$(frontendGhcrImage):${{ parameters.frontendSourceTag }}" \
-          --image "$(frontendRepo):${FRONTEND_TAG}" \
-          --image "$(frontendRepo):latest" --force
-        az acr import --name $(registry) \
-          --source "$(apiGhcrImage):${{ parameters.apiSourceTag }}" \
-          --image "$(apiRepo):${API_TAG}" \
-          --image "$(apiRepo):latest" --force
+          - bash: |
+              set -euo pipefail
+              if [ "$SOURCE_BRANCH" != "refs/heads/main" ]; then
+                echo "##vso[task.logissue type=error]Deploy runs only from refs/heads/main (got $SOURCE_BRANCH)"
+                exit 1
+              fi
+              for TAG in "$FRONTEND_SOURCE_TAG" "$API_SOURCE_TAG"; do
+                if ! [[ "$TAG" =~ ^[A-Za-z0-9._-]{1,128}$ ]]; then
+                  echo "##vso[task.logissue type=error]Invalid image tag: must match ^[A-Za-z0-9._-]{1,128}\$"
+                  exit 1
+                fi
+                if [ "$TAG" = "latest" ]; then
+                  echo "##vso[task.logissue type=error]Use an explicit release tag, not latest"
+                  exit 1
+                fi
+              done
+            displayName: 'Check branch and validate image tags'
+            env:
+              SOURCE_BRANCH: $(Build.SourceBranch)
+              FRONTEND_SOURCE_TAG: ${{ parameters.frontendSourceTag }}
+              API_SOURCE_TAG: ${{ parameters.apiSourceTag }}
 
-  - task: TerraformInstaller@1
-    displayName: 'Install Terraform $(terraformVersion)'
-    inputs:
-      terraformVersion: $(terraformVersion)
+          - task: TerraformInstaller@1
+            displayName: 'Install Terraform $(terraformVersion)'
+            inputs:
+              terraformVersion: $(terraformVersion)
 
-  - task: AzureCLI@2
-    displayName: 'Terraform Init + Plan'
-    inputs:
-      azureSubscription: $(azureSubscription)
-      addSpnToEnvironment: true
-      scriptType: bash
-      scriptLocation: inlineScript
-      workingDirectory: $(terraformDir)
-      inlineScript: |
-        set -euo pipefail
-        # The azurerm provider and backend authenticate with OIDC directly;
-        # addSpnToEnvironment exposes servicePrincipalId / tenantId / idToken.
-        export ARM_USE_OIDC=true ARM_USE_AZUREAD=true
-        export ARM_CLIENT_ID="$servicePrincipalId"
-        export ARM_TENANT_ID="$tenantId"
-        export ARM_OIDC_TOKEN="$idToken"
-        export ARM_SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
-        terraform init -input=false \
-          -backend-config="resource_group_name=$(terraformBackendRG)" \
-          -backend-config="storage_account_name=$(terraformBackendSA)" \
-          -backend-config="container_name=$(terraformBackendContainer)" \
-          -backend-config="key=$(terraformBackendKey)"
-        terraform plan -input=false \
-          -var-file="$(varFile)" \
-          -var="frontend_image_tag=$(frontendTag)" \
-          -var="api_image_tag=$(apiTag)" \
-          -out=tfplan
-        terraform show -no-color tfplan | grep -E "^Plan:|No changes" || true
-    # Secret variables are not exported to scripts automatically; map them.
-    env:
-      TF_VAR_db_password: $(DbPassword)
-      TF_VAR_client_passphrases: $(ClientPassphrase)
-      TF_VAR_nextauth_secret: $(NextAuthSecret)
-      TF_VAR_api_internal_secret: $(ApiInternalSecret)
-      TF_VAR_kiosk_tokens: $(KioskTokens)
+          - task: AzureCLI@2
+            displayName: 'Terraform Init + Plan (review before approving)'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              addSpnToEnvironment: true
+              scriptType: bash
+              scriptLocation: inlineScript
+              workingDirectory: $(terraformDir)
+              inlineScript: |
+                set -euo pipefail
+                export ARM_USE_OIDC=true ARM_USE_AZUREAD=true
+                export ARM_CLIENT_ID="$servicePrincipalId"
+                export ARM_TENANT_ID="$tenantId"
+                export ARM_OIDC_TOKEN="$idToken"
+                export ARM_SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
+                export TF_VAR_frontend_image_tag="${FRONTEND_SOURCE_TAG}-${BUILD_BUILDID}"
+                export TF_VAR_api_image_tag="${API_SOURCE_TAG}-${BUILD_BUILDID}"
+                terraform init -input=false \
+                  -backend-config="resource_group_name=$(terraformBackendRG)" \
+                  -backend-config="storage_account_name=$(terraformBackendSA)" \
+                  -backend-config="container_name=$(terraformBackendContainer)" \
+                  -backend-config="key=$(terraformBackendKey)"
+                terraform plan -input=false -lock=false -var-file="$(varFile)"
+            env:
+              FRONTEND_SOURCE_TAG: ${{ parameters.frontendSourceTag }}
+              API_SOURCE_TAG: ${{ parameters.apiSourceTag }}
+              TF_VAR_db_password: $(DbPassword)
+              TF_VAR_client_passphrases: $(ClientPassphrase)
+              TF_VAR_nextauth_secret: $(NextAuthSecret)
+              TF_VAR_api_internal_secret: $(ApiInternalSecret)
+              TF_VAR_kiosk_tokens: $(KioskTokens)
 
-  - task: AzureCLI@2
-    displayName: 'Terraform Apply'
-    inputs:
-      azureSubscription: $(azureSubscription)
-      addSpnToEnvironment: true
-      scriptType: bash
-      scriptLocation: inlineScript
-      workingDirectory: $(terraformDir)
-      inlineScript: |
-        set -euo pipefail
-        export ARM_USE_OIDC=true ARM_USE_AZUREAD=true
-        export ARM_CLIENT_ID="$servicePrincipalId"
-        export ARM_TENANT_ID="$tenantId"
-        export ARM_OIDC_TOKEN="$idToken"
-        export ARM_SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
-        terraform apply -input=false -auto-approve tfplan
+  - stage: Deploy
+    dependsOn: Plan
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      # Configure approvals and checks on this environment in Azure DevOps;
+      # the job waits for them before any step runs.
+      - deployment: Deploy
+        environment: ${{ variables.deployEnvironment }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 1
 
-  - task: AzureCLI@2
-    displayName: 'Roll container apps to the new images'
-    inputs:
-      azureSubscription: $(azureSubscription)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -euo pipefail
-        az containerapp update \
-          --name $(frontendContainerApp) \
-          --resource-group $(resourceGroup) \
-          --image $(registry).azurecr.io/$(frontendRepo):$(frontendTag)
-        az containerapp update \
-          --name $(apiContainerApp) \
-          --resource-group $(resourceGroup) \
-          --image $(registry).azurecr.io/$(apiRepo):$(apiTag)
+                - task: AzureCLI@2
+                  displayName: 'Mirror images (GHCR -> ACR, unique tags)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      for TAG in "$FRONTEND_SOURCE_TAG" "$API_SOURCE_TAG"; do
+                        [[ "$TAG" =~ ^[A-Za-z0-9._-]{1,128}$ ]] && [ "$TAG" != "latest" ] || { echo "Invalid image tag"; exit 1; }
+                      done
+                      # `az acr import` copies server-side; no Docker daemon is
+                      # needed. No --force: an existing target tag is an error.
+                      az acr import --name "$(registry)" \
+                        --source "$(frontendGhcrImage):${FRONTEND_SOURCE_TAG}" \
+                        --image "$(frontendRepo):${FRONTEND_SOURCE_TAG}-${BUILD_BUILDID}"
+                      az acr import --name "$(registry)" \
+                        --source "$(apiGhcrImage):${API_SOURCE_TAG}" \
+                        --image "$(apiRepo):${API_SOURCE_TAG}-${BUILD_BUILDID}"
+                  env:
+                    FRONTEND_SOURCE_TAG: ${{ parameters.frontendSourceTag }}
+                    API_SOURCE_TAG: ${{ parameters.apiSourceTag }}
 
-  - task: AzureCLI@2
-    displayName: 'API health check'
-    inputs:
-      azureSubscription: $(azureSubscription)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -euo pipefail
-        URL="$(apiBaseUrl)/api/v1/health"
-        for i in 1 2 3 4 5 6; do
-          STATUS="$(curl -s -o /dev/null -w '%{http_code}' "$URL" || echo 000)"
-          echo "attempt $i: HTTP $STATUS"
-          [ "$STATUS" = "200" ] && exit 0
-          sleep 10
-        done
-        echo "API did not return 200 at $URL"
-        exit 1
+                - task: TerraformInstaller@1
+                  displayName: 'Install Terraform $(terraformVersion)'
+                  inputs:
+                    terraformVersion: $(terraformVersion)
 
-  - task: AzureCLI@2
-    displayName: 'Purge Front Door + frontend health check'
-    inputs:
-      azureSubscription: $(azureSubscription)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -euo pipefail
-        az afd endpoint purge \
-          --resource-group $(resourceGroup) \
-          --profile-name $(frontDoorProfile) \
-          --endpoint-name $(frontDoorEndpoint) \
-          --content-paths "/*" \
-          --domains $(customDomain) \
-          --no-wait || echo "Front Door purge returned non-zero (continuing)"
-        for i in 1 2 3 4 5 6; do
-          STATUS="$(curl -s -o /dev/null -w '%{http_code}' "https://$(customDomain)" || echo 000)"
-          echo "attempt $i: HTTP $STATUS"
-          [ "$STATUS" = "200" ] && break
-          sleep 10
-        done
+                - task: AzureCLI@2
+                  displayName: 'Terraform Init + Plan + Apply'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    addSpnToEnvironment: true
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    workingDirectory: $(terraformDir)
+                    inlineScript: |
+                      set -euo pipefail
+                      export ARM_USE_OIDC=true ARM_USE_AZUREAD=true
+                      export ARM_CLIENT_ID="$servicePrincipalId"
+                      export ARM_TENANT_ID="$tenantId"
+                      export ARM_OIDC_TOKEN="$idToken"
+                      export ARM_SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
+                      export TF_VAR_frontend_image_tag="${FRONTEND_SOURCE_TAG}-${BUILD_BUILDID}"
+                      export TF_VAR_api_image_tag="${API_SOURCE_TAG}-${BUILD_BUILDID}"
+                      terraform init -input=false \
+                        -backend-config="resource_group_name=$(terraformBackendRG)" \
+                        -backend-config="storage_account_name=$(terraformBackendSA)" \
+                        -backend-config="container_name=$(terraformBackendContainer)" \
+                        -backend-config="key=$(terraformBackendKey)"
+                      terraform plan -input=false -var-file="$(varFile)" -out=tfplan
+                      terraform apply -input=false -auto-approve tfplan
+                      rm -f tfplan
+                  # Secret variables are not exported to scripts automatically; map them.
+                  env:
+                    FRONTEND_SOURCE_TAG: ${{ parameters.frontendSourceTag }}
+                    API_SOURCE_TAG: ${{ parameters.apiSourceTag }}
+                    TF_VAR_db_password: $(DbPassword)
+                    TF_VAR_client_passphrases: $(ClientPassphrase)
+                    TF_VAR_nextauth_secret: $(NextAuthSecret)
+                    TF_VAR_api_internal_secret: $(ApiInternalSecret)
+                    TF_VAR_kiosk_tokens: $(KioskTokens)
+
+                - task: AzureCLI@2
+                  displayName: 'Roll container apps to the new images'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      az containerapp update \
+                        --name "$(frontendContainerApp)" \
+                        --resource-group "$(resourceGroup)" \
+                        --image "$(registry).azurecr.io/$(frontendRepo):${FRONTEND_SOURCE_TAG}-${BUILD_BUILDID}"
+                      az containerapp update \
+                        --name "$(apiContainerApp)" \
+                        --resource-group "$(resourceGroup)" \
+                        --image "$(registry).azurecr.io/$(apiRepo):${API_SOURCE_TAG}-${BUILD_BUILDID}"
+                  env:
+                    FRONTEND_SOURCE_TAG: ${{ parameters.frontendSourceTag }}
+                    API_SOURCE_TAG: ${{ parameters.apiSourceTag }}
+
+                - bash: |
+                    set -euo pipefail
+                    URL="$(apiBaseUrl)/api/v1/health"
+                    for i in 1 2 3 4 5 6; do
+                      STATUS="$(curl -s -o /dev/null -w '%{http_code}' "$URL" || echo 000)"
+                      echo "attempt $i: HTTP $STATUS"
+                      [ "$STATUS" = "200" ] && exit 0
+                      sleep 10
+                    done
+                    echo "API did not return 200 at $URL"
+                    exit 1
+                  displayName: 'API health check'
+
+                - task: AzureCLI@2
+                  displayName: 'Purge Front Door + frontend health check'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      az afd endpoint purge \
+                        --resource-group "$(resourceGroup)" \
+                        --profile-name "$(frontDoorProfile)" \
+                        --endpoint-name "$(frontDoorEndpoint)" \
+                        --content-paths "/*" \
+                        --domains "$(customDomain)" \
+                        --no-wait || echo "Front Door purge returned non-zero (continuing)"
+                      for i in 1 2 3 4 5 6; do
+                        STATUS="$(curl -s -o /dev/null -w '%{http_code}' "https://$(customDomain)" || echo 000)"
+                        echo "attempt $i: HTTP $STATUS"
+                        [ "$STATUS" = "200" ] && break
+                        sleep 10
+                      done
