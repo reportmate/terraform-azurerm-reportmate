@@ -1,27 +1,27 @@
 # ReportMate Infrastructure Scripts
 
-Essential deployment and management scripts for ReportMate.
+Sample operational scripts for a ReportMate deployment. Adapt parameters and names to your environment before use. Deploying images is the job of the [sample deploy pipeline](../pipelines/README.md).
 
 ## Scripts Overview
 
 - **check.ps1** - Comprehensive system health check and validation
-- **deploy-containers.ps1** - Deploy frontend Next.js container
+- **deploy-maintenance.ps1** / **deploy-maintenance.sh** - Deploy the database maintenance jobs
+- **setup-local-env.ps1** - Restore local environment files from Key Vault
+- **migrate-secrets.ps1** - Rename Key Vault secrets and update container app references
 - **status.ps1** - Quick status check of all infrastructure components
 
 ## Usage
 
+Run a complete system health check:
+
 ```powershell
-# Complete system health check
 .\check.ps1
+```
 
-# Quick status of all components  
+Show a quick status of all components:
+
+```powershell
 .\status.ps1
-
-# Deploy API backend
-# Deploying is the pipeline's job - see pipelines/README.md
-
-# Deploy frontend application
-.\deploy-containers.ps1
 ```
 
 ## Architecture
