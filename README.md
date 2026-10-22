@@ -126,8 +126,8 @@ The scripts in [`scripts/`](./scripts/README.md) and the pipelines in [`pipeline
 
 | File | Purpose |
 |------|---------|
-| `pipelines/deploy.azure-pipelines.yaml` | Mirror images, Terraform apply, roll container apps, purge Front Door |
-| `pipelines/plan.azure-pipelines.yaml` | Read-only Terraform plan for pull request validation |
+| `pipelines/deploy.azure-pipelines.yaml` | Plan on main, then after environment approval mirror pinned images, apply, roll container apps |
+| `pipelines/plan.azure-pipelines.yaml` | Read-only plan for pull requests, with read-only credentials and no secrets |
 | `scripts/deploy-maintenance.ps1` | Deploy database maintenance jobs |
 | `scripts/check.ps1` | Health checks and diagnostics |
 | `scripts/status.ps1` | Detailed component status |

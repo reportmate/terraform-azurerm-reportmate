@@ -4,12 +4,21 @@
 # live state using the same var file the deploy pipeline applies. Use it as a
 # pull request check.
 #
+# Pull request code is untrusted, so this pipeline:
+#   - uses a separate READ-ONLY service connection (Reader on the ReportMate
+#     resource group, Storage Blob Data Reader on the state container), never
+#     the deploy connection;
+#   - links no secrets variable group and passes placeholder values for every
+#     secret input, so secret-backed resources may show as changing in the plan;
+#   - plans with -lock=false and never writes state.
+# Never enable "make secrets available to builds of forks" for this pipeline.
+#
 # In Azure Repos, YAML `pr` triggers are ignored: gate pull requests with a
 # build-validation branch policy on main that points at this pipeline. In
 # GitHub-hosted repos you can set a `pr` trigger instead.
 #
 # This is a sample derived from a working production pipeline. Adapt every
-# value under `variables` to match the deploy pipeline before use.
+# value under `variables` before use.
 
 trigger: none
 pr: none
@@ -18,15 +27,14 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
-  - group: reportmate-secrets
-  - name: azureSubscription
-    value: '<your-service-connection-name>'
+  - name: serviceConnectionReadOnly
+    value: '<your-read-only-service-connection-name>'
   - name: terraformVersion
     value: '1.12.2'
   - name: terraformDir
     value: '.'
-  # Plan and apply must read the same file, or the plan validates something
-  # the deploy never runs.
+  # Plan and apply must read the same non-secret file, or the plan validates
+  # something the deploy never runs.
   - name: varFile
     value: 'reportmate.prod.tfvars'
   - name: terraformBackendRG
@@ -40,7 +48,7 @@ variables:
 
 steps:
   - checkout: self
-    fetchDepth: 0
+    fetchDepth: 1
 
   - task: TerraformInstaller@1
     displayName: 'Install Terraform $(terraformVersion)'
@@ -48,13 +56,11 @@ steps:
       terraformVersion: $(terraformVersion)
 
   # The azurerm provider and backend reject "az CLI logged in as a service
-  # principal", so authenticate them with OIDC directly. ARM_USE_AZUREAD makes
-  # the state backend use the same identity (it needs Storage Blob Data access
-  # on the state container).
+  # principal", so authenticate them with OIDC directly.
   - task: AzureCLI@2
     displayName: 'Terraform Init + Validate + Plan (read-only, no lock)'
     inputs:
-      azureSubscription: $(azureSubscription)
+      azureSubscription: $(serviceConnectionReadOnly)
       addSpnToEnvironment: true
       scriptType: bash
       scriptLocation: inlineScript
@@ -72,11 +78,10 @@ steps:
           -backend-config="container_name=$(terraformBackendContainer)" \
           -backend-config="key=$(terraformBackendKey)"
         terraform validate
-        terraform plan -input=false -lock=false -var-file="$(varFile)" -out=tfplan
-        terraform show -no-color tfplan | grep -E "^Plan:|No changes|# .* will be|# .* must be" | head -60 || true
+        terraform plan -input=false -lock=false -var-file="$(varFile)"
     env:
-      TF_VAR_db_password: $(DbPassword)
-      TF_VAR_client_passphrases: $(ClientPassphrase)
-      TF_VAR_nextauth_secret: $(NextAuthSecret)
-      TF_VAR_api_internal_secret: $(ApiInternalSecret)
-      TF_VAR_kiosk_tokens: $(KioskTokens)
+      TF_VAR_db_password: 'placeholder-not-a-secret'
+      TF_VAR_client_passphrases: 'placeholder-not-a-secret'
+      TF_VAR_nextauth_secret: 'placeholder-not-a-secret'
+      TF_VAR_api_internal_secret: 'placeholder-not-a-secret'
+      TF_VAR_kiosk_tokens: ''
