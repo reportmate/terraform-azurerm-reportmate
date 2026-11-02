@@ -248,8 +248,31 @@ variable "api_base_url_override" {
 # Identity Configuration
 variable "managed_identity_name" {
   type        = string
-  description = "Name of the user-assigned managed identity"
+  description = "Name of the user-assigned managed identity the module creates"
   default     = "reportmate-identity"
+}
+
+variable "existing_managed_identity_id" {
+  type        = string
+  description = <<-EOT
+    Resource ID of an existing user-assigned managed identity for the container
+    apps and the maintenance job to run as, instead of one this module creates.
+    The module still grants it the storage, monitoring, registry and Key Vault
+    roles the services need, and the identity running Terraform needs
+    Managed Identity Operator on it to attach it.
+  EOT
+  default     = null
+}
+
+variable "create_managed_identity" {
+  type        = bool
+  description = <<-EOT
+    Whether to create the module's own managed identity. Defaults to creating it
+    only when existing_managed_identity_id is unset. Set it to true alongside
+    existing_managed_identity_id to keep a previously created identity while the
+    services move to the existing one, then drop it to remove that identity.
+  EOT
+  default     = null
 }
 
 variable "enable_pipeline_permissions" {
