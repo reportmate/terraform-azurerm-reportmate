@@ -127,6 +127,8 @@ module "identity" {
   location            = data.azurerm_resource_group.rg.location
 
   managed_identity_name         = var.managed_identity_name
+  existing_managed_identity_id  = var.existing_managed_identity_id
+  create_managed_identity       = coalesce(var.create_managed_identity, var.existing_managed_identity_id == null)
   enable_pipeline_permissions   = var.enable_pipeline_permissions
   pipeline_service_principal_id = var.pipeline_service_principal_id
 

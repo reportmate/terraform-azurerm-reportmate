@@ -12,7 +12,24 @@ variable "location" {
 
 variable "managed_identity_name" {
   type        = string
-  description = "Name of the user-assigned managed identity"
+  description = "Name of the user-assigned managed identity to create"
+}
+
+variable "existing_managed_identity_id" {
+  type        = string
+  description = "Resource ID of an existing user-assigned managed identity for the services to run as instead of the one this module creates"
+  default     = null
+
+  validation {
+    condition     = var.existing_managed_identity_id == null || can(regex("^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft.ManagedIdentity/userAssignedIdentities/[^/]+$", var.existing_managed_identity_id))
+    error_message = "existing_managed_identity_id must be a user-assigned managed identity resource ID."
+  }
+}
+
+variable "create_managed_identity" {
+  type        = bool
+  description = "Whether to create the module's own managed identity"
+  default     = true
 }
 
 variable "enable_pipeline_permissions" {
