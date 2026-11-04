@@ -89,6 +89,12 @@ module "functions" {
   # Vaults owned by another stack that this app's identity must read from.
   external_secret_vault_ids = var.function_app_external_secret_vault_ids
 
+  user_assigned_identity = var.function_app_use_managed_identity ? {
+    id           = module.identity.managed_identity_id
+    client_id    = module.identity.managed_identity_client_id
+    principal_id = module.identity.managed_identity_principal_id
+  } : null
+
   # Blob data access for the deployment's administrators group.
   storage_data_owners_group_object_id = var.devops_resource_infrasec_group_object_id
 

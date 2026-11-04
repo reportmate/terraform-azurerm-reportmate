@@ -207,6 +207,17 @@ variable "teams_webhooks" {
   sensitive   = true
 }
 
+variable "function_app_use_managed_identity" {
+  type        = bool
+  default     = false
+  description = <<-EOT
+    Run the Function App as the deployment's user-assigned managed identity (the
+    one the container apps use) instead of a system-assigned identity of its own.
+    The identity then needs whatever the functions read, including any Key Vault
+    secret referenced from function_app_additional_settings.
+  EOT
+}
+
 variable "function_app_external_secret_vault_ids" {
   type        = list(string)
   default     = []

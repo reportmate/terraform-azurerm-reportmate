@@ -1,6 +1,12 @@
 # Azure Functions App for ReportMate
 # Storage alerts and other scheduled functions
 
+data "azurerm_client_config" "current" {}
+
+locals {
+  uses_user_assigned_identity = var.user_assigned_identity != null
+}
+
 # Storage account for Functions App (required for Azure Functions)
 resource "azurerm_storage_account" "functions" {
   name                     = "${replace(var.function_app_name, "-", "")}storage"
@@ -125,15 +131,42 @@ resource "azurerm_function_app_flex_consumption" "main" {
     },
     # Additional indexed Teams webhooks: TEAMS_WEBHOOK_1, TEAMS_WEBHOOK_2, ...
     { for idx, url in var.teams_webhooks : "TEAMS_WEBHOOK_${idx + 1}" => url },
+    # With no system-assigned identity, DefaultAzureCredential has no default to
+    # fall back to, so name the user-assigned one.
+    local.uses_user_assigned_identity ? { "AZURE_CLIENT_ID" = var.user_assigned_identity.client_id } : {},
     var.additional_app_settings
   )
 
-  # Managed Identity
+  # Managed Identity: system-assigned unless a user-assigned identity is supplied.
   identity {
-    type = "SystemAssigned"
+    type         = local.uses_user_assigned_identity ? "UserAssigned" : "SystemAssigned"
+    identity_ids = local.uses_user_assigned_identity ? [var.user_assigned_identity.id] : null
   }
 
   tags = var.tags
+}
+
+locals {
+  identity_principal_id = (
+    local.uses_user_assigned_identity
+    ? var.user_assigned_identity.principal_id
+    : azurerm_function_app_flex_consumption.main.identity[0].principal_id
+  )
+}
+
+# Key Vault references resolve through the system-assigned identity unless the
+# site says otherwise. The Flex Consumption resource has no argument for it, so
+# set the site property directly.
+resource "azapi_update_resource" "key_vault_reference_identity" {
+  count = local.uses_user_assigned_identity ? 1 : 0
+
+  type        = "Microsoft.Web/sites@2024-04-01"
+  resource_id = azurerm_function_app_flex_consumption.main.id
+  body = {
+    properties = {
+      keyVaultReferenceIdentity = var.user_assigned_identity.id
+    }
+  }
 }
 
 # Grant Functions App access to Key Vault (if provided)
@@ -141,8 +174,8 @@ resource "azurerm_key_vault_access_policy" "functions" {
   count = var.key_vault_id != null ? 1 : 0
 
   key_vault_id = var.key_vault_id
-  tenant_id    = azurerm_function_app_flex_consumption.main.identity[0].tenant_id
-  object_id    = azurerm_function_app_flex_consumption.main.identity[0].principal_id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = local.identity_principal_id
 
   secret_permissions = [
     "Get",
@@ -156,6 +189,6 @@ resource "azurerm_role_assignment" "functions_external_secrets" {
 
   scope                = each.value
   role_definition_name = "Key Vault Secrets User"
-  principal_id         = azurerm_function_app_flex_consumption.main.identity[0].principal_id
+  principal_id         = local.identity_principal_id
   principal_type       = "ServicePrincipal"
 }

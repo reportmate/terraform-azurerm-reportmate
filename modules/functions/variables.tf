@@ -109,3 +109,18 @@ variable "storage_data_owners_group_object_id" {
   type        = string
   default     = null
 }
+
+variable "user_assigned_identity" {
+  description = <<-EOT
+    A user-assigned managed identity for the Function App to run as, in place of a
+    system-assigned one. When set, the app gets this identity only, AZURE_CLIENT_ID
+    names it for DefaultAzureCredential, Key Vault references resolve through it,
+    and the Key Vault grants below go to it. Null keeps a system-assigned identity.
+  EOT
+  type = object({
+    id           = string
+    client_id    = string
+    principal_id = string
+  })
+  default = null
+}
