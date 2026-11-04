@@ -15,7 +15,7 @@ output "function_app_default_hostname" {
 
 output "function_app_identity_principal_id" {
   description = "Principal ID of the Functions App managed identity"
-  value       = azurerm_function_app_flex_consumption.main.identity[0].principal_id
+  value       = local.identity_principal_id
 }
 
 output "function_app_identity_tenant_id" {

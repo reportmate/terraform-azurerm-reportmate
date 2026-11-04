@@ -20,6 +20,10 @@ terraform {
       source  = "hashicorp/null"
       version = "~> 3.1"
     }
+    azapi = {
+      source  = "Azure/azapi"
+      version = "~> 2.0"
+    }
   }
 }
 
@@ -32,4 +36,10 @@ provider "azurerm" {
 }
 
 provider "azuread" {
+}
+
+# Used only to set Function App properties the azurerm Flex Consumption
+# resource does not expose. Authenticates the same way azurerm does.
+provider "azapi" {
+  subscription_id = var.subscription_id
 }
