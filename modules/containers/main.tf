@@ -448,6 +448,10 @@ resource "azurerm_role_assignment" "container_acr_push" {
 # =================================================================
 
 # API Functions Container App for ReportMate FastAPI Backend
+locals {
+  api_proxy = var.api_proxy_upstream != ""
+}
+
 resource "azurerm_container_app" "api_functions" {
   name                         = var.api_container_name
   resource_group_name          = var.resource_group_name
@@ -529,8 +533,13 @@ resource "azurerm_container_app" "api_functions" {
     container {
       name   = "api"
       image  = var.use_custom_registry ? "${azurerm_container_registry.acr[0].login_server}/${var.api_image_name}:${var.api_image_tag}" : "${var.existing_registry_server}/${var.api_image_name}:${var.api_image_tag}"
-      cpu    = 2.0
-      memory = "4Gi"
+      cpu    = local.api_proxy ? 0.25 : 2.0
+      memory = local.api_proxy ? "0.5Gi" : "4Gi"
+
+      # Proxy mode: the image is Caddy, set by the deploy pipeline, and the
+      # container forwards everything to the upstream with its Host header.
+      command = local.api_proxy ? ["caddy"] : null
+      args    = local.api_proxy ? ["reverse-proxy", "--from", ":8000", "--to", var.api_proxy_upstream, "--change-host-header"] : null
 
       # Database connection from secure secret
       env {

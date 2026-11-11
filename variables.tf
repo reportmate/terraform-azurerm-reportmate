@@ -606,3 +606,33 @@ variable "auth_secret_rotation_version" {
   type        = string
   default     = "initial"
 }
+
+# Moving the deployment to another host while keeping its public names.
+#
+# frontdoor_origin_fqdn points the Front Door origin somewhere other than the web
+# container app, so the custom domain serves a dashboard hosted elsewhere.
+#
+# api_proxy_upstream turns the API container app into a reverse proxy to that URL.
+# Clients configured with the container app's own hostname keep working while they are
+# repointed. The deploy pipeline sets the proxy image (Caddy), since it owns the image tag.
+variable "frontdoor_origin_fqdn" {
+  type        = string
+  description = "Front Door origin host name. Empty uses the web container app."
+  default     = ""
+
+  validation {
+    condition     = var.frontdoor_origin_fqdn == "" || can(regex("^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$", var.frontdoor_origin_fqdn))
+    error_message = "frontdoor_origin_fqdn must be a bare host name, with no scheme, port or path."
+  }
+}
+
+variable "api_proxy_upstream" {
+  type        = string
+  description = "When set (https://host), the API container app only proxies to this URL."
+  default     = ""
+
+  validation {
+    condition     = var.api_proxy_upstream == "" || startswith(var.api_proxy_upstream, "https://")
+    error_message = "api_proxy_upstream must be an https:// URL."
+  }
+}
