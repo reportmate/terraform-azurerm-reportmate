@@ -619,6 +619,11 @@ variable "frontdoor_origin_fqdn" {
   type        = string
   description = "Front Door origin host name. Empty uses the web container app."
   default     = ""
+
+  validation {
+    condition     = var.frontdoor_origin_fqdn == "" || can(regex("^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$", var.frontdoor_origin_fqdn))
+    error_message = "frontdoor_origin_fqdn must be a bare host name, with no scheme, port or path."
+  }
 }
 
 variable "api_proxy_upstream" {

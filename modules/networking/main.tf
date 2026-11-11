@@ -46,7 +46,8 @@ resource "azurerm_cdn_frontdoor_origin" "main" {
   cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.main.id
   enabled                       = true
 
-  certificate_name_check_enabled = false  # Disable for container apps
+  # Off for the container app origin; on for an external origin (origin_certificate_check).
+  certificate_name_check_enabled = var.origin_certificate_check
   host_name                      = var.frontend_fqdn
   http_port                      = 80
   https_port                     = 443

@@ -58,3 +58,9 @@ variable "endpoint_name" {
   description = "Name of the Front Door endpoint."
   default     = "reportmate-endpoint"
 }
+
+variable "origin_certificate_check" {
+  type        = bool
+  description = "Verify the origin certificate matches its host name."
+  default     = false
+}

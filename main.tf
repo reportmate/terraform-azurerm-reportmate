@@ -339,6 +339,8 @@ module "networking" {
   frontend_fqdn    = var.frontdoor_origin_fqdn != "" ? var.frontdoor_origin_fqdn : module.containers.frontend_fqdn
   api_app_hostname = module.containers.api_fqdn
 
+  origin_certificate_check = var.frontdoor_origin_fqdn != ""
+
   tags = var.tags
 }
 
