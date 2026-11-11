@@ -313,3 +313,9 @@ variable "db_connection_reserve" {
   description = "Connections held back from the API pools for superuser, autovacuum, migrations, and ad-hoc admin access."
   default     = 15
 }
+
+variable "api_proxy_upstream" {
+  type        = string
+  description = "When set, the API container runs as a reverse proxy to this URL."
+  default     = ""
+}

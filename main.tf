@@ -290,6 +290,7 @@ module "containers" {
   api_db_pool_min    = var.api_db_pool_min
   api_min_replicas   = var.api_min_replicas
   api_max_replicas   = var.api_max_replicas
+  api_proxy_upstream = var.api_proxy_upstream
   db_max_connections = var.db_max_connections
 
   # Client authentication
@@ -335,7 +336,7 @@ module "networking" {
   environment        = var.environment
 
   # Dependencies
-  frontend_fqdn    = module.containers.frontend_fqdn
+  frontend_fqdn    = var.frontdoor_origin_fqdn != "" ? var.frontdoor_origin_fqdn : module.containers.frontend_fqdn
   api_app_hostname = module.containers.api_fqdn
 
   tags = var.tags
