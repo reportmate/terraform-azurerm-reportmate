@@ -13,7 +13,7 @@
 # for the same audience.
 #
 # Everything here is gated by var.enable_oidc_api (default false), so the module
-# is a no-op until ECU turns OIDC on -- matching the API code, which ignores
+# is a no-op until you turn OIDC on -- matching the API code, which ignores
 # bearer tokens until ENABLE_OIDC_AUTH is set. Enabling it is what actually
 # creates the Entra objects.
 
@@ -148,7 +148,7 @@ resource "azuread_application_pre_authorized" "azure_cli" {
 
 # Role assignments: map Entra principals (users, groups, or service principals)
 # to API scopes. Each var is a list of object ids, empty by default, so nothing
-# is granted until ECU configures it.
+# is granted until you configure it.
 resource "azuread_app_role_assignment" "api_readers" {
   count               = var.enable_oidc_api ? length(var.oidc_reader_principal_ids) : 0
   app_role_id         = local.oidc_role_read_id
