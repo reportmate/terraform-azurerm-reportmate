@@ -28,9 +28,9 @@ resource "azurerm_postgresql_flexible_server" "pg" {
 
   tags = var.tags
 
+  # No prevent_destroy: it cannot be switched off per deployment, and it would block
+  # enable_database = false, the one deliberate way to retire this server.
   lifecycle {
-    prevent_destroy = true
-
     # Once auto-grow owns the storage size, Azure moves it without Terraform.
     # Without this the next plan reads the grown size as drift and tries to
     # shrink it back to db_storage_mb, which the service rejects outright --
@@ -101,11 +101,6 @@ resource "azurerm_postgresql_flexible_server_database" "db" {
   server_id = azurerm_postgresql_flexible_server.pg.id
   collation = "en_US.utf8"
   charset   = "utf8"
-
-  # Prevent accidental database destruction
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 # Database schema initialization via API endpoint (after functions deployment)

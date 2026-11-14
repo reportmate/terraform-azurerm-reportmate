@@ -19,15 +19,15 @@ output "function_app_identity_principal_id" {
 # Maintenance Job Outputs
 output "maintenance_job_name" {
   description = "Name of the database maintenance job"
-  value       = module.maintenance.job_name
+  value       = var.enable_database ? module.maintenance[0].job_name : null
 }
 
 output "maintenance_schedule" {
   description = "Cron schedule for maintenance job"
-  value       = module.maintenance.schedule
+  value       = var.enable_database ? module.maintenance[0].schedule : null
 }
 
 output "maintenance_job_id" {
   description = "ID of the Container App Job for maintenance"
-  value       = module.maintenance.job_id
+  value       = var.enable_database ? module.maintenance[0].job_id : null
 }

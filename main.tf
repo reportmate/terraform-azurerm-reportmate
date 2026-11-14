@@ -8,6 +8,7 @@ data "azurerm_resource_group" "rg" {
 
 # Database Module
 module "database" {
+  count  = var.enable_database ? 1 : 0
   source = "./modules/database"
 
   resource_group_name = data.azurerm_resource_group.rg.name
@@ -25,6 +26,33 @@ module "database" {
 
   allowed_ips = var.allowed_ips
   tags        = var.tags
+}
+
+# With the database retired the API container app has nothing to connect to, so it is
+# only allowed to stay as a proxy to wherever the deployment now runs.
+locals {
+  postgres_fqdn = var.enable_database ? module.database[0].postgres_fqdn : ""
+}
+
+resource "terraform_data" "retired_database_needs_proxy" {
+  count = var.enable_database ? 0 : 1
+
+  lifecycle {
+    precondition {
+      condition     = var.api_proxy_upstream != ""
+      error_message = "enable_database = false needs api_proxy_upstream, or the API container app has no database."
+    }
+  }
+}
+
+moved {
+  from = module.database
+  to   = module.database[0]
+}
+
+moved {
+  from = module.maintenance
+  to   = module.maintenance[0]
 }
 
 # Storage Module
@@ -105,6 +133,7 @@ module "functions" {
 
 # Maintenance Module - Automated Database Cleanup
 module "maintenance" {
+  count  = var.enable_database ? 1 : 0
   source = "./modules/maintenance"
 
   resource_group_name          = data.azurerm_resource_group.rg.name
@@ -115,7 +144,7 @@ module "maintenance" {
   managed_identity_id = module.identity.managed_identity_id
 
   # Database connection
-  db_host     = module.database.postgres_fqdn
+  db_host     = local.postgres_fqdn
   db_user     = var.db_username
   db_name     = var.db_name
   db_password = var.db_password
@@ -264,6 +293,7 @@ module "containers" {
   environment                = var.environment
   deploy_dev                 = var.deploy_dev
   deploy_prod                = var.deploy_prod
+  deploy_frontend            = var.deploy_frontend
 
   # Container naming
   frontend_container_name = var.frontend_container_name
@@ -275,12 +305,12 @@ module "containers" {
   managed_identity_id            = module.identity.managed_identity_id
   managed_identity_principal_id  = module.identity.managed_identity_principal_id
   managed_identity_client_id     = module.identity.managed_identity_client_id
-  database_url                   = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${module.database.postgres_fqdn}:5432/${var.db_name}?sslmode=require"
+  database_url                   = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${local.postgres_fqdn}:5432/${var.db_name}?sslmode=require"
   app_insights_connection_string = module.monitoring.app_insights_connection_string
   log_analytics_workspace_id     = module.monitoring.log_analytics_id
 
   # Database parameters (required by current module interface)
-  database_host     = module.database.postgres_fqdn
+  database_host     = local.postgres_fqdn
   database_name     = var.db_name
   database_username = var.db_username
   database_password = var.db_password

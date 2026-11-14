@@ -607,6 +607,26 @@ variable "auth_secret_rotation_version" {
   default     = "initial"
 }
 
+# Retiring the Azure hosting once the deployment runs elsewhere. Both stay true for a
+# deployment that runs here.
+#
+# enable_database = false removes the PostgreSQL server and the maintenance job that
+# cleans it. It needs api_proxy_upstream, so the API container app has somewhere to go.
+#
+# deploy_frontend = false removes the web container app; Front Door then has to point
+# at frontdoor_origin_fqdn.
+variable "enable_database" {
+  type        = bool
+  description = "Create the PostgreSQL server and its maintenance job."
+  default     = true
+}
+
+variable "deploy_frontend" {
+  type        = bool
+  description = "Create the web dashboard container app."
+  default     = true
+}
+
 # Moving the deployment to another host while keeping its public names.
 #
 # frontdoor_origin_fqdn points the Front Door origin somewhere other than the web
