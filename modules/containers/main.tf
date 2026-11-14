@@ -63,7 +63,7 @@ resource "azurerm_container_app_environment" "main" {
 
 # Production Frontend Container App for ReportMate Next.js Web Dashboard
 resource "azurerm_container_app" "frontend_prod_main" {
-  count                        = var.deploy_prod || var.environment == "prod" || var.environment == "both" ? 1 : 0
+  count                        = var.deploy_frontend && (var.deploy_prod || var.environment == "prod" || var.environment == "both") ? 1 : 0
   name                         = var.frontend_container_name
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = var.resource_group_name

@@ -39,6 +39,12 @@ variable "deploy_dev" {
   default     = false
 }
 
+variable "deploy_frontend" {
+  type        = bool
+  description = "Create the web dashboard container app"
+  default     = true
+}
+
 variable "deploy_prod" {
   type        = bool
   description = "Deploy production environment"
